@@ -52,9 +52,9 @@ export function ChatPanel({
       </div>
 
       <div ref={scrollRef} className="max-h-[62vh] space-y-3 overflow-y-auto px-3 py-3">
-        {messages.length <= 1 ? (
+        <div className="sticky top-0 z-10 -mx-3 border-b border-border bg-background/95 px-3 py-3 backdrop-blur">
           <QuickActions disabled={isLoading} onSelect={onQuickAction} />
-        ) : null}
+        </div>
 
         {messages.map((message) => (
           <ChatMessage key={message.id} message={message} onSuggestedQuestion={onQuickAction} />

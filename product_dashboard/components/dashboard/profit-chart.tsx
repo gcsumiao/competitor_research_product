@@ -1,8 +1,6 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MoreHorizontal } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts"
 
 export type ProfitChartDatum = {
@@ -42,9 +40,6 @@ export function ProfitChart({
             </span>
           </div>
         </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <MoreHorizontal className="w-4 h-4" />
-        </Button>
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-6 mb-4">

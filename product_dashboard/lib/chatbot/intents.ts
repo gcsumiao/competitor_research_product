@@ -342,6 +342,7 @@ const SUGGESTED_QUESTIONS: Record<ChatIntent, string[]> = {
     "How did we do this month?",
     "What are competitors doing?",
     "What should I be worried about?",
+    "Ask your own question",
   ],
 }
 

@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Bell, ChevronDown } from "lucide-react"
+import { useState } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -27,10 +28,15 @@ export function Header() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryString = searchParams.toString()
+  const [optimisticNav, setOptimisticNav] = useState<{ href: string; fromPath: string } | null>(null)
 
   const buildHref = (href: string) => (queryString ? `${href}?${queryString}` : href)
 
   const isActive = (href: string) => {
+    if (optimisticNav && optimisticNav.fromPath === pathname) {
+      if (optimisticNav.href === "/") return href === "/"
+      return optimisticNav.href.startsWith(href)
+    }
     if (href === "/") return pathname === "/"
     return pathname.startsWith(href)
   }
@@ -51,6 +57,7 @@ export function Header() {
           <Link
             key={item.href}
             href={buildHref(item.href)}
+            onClick={() => setOptimisticNav({ href: item.href, fromPath: pathname })}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               isActive(item.href)
                 ? "bg-[var(--color-accent)] text-foreground"

@@ -2,8 +2,6 @@
 
 import { useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { MoreHorizontal } from "lucide-react"
 import Image from "next/image"
 
 export type TopProduct = {
@@ -29,9 +27,6 @@ export function TopProducts({ products, title = "Top Products", subtitle = "Reve
           <CardTitle className="text-base font-medium">{title}</CardTitle>
           <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <MoreHorizontal className="w-4 h-4" />
-        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {products.map((product, index) => (

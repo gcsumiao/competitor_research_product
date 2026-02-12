@@ -1,23 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Calendar } from "lucide-react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import { BrandLauncher } from "@/components/consult-me/brand-launcher"
 import { ResearchConsole } from "@/components/consult-me/research-console"
 import { ResultsWorkspace } from "@/components/consult-me/results-workspace"
 import { PageHeader } from "@/components/dashboard/page-header"
-import { buttonVariants } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import type { BrandResearchAsset, BrandResearchAssetMap } from "@/lib/consult-me/types"
 import type { DashboardData } from "@/lib/competitor-data"
-import { cn } from "@/lib/utils"
 
 type RankedBrand = {
   brand: string
@@ -56,14 +46,9 @@ export function ConsultMeClient({
   data: DashboardData
   researchAssets: BrandResearchAssetMap
 }) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-
   const codeReaderCategory = data.categories.find((item) => item.id === "code_reader_scanner")
   const snapshots = codeReaderCategory?.snapshots ?? []
-  const snapshotParam = searchParams.get("snapshot")
-  const selectedSnapshot = snapshots.find((snapshot) => snapshot.date === snapshotParam) ?? snapshots[snapshots.length - 1]
+  const selectedSnapshot = snapshots[snapshots.length - 1]
 
   const topBrands = (selectedSnapshot?.rolling12?.revenue?.brands ?? []).slice(0, 25)
 
@@ -97,33 +82,7 @@ export function ConsultMeClient({
       <PageHeader
         title="Consult Me — Market Deep Research"
         description={`Code Reader deep research console | Snapshot ${selectedSnapshot.date}`}
-      >
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className={cn(
-              buttonVariants({ variant: "outline" }),
-              "flex items-center gap-2 bg-transparent text-sm"
-            )}
-          >
-            <Calendar className="w-4 h-4" />
-            {selectedSnapshot.date}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            {snapshots.map((snapshot) => (
-              <DropdownMenuItem
-                key={snapshot.date}
-                onClick={() => {
-                  const params = new URLSearchParams(searchParams)
-                  params.set("snapshot", snapshot.date)
-                  router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-                }}
-              >
-                {snapshot.date}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </PageHeader>
+      />
 
       <ConsultMeSession
         key={runStorageKey}
