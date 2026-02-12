@@ -1146,20 +1146,18 @@ function unknownOutput(
   return {
     answer,
     bullets: [
-      "Try: How did we do this month?",
-      "Try: What are competitors doing?",
+      "Try: Who is Innova 5610's biggest competitor?",
+      "Try: What are competitors doing this month?",
       "Try: What should I be worried about?",
-      "Try: Ask your own question",
     ],
     evidence: baseEvidence(mart.snapshot),
     confidence: 0.5,
     assumptions: ["No strong analyzer route matched this question."],
     citations: [citation("Fallback", "metrics-engine", mart.snapshot.date)],
     suggestedQuestions: [
-      "How did we do this month?",
-      "What are competitors doing?",
+      "Who is Innova 5610's biggest competitor?",
+      "What are competitors doing this month?",
       "What should I be worried about?",
-      "Ask your own question",
     ],
     warnings: [],
   }
