@@ -17,7 +17,6 @@ const navItems = [
   { label: "Dashboard", href: "/" },
   { label: "Brands", href: "/customers" },
   { label: "Top 50", href: "/sales" },
-  { label: "Reports", href: "/reports" },
   { label: "Types", href: "/specs" },
   { label: "Market Survey", href: "/orders" },
   { label: "Consult Me", href: "/consult-me" },
