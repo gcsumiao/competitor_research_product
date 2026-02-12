@@ -20,6 +20,10 @@ out/
 .env
 .env.*
 
+# Large upstream raw data (keep local; deploy should use product_dashboard/data/** instead)
+Amazon_Monthly_Competitor_Report copy/
+DMM_h10/
+
 # OS/editor
 .vscode/
 *.swp
