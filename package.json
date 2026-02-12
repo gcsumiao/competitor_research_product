@@ -1,0 +1,20 @@
+{
+  "name": "competitor_research_product",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -C product_dashboard dev",
+    "dev:product": "pnpm -C product_dashboard dev",
+    "dev:template": "pnpm -C dashboard_templatev0 dev",
+    "build": "pnpm -C product_dashboard build",
+    "build:product": "pnpm -C product_dashboard build",
+    "build:template": "pnpm -C dashboard_templatev0 build",
+    "start": "pnpm -C product_dashboard start",
+    "start:product": "pnpm -C product_dashboard start",
+    "start:template": "pnpm -C dashboard_templatev0 start",
+    "lint": "pnpm -C product_dashboard lint",
+    "lint:product": "pnpm -C product_dashboard lint",
+    "lint:template": "pnpm -C dashboard_templatev0 lint",
+    "archive:code-reader": "pnpm -C product_dashboard archive:code-reader",
+    "backfill:code-reader-history": "pnpm -C product_dashboard backfill:code-reader-history"
+  }
+}

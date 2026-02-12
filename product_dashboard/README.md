@@ -1,17 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Product market research dashboard (Next.js App Router).
+
+- Main dashboard pages live under `app/(dashboard)` (e.g. `/`, `/sales`, `/customers`, `/reports`, `/specs`, `/orders`).
+- Data is loaded from `../DMM_h10/**/raw_data/*.csv` and report `.xlsx` files at runtime.
+- Code Reader & Scanner snapshots are loaded from `data/code_reader_scanner/YYYYMM/`.
+- The older single-page mock dashboard is still available at `/legacy`.
+
+## Code Reader & Scanner Data
+
+- Historical official report+analysis files are archived under `data/code_reader_scanner/YYYYMM/`.
+- Monthly raw imports should be archived with:
+
+```bash
+pnpm archive:code-reader -- --month YYYYMM
+```
+
+- One-time backfill command (already run in this repo):
+
+```bash
+pnpm backfill:code-reader-history
+```
 
 ## Getting Started
 
 First, run the development server:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
 pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.

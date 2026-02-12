@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { Bell, ChevronDown } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -15,14 +15,19 @@ import {
 
 const navItems = [
   { label: "Dashboard", href: "/" },
-  { label: "Sales", href: "/sales" },
-  { label: "Customers", href: "/customers" },
+  { label: "Top 50", href: "/sales" },
+  { label: "Brands", href: "/customers" },
   { label: "Reports", href: "/reports" },
-  { label: "Orders", href: "/orders" },
+  { label: "Types", href: "/specs" },
+  { label: "Market Survey", href: "/orders" },
 ]
 
 export function Header() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const queryString = searchParams.toString()
+
+  const buildHref = (href: string) => (queryString ? `${href}?${queryString}` : href)
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/"
@@ -37,14 +42,14 @@ export function Header() {
           <div className="w-5 h-0.5 bg-foreground" />
           <div className="w-3 h-0.5 bg-foreground" />
         </div>
-        <span className="text-xl font-semibold">Rexora</span>
+        <span className="text-xl font-semibold">Product Market Research Dashboard</span>
       </Link>
 
       <nav className="hidden md:flex items-center bg-card rounded-full px-2 py-1.5 border border-border">
         {navItems.map((item) => (
           <Link
             key={item.href}
-            href={item.href}
+            href={buildHref(item.href)}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               isActive(item.href)
                 ? "bg-[var(--color-accent)] text-foreground"
@@ -68,7 +73,7 @@ export function Header() {
                 <AvatarFallback>OS</AvatarFallback>
               </Avatar>
               <div className="hidden sm:block text-left">
-                <p className="text-sm font-medium">Oripio Sajib</p>
+                <p className="text-sm font-medium">Ginny Chen</p>
                 <p className="text-xs text-muted-foreground">Admin</p>
               </div>
               <ChevronDown className="w-4 h-4 text-muted-foreground hidden sm:block" />

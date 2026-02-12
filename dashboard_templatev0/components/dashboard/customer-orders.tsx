@@ -5,24 +5,36 @@ import { Button } from "@/components/ui/button"
 import { MoreHorizontal } from "lucide-react"
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 
-const data = [
-  { month: "May", orders: 1800 },
-  { month: "Jun", orders: 1600 },
-  { month: "Jul", orders: 1400 },
-  { month: "Aug", orders: 2345 },
-  { month: "Sep", orders: 1900 },
-  { month: "Oct", orders: 1700 },
-  { month: "Nov", orders: 2100 },
-  { month: "Dec", orders: 2000 },
-]
+export type CustomerOrdersDatum = {
+  label: string
+  value: number
+}
 
-export function CustomerOrders() {
+interface CustomerOrdersProps {
+  title: string
+  subtitle: string
+  totalLabel: string
+  totalValue: string
+  changeLabel: string
+  changeValueLabel: string
+  data: CustomerOrdersDatum[]
+}
+
+export function CustomerOrders({
+  title,
+  subtitle,
+  totalLabel,
+  totalValue,
+  changeLabel,
+  changeValueLabel,
+  data,
+}: CustomerOrdersProps) {
   return (
     <Card className="bg-card border-border h-full">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div>
-          <CardTitle className="text-base font-medium">Customer Orders</CardTitle>
-          <p className="text-xs text-muted-foreground">1 Jan - 12 Dec 2026</p>
+          <CardTitle className="text-base font-medium">{title}</CardTitle>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
         <Button variant="ghost" size="icon" className="h-8 w-8">
           <MoreHorizontal className="w-4 h-4" />
@@ -30,12 +42,15 @@ export function CustomerOrders() {
       </CardHeader>
       <CardContent>
         <div className="mb-4">
-          <p className="text-3xl font-semibold">45,6370</p>
+          <p className="text-xs text-muted-foreground">{totalLabel}</p>
+          <p className="text-3xl font-semibold">{totalValue}</p>
           <div className="flex items-center gap-2 mt-1">
             <span className="text-xs bg-[var(--color-accent)]/30 text-foreground px-2 py-0.5 rounded-full">
-              +9.4% ↗
+              {changeLabel === "n/a"
+                ? changeLabel
+                : `${changeLabel} ${changeLabel.trim().startsWith("-") ? "down" : "up"}`}
             </span>
-            <span className="text-xs text-muted-foreground">+245</span>
+            <span className="text-xs text-muted-foreground">{changeValueLabel}</span>
           </div>
         </div>
         <div className="h-[120px]">
@@ -47,7 +62,7 @@ export function CustomerOrders() {
                   <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#737373" }} />
+              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#737373" }} />
               <YAxis hide />
               <Tooltip
                 contentStyle={{
@@ -57,9 +72,11 @@ export function CustomerOrders() {
                   color: "#fff",
                   fontSize: "12px",
                 }}
-                formatter={(value: number) => [value.toLocaleString(), "Orders"]}
+                labelStyle={{ color: "#fff" }}
+                itemStyle={{ color: "#fff" }}
+                formatter={(value: number) => [value.toLocaleString(), totalLabel]}
               />
-              <Area type="monotone" dataKey="orders" stroke="#6366f1" strokeWidth={2} fill="url(#orderGradient)" />
+              <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} fill="url(#orderGradient)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>

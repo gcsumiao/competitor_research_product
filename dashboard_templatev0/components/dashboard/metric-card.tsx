@@ -1,3 +1,5 @@
+"use client"
+
 import { Card, CardContent } from "@/components/ui/card"
 import type { LucideIcon } from "lucide-react"
 
@@ -7,9 +9,17 @@ interface MetricCardProps {
   change: string
   isPositiveOutcome: boolean
   icon: LucideIcon
+  changeSuffix?: string
 }
 
-export function MetricCard({ title, value, change, isPositiveOutcome, icon: Icon }: MetricCardProps) {
+export function MetricCard({
+  title,
+  value,
+  change,
+  isPositiveOutcome,
+  icon: Icon,
+  changeSuffix = "",
+}: MetricCardProps) {
   return (
     <Card className="bg-card border border-border cursor-pointer hover:shadow-md transition-shadow">
       <CardContent className="p-5">
@@ -26,7 +36,7 @@ export function MetricCard({ title, value, change, isPositiveOutcome, icon: Icon
               isPositiveOutcome ? "text-[var(--color-positive)]" : "text-[var(--color-negative)]"
             }`}
           >
-            {change} WoW
+            {changeSuffix && change !== "n/a" ? `${change} ${changeSuffix}` : change}
           </span>
         </div>
       </CardContent>

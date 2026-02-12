@@ -1,0 +1,62 @@
+[
+  {
+    "id": "brand_top_sku_innova",
+    "categoryId": "code_reader_scanner",
+    "question": "what’s innova top sku?",
+    "checks": ["brand_scope", "top_product", "grounded_metrics"]
+  },
+  {
+    "id": "brand_performance_xtool_last_month",
+    "categoryId": "code_reader_scanner",
+    "question": "how did xtool perform last month?",
+    "checks": ["brand_scope", "monthly_revenue_units_rank", "price_vs_units_driver"]
+  },
+  {
+    "id": "product_competitor_5610",
+    "categoryId": "code_reader_scanner",
+    "question": "Innova 5610 biggest competitor",
+    "checks": ["asin_resolution", "competitor_reasoning", "grounded_metrics"]
+  },
+  {
+    "id": "competitor_move",
+    "categoryId": "code_reader_scanner",
+    "question": "what are competitors doing?",
+    "checks": ["competitive_movement", "grounded_metrics"]
+  },
+  {
+    "id": "risk_signal",
+    "categoryId": "code_reader_scanner",
+    "question": "what should I be worried about?",
+    "checks": ["risk_focus", "grounded_metrics"]
+  },
+  {
+    "id": "growth_driver",
+    "categoryId": "code_reader_scanner",
+    "question": "did growth come from price or units?",
+    "checks": ["price_vs_units_driver", "grounded_metrics"]
+  },
+  {
+    "id": "dmm_market_size",
+    "categoryId": "dmm",
+    "question": "how big is the dmm market this month?",
+    "checks": ["cross_category", "grounded_metrics"]
+  },
+  {
+    "id": "borescope_feature_premium",
+    "categoryId": "borescope",
+    "question": "is there a premium for articulated borescope products?",
+    "checks": ["cross_category", "feature_analysis"]
+  },
+  {
+    "id": "thermal_brand_compare",
+    "categoryId": "thermal_imager",
+    "question": "compare topdon and flir performance this month",
+    "checks": ["cross_category", "brand_scope", "grounded_metrics"]
+  },
+  {
+    "id": "night_vision_concentration",
+    "categoryId": "night_vision",
+    "question": "how concentrated is the night vision market?",
+    "checks": ["cross_category", "concentration"]
+  }
+]

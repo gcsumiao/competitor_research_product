@@ -5,42 +5,74 @@ import { Button } from "@/components/ui/button"
 import { ChevronDown } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts"
 
-const countryData = [
-  { country: "United States", value: 1245680, color: "#3b82f6" },
-  { country: "Brazil", value: 684320, color: "#22c55e" },
-  { country: "Finland", value: 312450, color: "#8b5cf6" },
-  { country: "Bangladesh", value: 158970, color: "#f97316" },
-]
+export type SalesMapItem = {
+  label: string
+  value: number
+  color: string
+}
 
-const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: typeof countryData[0] }> }) => {
+interface SalesMapProps {
+  title: string
+  subtitle: string
+  items: SalesMapItem[]
+  topLabel: string
+  topValue: string
+  growthLabel: string
+  growthValue: string
+  totalLabel: string
+  totalValue: string
+  valueFormatter?: (value: number) => string
+}
+
+const CustomTooltip = ({
+  active,
+  payload,
+  formatValue,
+}: {
+  active?: boolean
+  payload?: Array<{ payload: SalesMapItem }>
+  formatValue: (value: number) => string
+}) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload
     return (
       <div className="bg-card px-3 py-2 rounded-lg shadow-lg text-xs font-medium border border-border">
-        <p className="font-semibold">{data.country}</p>
-        <p style={{ color: data.color }}>${data.value.toLocaleString()}</p>
+        <p className="font-semibold">{data.label}</p>
+        <p style={{ color: data.color }}>{formatValue(data.value)}</p>
       </div>
     )
   }
   return null
 }
 
-export function SalesMap() {
-  const total = countryData.reduce((sum, item) => sum + item.value, 0)
+export function SalesMap({
+  title,
+  subtitle,
+  items,
+  topLabel,
+  topValue,
+  growthLabel,
+  growthValue,
+  totalLabel,
+  totalValue,
+  valueFormatter,
+}: SalesMapProps) {
+  const total = items.reduce((sum, item) => sum + item.value, 0)
+  const formatValue = valueFormatter ?? ((value: number) => `$${value.toLocaleString()}`)
 
   return (
     <Card className="bg-card border-border h-full">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div>
-          <CardTitle className="text-base font-medium">Sales by Countries</CardTitle>
-          <p className="text-xs text-muted-foreground">Revenue distribution by region</p>
+          <CardTitle className="text-base font-medium">{title}</CardTitle>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="h-7 text-xs bg-transparent">
-            All Products <ChevronDown className="w-3 h-3 ml-1" />
+            All ASINs <ChevronDown className="w-3 h-3 ml-1" />
           </Button>
           <Button variant="outline" size="sm" className="h-7 text-xs bg-transparent">
-            Top Countries <ChevronDown className="w-3 h-3 ml-1" />
+            Price Tiers <ChevronDown className="w-3 h-3 ml-1" />
           </Button>
         </div>
       </CardHeader>
@@ -49,18 +81,18 @@ export function SalesMap() {
           {/* Stats panel */}
           <div className="space-y-4">
             <div>
-              <p className="text-xs text-muted-foreground">Top Performing Country</p>
-              <p className="text-2xl font-semibold">$1,245,680</p>
-              <p className="text-xs text-muted-foreground">United States</p>
+              <p className="text-xs text-muted-foreground">Top tier</p>
+              <p className="text-2xl font-semibold">{topValue}</p>
+              <p className="text-xs text-muted-foreground">{topLabel}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Revenue Growth</p>
-              <p className="text-2xl font-semibold text-[var(--color-positive)]">+34%</p>
-              <p className="text-xs text-muted-foreground">United States and Canada</p>
+              <p className="text-xs text-muted-foreground">{growthLabel}</p>
+              <p className="text-2xl font-semibold text-[var(--color-positive)]">{growthValue}</p>
+              <p className="text-xs text-muted-foreground">MoM change</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Total Revenue</p>
-              <p className="text-2xl font-semibold">${total.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">{totalLabel}</p>
+              <p className="text-2xl font-semibold">{totalValue || `$${total.toLocaleString()}`}</p>
             </div>
           </div>
 
@@ -70,7 +102,7 @@ export function SalesMap() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={countryData}
+                    data={items}
                     cx="50%"
                     cy="50%"
                     innerRadius={50}
@@ -78,24 +110,24 @@ export function SalesMap() {
                     paddingAngle={2}
                     dataKey="value"
                   >
-                    {countryData.map((entry, index) => (
+                    {items.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={<CustomTooltip formatValue={formatValue} />} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
             
             {/* Legend */}
             <div className="grid grid-cols-2 gap-2 mt-2">
-              {countryData.map((item) => (
-                <div key={item.country} className="flex items-center gap-2">
+              {items.map((item) => (
+                <div key={item.label} className="flex items-center gap-2">
                   <div
                     className="w-2.5 h-2.5 rounded-full"
                     style={{ backgroundColor: item.color }}
                   />
-                  <span className="text-xs text-muted-foreground truncate">{item.country}</span>
+                  <span className="text-xs text-muted-foreground truncate">{item.label}</span>
                 </div>
               ))}
             </div>

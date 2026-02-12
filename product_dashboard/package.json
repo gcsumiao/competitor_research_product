@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "archive:code-reader": "node scripts/archive-code-reader-monthly.mjs",
+    "backfill:code-reader-history": "node scripts/backfill-code-reader-history.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",
@@ -16,9 +18,11 @@
     "next": "16.1.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "recharts": "2.15.4",
     "shadcn": "^3.7.0",
     "tailwind-merge": "^3.4.0",
-    "tw-animate-css": "^1.4.0"
+    "tw-animate-css": "^1.4.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
