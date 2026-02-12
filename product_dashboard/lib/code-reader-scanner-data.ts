@@ -1399,7 +1399,9 @@ function parseNumber(value: string): number {
 function parseShare(value: string): number {
   const parsed = parseNumber(value)
   if (!Number.isFinite(parsed)) return 0
-  if (parsed > 1) return parsed / 100
+  // Many worksheets store percentages as "23" or "-23" (meaning 23% / -23%).
+  // Normalize those to ratios so downstream UI formatting can safely multiply by 100.
+  if (Math.abs(parsed) > 1) return parsed / 100
   return parsed
 }
 
