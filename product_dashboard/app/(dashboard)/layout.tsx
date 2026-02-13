@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { Suspense } from "react"
 import { DashboardChatbot } from "@/components/chatbot/dashboard-chatbot"
 import { Header } from "@/components/dashboard/header"
+import { SpotlightAlerts } from "@/components/dashboard/spotlight-alerts"
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
@@ -9,6 +10,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <div className="max-w-[1400px] mx-auto">
         <Suspense fallback={null}>
           <Header />
+        </Suspense>
+        <Suspense fallback={null}>
+          <SpotlightAlerts />
         </Suspense>
         {children}
         <Suspense fallback={null}>

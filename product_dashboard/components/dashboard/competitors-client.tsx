@@ -9,6 +9,7 @@ import { ProfitChart } from "@/components/dashboard/profit-chart"
 import { CustomerOrders } from "@/components/dashboard/customer-orders"
 import { TopProducts } from "@/components/dashboard/top-products"
 import { SalesMap } from "@/components/dashboard/sales-map"
+import { AllBrandsRankChart } from "@/components/dashboard/all-brands-rank-chart"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
 import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -87,6 +88,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
     brandListings.find((listing) => listing.brand === resolvedSelectedBrand) ?? brandListings[0]
 
   const featuredBrandProducts = (selectedBrandListing?.products ?? []).slice(0, 4)
+  const listingAnnotation = buildBrandListingAnnotation(activeSnapshot, resolvedSelectedBrand)
 
   const top3Share = activeSnapshot?.totals.top3Share ?? 0
   const top5Share = brandTotals.slice(0, 5).reduce((sum, brand) => sum + brand.share, 0)
@@ -262,6 +264,10 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
         </div>
       </div>
 
+      <div className="mb-6">
+        <AllBrandsRankChart snapshots={snapshots} title="Rolling 12mon Rank (All Brands)" maxRank={25} />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <CustomerOrders
           title="Rolling 12mon Revenue Rank"
@@ -322,6 +328,11 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {listingAnnotation ? (
+              <div className="mb-3 rounded-lg border border-border bg-background/40 px-3 py-2">
+                <p className="text-xs text-muted-foreground">{listingAnnotation}</p>
+              </div>
+            ) : null}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -387,6 +398,40 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
       </div>
     </>
   )
+}
+
+function buildBrandListingAnnotation(snapshot: SnapshotSummary | undefined, brand: string) {
+  if (!snapshot || !brand) return ""
+  const entry = snapshot.brandTotals.find((b) => b.brand.toLowerCase() === brand.toLowerCase())
+  if (!entry || entry.units <= 0 || entry.revenue <= 0) return ""
+
+  const brandAsp = entry.revenue / entry.units
+  const marketAsp = snapshot.totals.avgPrice || snapshot.totals.revenue / Math.max(snapshot.totals.units, 1)
+  const unitShare = snapshot.totals.units ? entry.units / snapshot.totals.units : 0
+  const revShare = entry.share || (snapshot.totals.revenue ? entry.revenue / snapshot.totals.revenue : 0)
+
+  const aspIndex = marketAsp > 0 ? brandAsp / marketAsp : 1
+
+  const isPriceLed = aspIndex >= 1.15 && unitShare <= revShare * 0.9
+  const isVolumeLed = aspIndex <= 0.9 && unitShare >= revShare * 1.1
+
+  const label = isPriceLed ? "high-value (price-led)" : isVolumeLed ? "high-units (volume-led)" : "balanced"
+
+  const aspText = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(brandAsp)
+  const marketText = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(marketAsp)
+
+  const pct = (value: number) =>
+    new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 }).format(value)
+
+  return `Annotation: ${brand} is earning mainly via ${label} items this month. Avg price ${aspText} vs market ${marketText}. Revenue share ${pct(revShare)} vs unit share ${pct(unitShare)}.`
 }
 
 function buildScopeOptions(snapshot: SnapshotSummary | undefined) {

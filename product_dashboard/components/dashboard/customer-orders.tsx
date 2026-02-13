@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 
@@ -16,6 +17,7 @@ interface CustomerOrdersProps {
   changeLabel: string
   changeValueLabel: string
   data: CustomerOrdersDatum[]
+  headerRight?: ReactNode
   isRankChart?: boolean
   yMin?: number
   yMax?: number
@@ -29,6 +31,7 @@ export function CustomerOrders({
   changeLabel,
   changeValueLabel,
   data,
+  headerRight,
   isRankChart = false,
   yMin,
   yMax,
@@ -40,6 +43,7 @@ export function CustomerOrders({
           <CardTitle className="text-base font-medium">{title}</CardTitle>
           <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
+        {headerRight ? <div className="flex items-center gap-2">{headerRight}</div> : null}
       </CardHeader>
       <CardContent>
         <div className="mb-4">

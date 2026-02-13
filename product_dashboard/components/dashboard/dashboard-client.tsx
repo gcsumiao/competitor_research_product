@@ -82,6 +82,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   const isCodeReader = selectedCategory?.id === "code_reader_scanner"
 
   const [priceScope, setPriceScope] = useState("all_asins")
+  const [marketTrendMetric, setMarketTrendMetric] = useState<"units" | "revenue">("units")
 
   const metricCards = buildMetricCards(
     activeSnapshot,
@@ -122,9 +123,9 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     }))
   }, [activeSnapshot, isCodeReader])
 
-  const unitTrendData = sortedSnapshots.map((snapshot) => ({
+  const marketTrendData = sortedSnapshots.map((snapshot) => ({
     label: snapshot.label,
-    value: snapshot.totals.units,
+    value: marketTrendMetric === "units" ? snapshot.totals.units : snapshot.totals.revenue,
   }))
 
   const products = (activeSnapshot?.topProducts ?? []).slice(0, 4).map((product) => ({
@@ -165,6 +166,17 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   const unitsChange = previousSnapshot
     ? percentChange(activeSnapshot?.totals.units ?? 0, previousSnapshot.totals.units)
     : null
+
+  const marketTrendTotalLabel = marketTrendMetric === "units" ? "Total units" : "Total revenue"
+  const marketTrendTotalValue =
+    marketTrendMetric === "units"
+      ? formatNumberCompact(activeSnapshot?.totals.units ?? 0)
+      : formatCurrencyCompact(activeSnapshot?.totals.revenue ?? 0)
+  const marketTrendChange = marketTrendMetric === "units" ? unitsChange : revenueChange
+  const marketTrendDeltaLabel =
+    marketTrendMetric === "units"
+      ? formatDeltaLabel(activeSnapshot?.totals.units ?? 0, previousSnapshot?.totals.units)
+      : formatCurrencyDeltaCompact(activeSnapshot?.totals.revenue ?? 0, previousSnapshot?.totals.revenue)
 
   return (
     <>
@@ -262,13 +274,41 @@ export function DashboardClient({ data }: { data: DashboardData }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="h-full">
           <CustomerOrders
-            title="Market Units"
-            subtitle="Units trend across snapshots"
-            totalLabel="Total units"
-            totalValue={formatNumberCompact(activeSnapshot?.totals.units ?? 0)}
-            changeLabel={formatChangeLabel(unitsChange)}
-            changeValueLabel={formatDeltaLabel(activeSnapshot?.totals.units ?? 0, previousSnapshot?.totals.units)}
-            data={unitTrendData}
+            title="Market trend"
+            subtitle={marketTrendMetric === "units" ? "Units trend across snapshots" : "Revenue trend across snapshots"}
+            totalLabel={marketTrendTotalLabel}
+            totalValue={marketTrendTotalValue}
+            changeLabel={formatChangeLabel(marketTrendChange)}
+            changeValueLabel={marketTrendDeltaLabel}
+            data={marketTrendData}
+            headerRight={
+              <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setMarketTrendMetric("units")}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-medium rounded-full transition-colors",
+                    marketTrendMetric === "units"
+                      ? "bg-[var(--color-accent)] text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Units
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMarketTrendMetric("revenue")}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-medium rounded-full transition-colors",
+                    marketTrendMetric === "revenue"
+                      ? "bg-[var(--color-accent)] text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Revenue
+                </button>
+              </div>
+            }
           />
         </div>
         <div className="lg:col-span-2 h-full">
@@ -292,6 +332,13 @@ export function DashboardClient({ data }: { data: DashboardData }) {
       </div>
     </>
   )
+}
+
+function formatCurrencyDeltaCompact(current: number, previous?: number) {
+  if (typeof previous !== "number" || !Number.isFinite(previous)) return ""
+  const delta = current - previous
+  const label = formatCurrencyCompact(Math.abs(delta))
+  return `${delta >= 0 ? "+" : "-"}${label}`
 }
 
 function buildMetricCards(
