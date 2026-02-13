@@ -51,6 +51,9 @@ export function formatSnapshotLabelMonthEnd(input: string) {
   if (!match) return normalized
 
   const date = new Date(`${normalized}T00:00:00Z`)
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "2-digit" }).format(date)
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "2-digit",
+    timeZone: "UTC",
+  }).format(date)
 }
-

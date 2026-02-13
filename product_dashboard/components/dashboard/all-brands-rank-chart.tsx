@@ -59,6 +59,10 @@ function toSoftColor(hexOrHsl: string, alpha: number) {
     const b = Number.parseInt(normalized.slice(4, 6), 16)
     return `rgba(${r}, ${g}, ${b}, ${alpha})`
   }
+  const hslMatch = hexOrHsl.match(/^hsl\((.+)\)$/)
+  if (hslMatch) {
+    return `hsla(${hslMatch[1]} / ${alpha})`
+  }
   return hexOrHsl
 }
 
@@ -159,20 +163,20 @@ export function AllBrandsRankChart({
       </CardHeader>
 
       <CardContent>
-        <div className="overflow-x-auto rounded-lg border border-border bg-background/20">
+        <div className="overflow-x-auto rounded-lg bg-background/20">
           <div className="min-w-[820px]">
             <div
-              className="grid sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur-sm"
+              className="grid sticky top-0 z-10 bg-card/95 backdrop-blur-sm"
               style={{ gridTemplateColumns: gridColumns }}
             >
-              <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-r border-border sticky left-0 bg-card/95">
+              <div className="px-3 py-2 text-xs font-medium text-muted-foreground sticky left-0 bg-card/95">
                 Rank #
               </div>
               {months.map((month, index) => (
                 <div
                   key={month.date}
                   className={cn(
-                    "px-2 py-2 text-center text-xs font-medium border-r border-border last:border-r-0",
+                    "px-2 py-2 text-center text-xs font-medium",
                     index === latestIndex ? "text-foreground bg-[var(--color-accent)]/20" : "text-muted-foreground"
                   )}
                 >
@@ -181,16 +185,16 @@ export function AllBrandsRankChart({
               ))}
             </div>
 
-            <div className="divide-y divide-border">
+            <div className="space-y-1 pt-1">
               {Array.from({ length: maxRank }, (_, idx) => idx + 1).map((rank) => {
                 const isTop5 = rank <= 5
                 return (
                   <div
                     key={`rank-row-${rank}`}
-                    className={cn("grid items-center", isTop5 ? "bg-muted/25" : "")}
+                    className={cn("grid items-center rounded-md", isTop5 ? "bg-muted/35" : "bg-transparent")}
                     style={{ gridTemplateColumns: gridColumns }}
                   >
-                    <div className="px-3 py-2 text-xs font-semibold border-r border-border sticky left-0 bg-card">
+                    <div className="px-3 py-2 text-xs font-semibold sticky left-0 bg-card rounded-l-md">
                       #{rank}
                     </div>
 
@@ -205,19 +209,19 @@ export function AllBrandsRankChart({
                         <div
                           key={`${month.date}-${rank}`}
                           className={cn(
-                            "px-2 py-2 border-r border-border last:border-r-0 min-h-[40px] flex items-center justify-center",
+                            "px-2 py-2 min-h-[40px] flex items-center justify-center",
                             isLatest ? "bg-[var(--color-accent)]/10" : ""
                           )}
                         >
                           {brand ? (
                             <span
                               className={cn(
-                                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium max-w-full",
+                                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold max-w-full",
                                 isLatest ? "animate-in fade-in zoom-in-95 duration-300" : ""
                               )}
                               style={{
                                 borderColor: colorForBrand(brand),
-                                backgroundColor: toSoftColor(colorForBrand(brand), isLatest ? 0.24 : 0.14),
+                                backgroundColor: toSoftColor(colorForBrand(brand), isLatest ? 0.22 : 0.12),
                                 color: colorForBrand(brand),
                               }}
                               title={brand}
@@ -259,4 +263,3 @@ export function AllBrandsRankChart({
     </Card>
   )
 }
-
