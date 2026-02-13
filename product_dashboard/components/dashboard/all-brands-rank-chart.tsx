@@ -20,15 +20,39 @@ type MonthRankMaps = {
 const FIXED_BRAND_COLORS: Record<string, string> = {
   autel: "#16a34a",
   ancel: "#f97316",
-  topdon: "#3b82f6",
-  xtool: "#eab308",
-  foxwell: "#ef4444",
-  launch: "#0ea5e9",
-  innova: "#8b5cf6",
-  blcktec: "#14b8a6",
-  thinkcar: "#ec4899",
-  obdlink: "#22c55e",
+  topdon: "#2563eb",
+  xtool: "#d97706",
+  foxwell: "#dc2626",
+  launch: "#0891b2",
+  innova: "#7c3aed",
+  blcktec: "#0f766e",
+  thinkcar: "#db2777",
+  obdlink: "#1d4ed8",
+  icarsoft: "#6d28d9",
 }
+
+const DISTINCT_BRAND_PALETTE = [
+  "#2563eb",
+  "#dc2626",
+  "#7c3aed",
+  "#d97706",
+  "#0891b2",
+  "#db2777",
+  "#0f766e",
+  "#c2410c",
+  "#4f46e5",
+  "#be185d",
+  "#1d4ed8",
+  "#6d28d9",
+  "#7f1d1d",
+  "#0e7490",
+  "#9a3412",
+  "#a21caf",
+  "#4338ca",
+  "#b45309",
+  "#9f1239",
+  "#334155",
+]
 
 function normalizeBrand(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "")
@@ -39,8 +63,7 @@ function fallbackColor(brand: string) {
   for (let i = 0; i < brand.length; i += 1) {
     hash = (hash * 31 + brand.charCodeAt(i)) >>> 0
   }
-  const hue = hash % 360
-  return `hsl(${hue} 70% 42%)`
+  return DISTINCT_BRAND_PALETTE[hash % DISTINCT_BRAND_PALETTE.length]
 }
 
 function colorForBrand(brand: string) {
@@ -93,7 +116,7 @@ export function AllBrandsRankChart({
   snapshots,
   selectedSnapshotDate,
   title = "Rolling 12mon Rank (All Brands)",
-  maxRank = 25,
+  maxRank = 20,
   monthsToShow = 6,
 }: {
   snapshots: SnapshotSummary[]
@@ -221,7 +244,7 @@ export function AllBrandsRankChart({
                               )}
                               style={{
                                 borderColor: colorForBrand(brand),
-                                backgroundColor: toSoftColor(colorForBrand(brand), isLatest ? 0.22 : 0.12),
+                                backgroundColor: toSoftColor(colorForBrand(brand), isLatest ? 0.18 : 0.08),
                                 color: colorForBrand(brand),
                               }}
                               title={brand}

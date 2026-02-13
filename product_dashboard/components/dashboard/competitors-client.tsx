@@ -270,7 +270,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
           snapshots={snapshots}
           selectedSnapshotDate={activeSnapshot?.date}
           title="Rolling 12mon Rank (All Brands)"
-          maxRank={25}
+          maxRank={20}
         />
       </div>
 
