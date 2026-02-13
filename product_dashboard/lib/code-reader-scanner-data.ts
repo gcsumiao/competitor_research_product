@@ -1505,12 +1505,21 @@ async function readManifest(filePath: string): Promise<ManifestFile | null> {
 }
 
 function resolveSnapshotDate(month: string, snapshotDate?: string) {
-  if (snapshotDate && /^\d{4}-\d{2}-\d{2}$/.test(snapshotDate)) {
-    return snapshotDate
+  // Snapshots are monthly, so represent each month by its month-end date (UTC).
+  const year = Number(month.slice(0, 4))
+  const mm = Number(month.slice(4, 6))
+  if (!Number.isFinite(year) || !Number.isFinite(mm) || mm < 1 || mm > 12) {
+    if (snapshotDate && /^\d{4}-\d{2}-\d{2}$/.test(snapshotDate)) {
+      return snapshotDate
+    }
+    return month
   }
-  const year = month.slice(0, 4)
-  const mm = month.slice(4, 6)
-  return `${year}-${mm}-01`
+
+  const end = new Date(Date.UTC(year, mm, 0))
+  const yyyy = String(end.getUTCFullYear())
+  const monthLabel = String(end.getUTCMonth() + 1).padStart(2, "0")
+  const dd = String(end.getUTCDate()).padStart(2, "0")
+  return `${yyyy}-${monthLabel}-${dd}`
 }
 
 function formatSnapshotLabel(dateValue: string) {

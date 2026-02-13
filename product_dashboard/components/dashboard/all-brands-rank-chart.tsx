@@ -1,15 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-} from "recharts"
+import { ArrowDownRight, ArrowUpRight } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { SnapshotSummary } from "@/lib/competitor-data"
@@ -17,90 +9,102 @@ import { cn } from "@/lib/utils"
 
 type RankMetric = "revenue" | "units"
 
-type ChartRow = Record<string, number | string | null> & { label: string }
-
 function normalizeKey(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "")
 }
 
-function colorForBrand(brand: string) {
-  // Simple stable hash -> hue. Keeps colors consistent across refreshes.
+function brandColors(brand: string) {
   let hash = 0
   for (let i = 0; i < brand.length; i += 1) {
     hash = (hash * 31 + brand.charCodeAt(i)) >>> 0
   }
   const hue = hash % 360
-  return `hsl(${hue} 70% 45%)`
+  return {
+    solid: `hsl(${hue} 70% 45%)`,
+    soft: `hsla(${hue}, 70%, 45%, 0.14)`,
+    soft2: `hsla(${hue}, 70%, 45%, 0.08)`,
+  }
+}
+
+function getRank(snapshot: SnapshotSummary, metric: RankMetric, brand: string) {
+  const pool =
+    metric === "revenue"
+      ? snapshot.rolling12?.revenue?.brands
+      : snapshot.rolling12?.units?.brands
+  const item = pool?.find((b) => b.brand.toLowerCase() === brand.toLowerCase())
+  return item?.rank ?? null
 }
 
 export function AllBrandsRankChart({
   snapshots,
-  title = "Rolling 12 Rank (All Brands)",
+  title = "Rolling 12mon Rank (All Brands)",
   maxRank = 25,
+  monthsToShow = 6,
 }: {
   snapshots: SnapshotSummary[]
   title?: string
   maxRank?: number
+  monthsToShow?: number
 }) {
   const [metric, setMetric] = useState<RankMetric>("revenue")
 
-  const activeSnapshot = snapshots[snapshots.length - 1]
-  const activeBrands = useMemo(() => {
-    const brands = metric === "revenue"
-      ? activeSnapshot?.rolling12?.revenue?.brands
-      : activeSnapshot?.rolling12?.units?.brands
-    return (brands ?? [])
+  const windowedSnapshots = useMemo(() => {
+    if (!snapshots.length) return []
+    return snapshots.slice(Math.max(0, snapshots.length - monthsToShow))
+  }, [monthsToShow, snapshots])
+
+  const activeSnapshot = windowedSnapshots[windowedSnapshots.length - 1]
+  const previousSnapshot =
+    windowedSnapshots.length >= 2
+      ? windowedSnapshots[windowedSnapshots.length - 2]
+      : undefined
+
+  const brands = useMemo(() => {
+    const pool =
+      metric === "revenue"
+        ? activeSnapshot?.rolling12?.revenue?.brands
+        : activeSnapshot?.rolling12?.units?.brands
+
+    return (pool ?? [])
       .filter((b) => b.rank > 0)
       .slice()
       .sort((a, b) => a.rank - b.rank)
       .slice(0, maxRank)
       .map((b) => b.brand)
-  }, [activeSnapshot, metric, maxRank])
+  }, [activeSnapshot, maxRank, metric])
 
-  const brandKeyMap = useMemo(() => {
-    const map = new Map<string, { brand: string; key: string; color: string }>()
-    for (const brand of activeBrands) {
+  const brandMeta = useMemo(() => {
+    const meta = new Map<string, { key: string; solid: string; soft: string; soft2: string }>()
+    for (const brand of brands) {
       const key = `b_${normalizeKey(brand)}`
-      map.set(brand, { brand, key, color: colorForBrand(brand) })
+      meta.set(brand, { key, ...brandColors(brand) })
     }
-    return map
-  }, [activeBrands])
+    return meta
+  }, [brands])
 
-  const data: ChartRow[] = useMemo(() => {
-    if (!activeBrands.length) return []
-    const rows: ChartRow[] = snapshots.map((snapshot) => {
-      const pool = metric === "revenue"
-        ? snapshot.rolling12?.revenue?.brands
-        : snapshot.rolling12?.units?.brands
-      const rankByBrand = new Map((pool ?? []).map((b) => [b.brand.toLowerCase(), b.rank]))
-      const row: ChartRow = { label: snapshot.label }
-      for (const brand of activeBrands) {
-        const meta = brandKeyMap.get(brand)
-        if (!meta) continue
-        row[meta.key] = rankByBrand.get(brand.toLowerCase()) ?? null
-      }
-      return row
+  const rows = useMemo(() => {
+    const out = brands.map((brand) => {
+      const currentRank = activeSnapshot ? getRank(activeSnapshot, metric, brand) : null
+      const priorRank =
+        previousSnapshot && currentRank
+          ? getRank(previousSnapshot, metric, brand)
+          : null
+      const delta =
+        typeof currentRank === "number" && typeof priorRank === "number"
+          ? priorRank - currentRank
+          : null
+
+      const ranks = windowedSnapshots.map((snapshot) => getRank(snapshot, metric, brand))
+      return { brand, currentRank, delta, ranks }
     })
-    return rows
-  }, [activeBrands, brandKeyMap, metric, snapshots])
 
-  const legendItems = useMemo(() => {
-    const pool = metric === "revenue"
-      ? activeSnapshot?.rolling12?.revenue?.brands
-      : activeSnapshot?.rolling12?.units?.brands
-    const rankByBrand = new Map((pool ?? []).map((b) => [b.brand.toLowerCase(), b.rank]))
-    return activeBrands.map((brand) => {
-      const meta = brandKeyMap.get(brand)!
-      return {
-        brand,
-        key: meta.key,
-        color: meta.color,
-        rank: rankByBrand.get(brand.toLowerCase()) ?? null,
-      }
-    })
-  }, [activeBrands, activeSnapshot, brandKeyMap, metric])
+    // Keep visual order stable: sort by latest rank.
+    return out
+      .slice()
+      .sort((a, b) => (a.currentRank ?? 999) - (b.currentRank ?? 999))
+  }, [activeSnapshot, brands, metric, previousSnapshot, windowedSnapshots])
 
-  if (!activeBrands.length) return null
+  if (!brands.length || !windowedSnapshots.length) return null
 
   return (
     <Card className="bg-card border border-border">
@@ -108,7 +112,7 @@ export function AllBrandsRankChart({
         <div>
           <CardTitle className="text-base font-medium">{title}</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Toggle between revenue and units rank to see who is moving.
+            Pill view of rank movement. Latest month is highlighted; earlier months are muted.
           </p>
         </div>
         <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
@@ -138,80 +142,110 @@ export function AllBrandsRankChart({
           </button>
         </div>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4">
-        <div className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-              <XAxis
-                dataKey="label"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 11, fill: "#737373" }}
-              />
-              <YAxis
-                reversed
-                domain={[1, maxRank]}
-                allowDecimals={false}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 11, fill: "#737373" }}
-                tickFormatter={(value) => `#${value}`}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#1a1a1a",
-                  border: "none",
-                  borderRadius: "8px",
-                  color: "#fff",
-                  fontSize: "12px",
-                }}
-                labelStyle={{ color: "#fff" }}
-                itemStyle={{ color: "#fff" }}
-                formatter={(value: unknown, name: string) => {
-                  const numeric = typeof value === "number" ? value : Number(value)
-                  if (!Number.isFinite(numeric)) return ["n/a", "Rank"]
-                  const brand = legendItems.find((item) => item.key === name)?.brand ?? "Brand"
-                  return [`Rank #${Math.round(numeric)}`, brand]
-                }}
-              />
 
-              {legendItems.map((item, index) => (
-                <Line
-                  key={item.key}
-                  type="monotone"
-                  dataKey={item.key}
-                  stroke={item.color}
-                  strokeWidth={index < 5 ? 2.2 : 1.4}
-                  strokeOpacity={index < 5 ? 0.95 : 0.55}
-                  dot={false}
-                  connectNulls={false}
-                  isAnimationActive={false}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="max-h-[260px] overflow-auto rounded-lg border border-border bg-background/30 p-3">
-          <p className="text-xs font-medium mb-2 text-muted-foreground">
-            Current ranks (top {maxRank})
-          </p>
-          <div className="space-y-2">
-            {legendItems.map((item) => (
-              <div key={item.brand} className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-xs font-medium truncate">{item.brand}</span>
+      <CardContent>
+        <div className="overflow-x-auto rounded-lg border border-border bg-background/20">
+          <div className="min-w-[860px]">
+            <div
+              className="grid border-b border-border"
+              style={{
+                gridTemplateColumns: `240px repeat(${windowedSnapshots.length}, minmax(86px, 1fr))`,
+              }}
+            >
+              <div className="px-3 py-2 text-xs font-medium text-muted-foreground">Brand</div>
+              {windowedSnapshots.map((snapshot) => (
+                <div
+                  key={snapshot.date}
+                  className="px-2 py-2 text-center text-xs font-medium text-muted-foreground"
+                >
+                  {snapshot.label}
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {item.rank ? `#${item.rank}` : "n/a"}
-                </span>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            <div className="divide-y divide-border">
+              {rows.map((row) => {
+                const meta = brandMeta.get(row.brand)
+                if (!meta) return null
+                const latestIndex = row.ranks.length - 1
+                const latestRank = row.ranks[latestIndex]
+                return (
+                  <div
+                    key={row.brand}
+                    className="grid items-center"
+                    style={{
+                      gridTemplateColumns: `240px repeat(${windowedSnapshots.length}, minmax(86px, 1fr))`,
+                      backgroundColor: meta.soft2,
+                    }}
+                  >
+                    <div className="px-3 py-2 flex items-center gap-2 min-w-0">
+                      <div
+                        className="h-6 w-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: meta.solid }}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium truncate">{row.brand}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Latest {latestRank ? `#${latestRank}` : "n/a"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {row.ranks.map((rank, idx) => {
+                      const isLatest = idx === latestIndex
+                      const pillBase =
+                        "mx-auto inline-flex items-center justify-center rounded-full border px-2.5 py-1 text-xs font-medium tabular-nums"
+                      if (!rank) {
+                        return (
+                          <div key={`${row.brand}-${idx}`} className="px-2 py-2 text-center">
+                            <span className={cn(pillBase, "border-border text-muted-foreground bg-background/40")}>
+                              -
+                            </span>
+                          </div>
+                        )
+                      }
+
+                      const pillStyle = isLatest
+                        ? { backgroundColor: meta.soft, borderColor: meta.solid }
+                        : { backgroundColor: "transparent", borderColor: "rgba(0,0,0,0.12)" }
+
+                      return (
+                        <div key={`${row.brand}-${idx}`} className="px-2 py-2 text-center">
+                          <span
+                            className={cn(
+                              pillBase,
+                              isLatest
+                                ? "text-foreground animate-in fade-in zoom-in-95 duration-300"
+                                : "text-muted-foreground"
+                            )}
+                            style={pillStyle}
+                          >
+                            #{rank}
+                            {isLatest && row.delta && row.delta !== 0 ? (
+                              <span
+                                className={cn(
+                                  "ml-1 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] border animate-in fade-in zoom-in-95 duration-300",
+                                  row.delta > 0
+                                    ? "border-green-200 bg-green-50 text-green-700"
+                                    : "border-red-200 bg-red-50 text-red-700"
+                                )}
+                              >
+                                {row.delta > 0 ? (
+                                  <ArrowUpRight className="w-3 h-3" />
+                                ) : (
+                                  <ArrowDownRight className="w-3 h-3" />
+                                )}
+                                {row.delta > 0 ? `+${row.delta}` : `${row.delta}`}
+                              </span>
+                            ) : null}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       </CardContent>

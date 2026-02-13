@@ -199,6 +199,28 @@ const TOP_PRODUCTS_COUNT = 50
 
 const CSV_DATE_REGEX = /(\d{4}-\d{2}-\d{2})/
 
+function monthKeyFromDate(dateValue: string) {
+  // YYYY-MM from YYYY-MM-DD
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue
+  return dateValue.slice(0, 7)
+}
+
+function monthEndFromMonthKey(monthKey: string) {
+  // monthKey: YYYY-MM
+  if (!/^\d{4}-\d{2}$/.test(monthKey)) return monthKey
+  const [yearRaw, monthRaw] = monthKey.split("-")
+  const year = Number(yearRaw)
+  const month = Number(monthRaw)
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return monthKey
+
+  // day 0 of next month gives the last day of current month (UTC)
+  const end = new Date(Date.UTC(year, month, 0))
+  const yyyy = String(end.getUTCFullYear())
+  const mm = String(end.getUTCMonth() + 1).padStart(2, "0")
+  const dd = String(end.getUTCDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}`
+}
+
 export async function loadDashboardData(): Promise<DashboardData> {
   const categories = await Promise.all(
     CATEGORY_CONFIG.map(async (category) => {
@@ -254,18 +276,28 @@ async function listCsvFiles(dir: string): Promise<string[]> {
 }
 
 function groupFilesBySnapshot(files: string[]): Map<string, string[]> {
-  const grouped = new Map<string, string[]>()
+  // CSV exports can be created on different days within the same month.
+  // The dashboard treats each month as one snapshot and selects the latest run in that month.
+  const monthLatest = new Map<string, { runDate: string; files: string[] }>()
 
   for (const file of files) {
     const match = path.basename(file).match(CSV_DATE_REGEX)
     if (!match) continue
     const date = match[1]
-    const existing = grouped.get(date)
-    if (existing) {
-      existing.push(file)
-    } else {
-      grouped.set(date, [file])
+    const monthKey = monthKeyFromDate(date)
+    const existing = monthLatest.get(monthKey)
+    if (!existing || date > existing.runDate) {
+      monthLatest.set(monthKey, { runDate: date, files: [file] })
+      continue
     }
+    if (date === existing.runDate) {
+      existing.files.push(file)
+    }
+  }
+
+  const grouped = new Map<string, string[]>()
+  for (const [monthKey, entry] of monthLatest.entries()) {
+    grouped.set(monthEndFromMonthKey(monthKey), entry.files)
   }
 
   return grouped
