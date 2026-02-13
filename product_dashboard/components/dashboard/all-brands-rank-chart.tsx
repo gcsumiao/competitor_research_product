@@ -21,16 +21,16 @@ const FIXED_BRAND_COLORS: Record<string, string> = {
   autel: "#16a34a",
   ancel: "#f97316",
   topdon: "#2563eb",
-  xtool: "#d97706",
+  xtool: "#ca8a04",
   foxwell: "#dc2626",
   launch: "#0891b2",
   innova: "#7c3aed",
   blcktec: "#0f766e",
   thinkcar: "#db2777",
-  obdlink: "#1d4ed8",
-  icarsoft: "#6d28d9",
-  bluedriver: "#0ea5e9",
-  motopower: "#a855f7",
+  obdlink: "#84cc16",
+  icarsoft: "#6366f1",
+  bluedriver: "#334155",
+  motopower: "#92400e",
 }
 
 const DISTINCT_BRAND_PALETTE = [
@@ -83,49 +83,6 @@ function fallbackColor(brand: string) {
 function colorForBrand(brand: string) {
   const key = normalizeBrand(brand)
   return FIXED_BRAND_COLORS[key] ?? fallbackColor(brand)
-}
-
-function buildBrandColorMap(months: MonthRankMaps[], maxRank: number) {
-  const brands = new Set<string>()
-  for (const month of months) {
-    for (let rank = 1; rank <= maxRank; rank += 1) {
-      const brand = month.byRank.get(rank)
-      if (brand) brands.add(brand)
-    }
-  }
-
-  const ordered = Array.from(brands).sort((a, b) => a.localeCompare(b))
-  const used = new Set<string>()
-  const map = new Map<string, string>()
-  let paletteIndex = 0
-
-  for (const brand of ordered) {
-    const preferred = colorForBrand(brand)
-    if (!used.has(preferred)) {
-      map.set(brand, preferred)
-      used.add(preferred)
-      continue
-    }
-
-    while (paletteIndex < DISTINCT_BRAND_PALETTE.length && used.has(DISTINCT_BRAND_PALETTE[paletteIndex])) {
-      paletteIndex += 1
-    }
-
-    if (paletteIndex < DISTINCT_BRAND_PALETTE.length) {
-      const color = DISTINCT_BRAND_PALETTE[paletteIndex]
-      map.set(brand, color)
-      used.add(color)
-      paletteIndex += 1
-      continue
-    }
-
-    const fallback = fallbackColor(`${brand}-${paletteIndex}`)
-    map.set(brand, fallback)
-    used.add(fallback)
-    paletteIndex += 1
-  }
-
-  return map
 }
 
 function toSoftColor(hexOrHsl: string, alpha: number) {
@@ -202,7 +159,6 @@ export function AllBrandsRankChart({
   const latestIndex = months.length - 1
   const previousIndex = latestIndex - 1
   const gridColumns = `100px repeat(${months.length}, minmax(130px, 1fr))`
-  const brandColorMap = useMemo(() => buildBrandColorMap(months, maxRank), [maxRank, months])
 
   if (!months.length) return null
 
@@ -286,7 +242,7 @@ export function AllBrandsRankChart({
                       const previousRank = brand ? previousMonth?.byBrand.get(normalizeBrand(brand)) : undefined
                       const delta = typeof previousRank === "number" && isLatest ? previousRank - rank : null
                       const isNewHit = isLatest && (typeof previousRank !== "number" || previousRank > maxRank)
-                      const brandColor = brand ? brandColorMap.get(brand) ?? colorForBrand(brand) : ""
+                      const brandColor = brand ? colorForBrand(brand) : ""
 
                       return (
                         <div
