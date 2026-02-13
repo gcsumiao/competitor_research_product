@@ -268,7 +268,7 @@ export function AllBrandsRankChart({
                               <span className="truncate max-w-[88px]">{brand}</span>
                               {isNewHit ? (
                                 <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[10px] font-semibold text-emerald-700">
-                                  NEW HIT
+                                  RE-ENTRY
                                 </span>
                               ) : null}
                               {isLatest && delta !== null ? (
