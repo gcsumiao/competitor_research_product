@@ -269,7 +269,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
         <AllBrandsRankChart
           snapshots={snapshots}
           selectedSnapshotDate={activeSnapshot?.date}
-          title="Rolling 12mon Rank (All Brands)"
+          title="Rolling 12mon Rank (Top20)"
           maxRank={20}
         />
       </div>

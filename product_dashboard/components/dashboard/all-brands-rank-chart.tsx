@@ -29,6 +29,8 @@ const FIXED_BRAND_COLORS: Record<string, string> = {
   thinkcar: "#db2777",
   obdlink: "#1d4ed8",
   icarsoft: "#6d28d9",
+  bluedriver: "#0ea5e9",
+  motopower: "#a855f7",
 }
 
 const DISTINCT_BRAND_PALETTE = [
@@ -52,6 +54,18 @@ const DISTINCT_BRAND_PALETTE = [
   "#b45309",
   "#9f1239",
   "#334155",
+  "#0f766e",
+  "#0369a1",
+  "#b91c1c",
+  "#6d28d9",
+  "#1d4ed8",
+  "#c026d3",
+  "#0d9488",
+  "#7c2d12",
+  "#1f2937",
+  "#be123c",
+  "#047857",
+  "#7e22ce",
 ]
 
 function normalizeBrand(value: string) {
@@ -69,6 +83,49 @@ function fallbackColor(brand: string) {
 function colorForBrand(brand: string) {
   const key = normalizeBrand(brand)
   return FIXED_BRAND_COLORS[key] ?? fallbackColor(brand)
+}
+
+function buildBrandColorMap(months: MonthRankMaps[], maxRank: number) {
+  const brands = new Set<string>()
+  for (const month of months) {
+    for (let rank = 1; rank <= maxRank; rank += 1) {
+      const brand = month.byRank.get(rank)
+      if (brand) brands.add(brand)
+    }
+  }
+
+  const ordered = Array.from(brands).sort((a, b) => a.localeCompare(b))
+  const used = new Set<string>()
+  const map = new Map<string, string>()
+  let paletteIndex = 0
+
+  for (const brand of ordered) {
+    const preferred = colorForBrand(brand)
+    if (!used.has(preferred)) {
+      map.set(brand, preferred)
+      used.add(preferred)
+      continue
+    }
+
+    while (paletteIndex < DISTINCT_BRAND_PALETTE.length && used.has(DISTINCT_BRAND_PALETTE[paletteIndex])) {
+      paletteIndex += 1
+    }
+
+    if (paletteIndex < DISTINCT_BRAND_PALETTE.length) {
+      const color = DISTINCT_BRAND_PALETTE[paletteIndex]
+      map.set(brand, color)
+      used.add(color)
+      paletteIndex += 1
+      continue
+    }
+
+    const fallback = fallbackColor(`${brand}-${paletteIndex}`)
+    map.set(brand, fallback)
+    used.add(fallback)
+    paletteIndex += 1
+  }
+
+  return map
 }
 
 function toSoftColor(hexOrHsl: string, alpha: number) {
@@ -115,7 +172,7 @@ function buildMonthRankMaps(snapshot: SnapshotSummary, metric: RankMetric): Mont
 export function AllBrandsRankChart({
   snapshots,
   selectedSnapshotDate,
-  title = "Rolling 12mon Rank (All Brands)",
+  title = "Rolling 12mon Rank (Top20)",
   maxRank = 20,
   monthsToShow = 6,
 }: {
@@ -145,6 +202,7 @@ export function AllBrandsRankChart({
   const latestIndex = months.length - 1
   const previousIndex = latestIndex - 1
   const gridColumns = `100px repeat(${months.length}, minmax(130px, 1fr))`
+  const brandColorMap = useMemo(() => buildBrandColorMap(months, maxRank), [maxRank, months])
 
   if (!months.length) return null
 
@@ -227,6 +285,8 @@ export function AllBrandsRankChart({
                       const previousMonth = previousIndex >= 0 ? months[previousIndex] : undefined
                       const previousRank = brand ? previousMonth?.byBrand.get(normalizeBrand(brand)) : undefined
                       const delta = typeof previousRank === "number" && isLatest ? previousRank - rank : null
+                      const isNewHit = isLatest && (typeof previousRank !== "number" || previousRank > maxRank)
+                      const brandColor = brand ? brandColorMap.get(brand) ?? colorForBrand(brand) : ""
 
                       return (
                         <div
@@ -243,13 +303,18 @@ export function AllBrandsRankChart({
                                 isLatest ? "animate-in fade-in zoom-in-95 duration-300" : ""
                               )}
                               style={{
-                                borderColor: colorForBrand(brand),
-                                backgroundColor: toSoftColor(colorForBrand(brand), isLatest ? 0.18 : 0.08),
-                                color: colorForBrand(brand),
+                                borderColor: brandColor,
+                                backgroundColor: toSoftColor(brandColor, isLatest ? 0.18 : 0.08),
+                                color: brandColor,
                               }}
                               title={brand}
                             >
                               <span className="truncate max-w-[88px]">{brand}</span>
+                              {isNewHit ? (
+                                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[10px] font-semibold text-emerald-700">
+                                  NEW HIT
+                                </span>
+                              ) : null}
                               {isLatest && delta !== null ? (
                                 <span
                                   className={cn(
