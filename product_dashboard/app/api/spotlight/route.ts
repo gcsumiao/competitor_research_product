@@ -68,20 +68,22 @@ function buildAlerts(categoryId: CategoryId, active: SnapshotSummary, previous?:
     const marketRevMoM = pctChange(active.totals.revenue, previous.totals.revenue)
     const marketUnitsMoM = pctChange(active.totals.units, previous.totals.units)
 
-    if (marketRevMoM !== null && Math.abs(marketRevMoM) >= 10) {
+    if (marketRevMoM !== null) {
+      const abs = Math.abs(marketRevMoM)
       alerts.push({
         id: "market_revenue",
-        severity: marketRevMoM < -10 ? "risk" : "watch",
-        title: "Market revenue moved sharply",
+        severity: abs >= 10 ? (marketRevMoM < 0 ? "risk" : "watch") : "info",
+        title: "Market revenue (MoM)",
         detail: `Market 30D revenue ${formatChange(marketRevMoM)} vs last month.`,
       })
     }
 
-    if (marketUnitsMoM !== null && Math.abs(marketUnitsMoM) >= 10) {
+    if (marketUnitsMoM !== null) {
+      const abs = Math.abs(marketUnitsMoM)
       alerts.push({
         id: "market_units",
-        severity: marketUnitsMoM < -10 ? "risk" : "watch",
-        title: "Market units moved sharply",
+        severity: abs >= 10 ? (marketUnitsMoM < 0 ? "risk" : "watch") : "info",
+        title: "Market units (MoM)",
         detail: `Market 30D units ${formatChange(marketUnitsMoM)} vs last month.`,
       })
     }
@@ -97,7 +99,7 @@ function buildAlerts(categoryId: CategoryId, active: SnapshotSummary, previous?:
         best = { brand: brand.brand, delta }
       }
     }
-    if (best && Number.isFinite(best.delta) && Math.abs(best.delta) >= 1) {
+    if (best && Number.isFinite(best.delta)) {
       alerts.push({
         id: "share_mover",
         severity: Math.abs(best.delta) >= 2 ? "watch" : "info",
