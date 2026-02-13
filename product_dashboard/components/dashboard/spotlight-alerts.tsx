@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { AlertTriangle, Info, Radar } from "lucide-react"
 
 import { Card } from "@/components/ui/card"
+import { formatSnapshotDateFull } from "@/lib/snapshot-date"
 import { cn } from "@/lib/utils"
 
 type SpotlightSeverity = "info" | "watch" | "risk"
@@ -70,7 +71,7 @@ export function SpotlightAlerts() {
         <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
         <p className="text-sm font-medium">This Month Spotlight</p>
         <p className="text-xs text-muted-foreground">
-          {data?.snapshotDate ? `Snapshot ${data.snapshotDate}` : ""}
+          {data?.snapshotDate ? `Snapshot ${formatSnapshotDateFull(data.snapshotDate)}` : ""}
         </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

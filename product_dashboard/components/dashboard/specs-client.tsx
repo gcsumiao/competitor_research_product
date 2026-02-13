@@ -21,6 +21,7 @@ import {
 import type { DashboardData, TypeBreakdownMetric } from "@/lib/competitor-data"
 import type { CategoryTypeSummary } from "@/lib/type-summaries"
 import { cn } from "@/lib/utils"
+import { formatSnapshotDateFull, formatSnapshotLabelMonthEnd } from "@/lib/snapshot-date"
 import {
   formatChangeLabel,
   formatCurrency,
@@ -123,7 +124,7 @@ export function SpecsClient({
     const rows = selectScopeRows(snapshot.typeBreakdowns?.allAsins ?? [], resolvedScope)
     const revenue = rows.reduce((sum, row) => sum + row.revenue, 0)
     return {
-      label: snapshot.label,
+      label: formatSnapshotLabelMonthEnd(snapshot.date),
       value: revenue,
     }
   })
@@ -132,7 +133,7 @@ export function SpecsClient({
   const summaryLabel = summaryForCategory?.fileName ? ` | Source ${summaryForCategory.fileName}` : ""
 
   const headerDescription = activeSnapshot
-    ? `Snapshot ${activeSnapshot.date} | ${formatNumberCompact(scopeRows.length)} scope rows${summaryLabel}`
+    ? `Snapshot ${formatSnapshotDateFull(activeSnapshot.date)} | ${formatNumberCompact(scopeRows.length)} scope rows${summaryLabel}`
     : "No snapshot data available"
 
   return (
@@ -165,12 +166,12 @@ export function SpecsClient({
             )}
           >
             <Calendar className="w-4 h-4" />
-            {activeSnapshot?.date ?? "Snapshot"}
+            {activeSnapshot ? formatSnapshotDateFull(activeSnapshot.date) : "Snapshot"}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             {snapshots.map((snapshot) => (
               <DropdownMenuItem key={snapshot.date} onClick={() => setSnapshot(snapshot.date)}>
-                {snapshot.date}
+                {formatSnapshotDateFull(snapshot.date)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

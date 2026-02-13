@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { DashboardData, SnapshotSummary } from "@/lib/competitor-data"
 import { cn } from "@/lib/utils"
+import { formatSnapshotDateFull, formatSnapshotLabelMonthEnd } from "@/lib/snapshot-date"
 import {
   formatChangeLabel,
   formatCurrency,
@@ -67,7 +68,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
     const selectedTop = selectTop50(snapshot, resolvedMode)
     const summary = summarizeTop50(selectedTop, snapshot)
     return {
-      label: snapshot.label,
+      label: formatSnapshotLabelMonthEnd(snapshot.date),
       sales: summary.units,
       revenue: summary.revenue,
     }
@@ -123,7 +124,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
 
   const issueCount = (activeSnapshot?.qualityIssues ?? []).length
   const headerDescription = activeSnapshot
-    ? `Snapshot ${activeSnapshot.date} | Top 50 share ${formatPercent(activeTotals.share)}${issueCount ? ` | ${issueCount} data warning${issueCount > 1 ? "s" : ""}` : ""}`
+    ? `Snapshot ${formatSnapshotDateFull(activeSnapshot.date)} | Top 50 share ${formatPercent(activeTotals.share)}${issueCount ? ` | ${issueCount} data warning${issueCount > 1 ? "s" : ""}` : ""}`
     : "No snapshot data available"
 
   return (
@@ -159,7 +160,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
             )}
           >
             <Calendar className="w-4 h-4" />
-            {activeSnapshot?.date ?? "Snapshot"}
+            {activeSnapshot ? formatSnapshotDateFull(activeSnapshot.date) : "Snapshot"}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             {snapshots.map((snapshot) => (
@@ -167,7 +168,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
                 key={snapshot.date}
                 onClick={() => setSnapshot(snapshot.date)}
               >
-                {snapshot.date}
+                {formatSnapshotDateFull(snapshot.date)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

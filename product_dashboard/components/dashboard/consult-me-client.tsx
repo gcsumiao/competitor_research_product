@@ -8,6 +8,7 @@ import { ResultsWorkspace } from "@/components/consult-me/results-workspace"
 import { PageHeader } from "@/components/dashboard/page-header"
 import type { BrandResearchAsset, BrandResearchAssetMap } from "@/lib/consult-me/types"
 import type { DashboardData } from "@/lib/competitor-data"
+import { formatSnapshotDateFull } from "@/lib/snapshot-date"
 
 type RankedBrand = {
   brand: string
@@ -81,7 +82,7 @@ export function ConsultMeClient({
     <>
       <PageHeader
         title="Consult Me — Market Deep Research"
-        description={`Code Reader deep research console | Snapshot ${selectedSnapshot.date}`}
+        description={`Code Reader deep research console | Snapshot ${formatSnapshotDateFull(selectedSnapshot.date)}`}
       />
 
       <ConsultMeSession

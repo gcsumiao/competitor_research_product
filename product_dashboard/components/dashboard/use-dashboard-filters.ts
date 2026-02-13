@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { DashboardData, CategorySummary, SnapshotSummary } from "@/lib/competitor-data"
+import { normalizeSnapshotDate } from "@/lib/snapshot-date"
 
 export type DashboardFilters = {
   categories: CategorySummary[]
@@ -39,11 +40,16 @@ export function useDashboardFilters(data: DashboardData): DashboardFilters {
   )
   const defaultSnapshot = snapshots[snapshots.length - 1]
   const paramSnapshot = searchParams.get("snapshot")
+  const normalizedParamSnapshot = normalizeSnapshotDate(paramSnapshot ?? "")
 
   const selectedSnapshot = useMemo(() => {
     if (!snapshots.length) return undefined
-    return snapshots.find((snapshot) => snapshot.date === paramSnapshot) ?? defaultSnapshot
-  }, [defaultSnapshot, paramSnapshot, snapshots])
+    return (
+      snapshots.find((snapshot) => snapshot.date === paramSnapshot) ??
+      snapshots.find((snapshot) => snapshot.date === normalizedParamSnapshot) ??
+      defaultSnapshot
+    )
+  }, [defaultSnapshot, normalizedParamSnapshot, paramSnapshot, snapshots])
 
   useEffect(() => {
     if (!selectedCategory || !selectedSnapshot) return

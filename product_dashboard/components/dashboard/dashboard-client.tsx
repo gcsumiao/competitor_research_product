@@ -28,6 +28,7 @@ import {
 import type { DashboardData, SnapshotSummary } from "@/lib/competitor-data"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
 import { cn } from "@/lib/utils"
+import { formatSnapshotDateFull, formatSnapshotLabelMonthEnd } from "@/lib/snapshot-date"
 import {
   buildRange,
   formatChangeLabel,
@@ -92,7 +93,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   )
 
   const profitChartData = sortedSnapshots.map((snapshot) => ({
-    label: snapshot.label,
+    label: formatSnapshotLabelMonthEnd(snapshot.date),
     sales: snapshot.totals.units,
     revenue: snapshot.totals.revenue,
   }))
@@ -124,7 +125,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   }, [activeSnapshot, isCodeReader])
 
   const marketTrendData = sortedSnapshots.map((snapshot) => ({
-    label: snapshot.label,
+    label: formatSnapshotLabelMonthEnd(snapshot.date),
     value: marketTrendMetric === "units" ? snapshot.totals.units : snapshot.totals.revenue,
   }))
 
@@ -155,7 +156,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
 
   const issueCount = (activeSnapshot?.qualityIssues ?? []).length
   const headerDescription = activeSnapshot
-    ? `Snapshot ${activeSnapshot.date} | ${activeSnapshot.totals.asinCount} ASINs tracked${issueCount ? ` | ${issueCount} data warning${issueCount > 1 ? "s" : ""}` : ""}`
+    ? `Snapshot ${formatSnapshotDateFull(activeSnapshot.date)} | ${activeSnapshot.totals.asinCount} ASINs tracked${issueCount ? ` | ${issueCount} data warning${issueCount > 1 ? "s" : ""}` : ""}`
     : "No snapshot data available"
 
   const totalRevenueValue = formatCurrencyCompact(activeSnapshot?.totals.revenue ?? 0)
@@ -216,7 +217,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             )}
           >
             <Calendar className="w-4 h-4" />
-            {activeSnapshot?.date ?? "Snapshot"}
+            {activeSnapshot ? formatSnapshotDateFull(activeSnapshot.date) : "Snapshot"}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             {sortedSnapshots.map((snapshot) => (
@@ -224,7 +225,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                 key={snapshot.date}
                 onClick={() => setSnapshot(snapshot.date)}
               >
-                {snapshot.date}
+                {formatSnapshotDateFull(snapshot.date)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

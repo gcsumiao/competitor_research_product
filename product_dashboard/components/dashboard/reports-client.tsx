@@ -18,6 +18,7 @@ import {
 import type { CategoryId, DashboardData, ProductSummary } from "@/lib/competitor-data"
 import type { ReportFile } from "@/lib/report-files"
 import { cn } from "@/lib/utils"
+import { formatSnapshotDateFull, formatSnapshotLabelMonthEnd } from "@/lib/snapshot-date"
 import {
   formatChangeLabel,
   formatCurrency,
@@ -54,21 +55,21 @@ export function ReportsClient({ data, reports }: { data: DashboardData; reports:
 
   const unitsComparison = [
     {
-      label: previousSnapshot?.label ?? "Prev",
+      label: previousSnapshot ? formatSnapshotLabelMonthEnd(previousSnapshot.date) : "Prev",
       value: previousSnapshot?.totals.units ?? 0,
     },
     {
-      label: activeSnapshot?.label ?? "Current",
+      label: activeSnapshot ? formatSnapshotLabelMonthEnd(activeSnapshot.date) : "Current",
       value: activeSnapshot?.totals.units ?? 0,
     },
   ]
   const revenueComparison = [
     {
-      label: previousSnapshot?.label ?? "Prev",
+      label: previousSnapshot ? formatSnapshotLabelMonthEnd(previousSnapshot.date) : "Prev",
       value: previousSnapshot?.totals.revenue ?? 0,
     },
     {
-      label: activeSnapshot?.label ?? "Current",
+      label: activeSnapshot ? formatSnapshotLabelMonthEnd(activeSnapshot.date) : "Current",
       value: activeSnapshot?.totals.revenue ?? 0,
     },
   ]
@@ -151,7 +152,7 @@ export function ReportsClient({ data, reports }: { data: DashboardData; reports:
   ]
 
   const headerDescription = activeSnapshot
-    ? `Snapshot ${activeSnapshot.date} | Reports and comparisons`
+    ? `Snapshot ${formatSnapshotDateFull(activeSnapshot.date)} | Reports and comparisons`
     : "No snapshot data available"
 
   return (
@@ -184,12 +185,12 @@ export function ReportsClient({ data, reports }: { data: DashboardData; reports:
             )}
           >
             <Calendar className="w-4 h-4" />
-            {activeSnapshot?.date ?? "Snapshot"}
+            {activeSnapshot ? formatSnapshotDateFull(activeSnapshot.date) : "Snapshot"}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             {snapshots.map((snapshot) => (
               <DropdownMenuItem key={snapshot.date} onClick={() => setSnapshot(snapshot.date)}>
-                {snapshot.date}
+                {formatSnapshotDateFull(snapshot.date)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

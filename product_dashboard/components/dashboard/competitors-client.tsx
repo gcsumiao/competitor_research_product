@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { DashboardData, SnapshotSummary } from "@/lib/competitor-data"
 import { cn } from "@/lib/utils"
+import { formatSnapshotDateFull, formatSnapshotLabelMonthEnd } from "@/lib/snapshot-date"
 import {
   formatChangeLabel,
   formatCurrency,
@@ -115,14 +116,14 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
 
   const revenueRankTrend = snapshots
     .map((snapshot) => ({
-      label: snapshot.label,
+      label: formatSnapshotLabelMonthEnd(snapshot.date),
       value: findRank(snapshot, "revenue", resolvedSelectedBrand) ?? 0,
     }))
     .filter((entry) => entry.value > 0)
 
   const unitsRankTrend = snapshots
     .map((snapshot) => ({
-      label: snapshot.label,
+      label: formatSnapshotLabelMonthEnd(snapshot.date),
       value: findRank(snapshot, "units", resolvedSelectedBrand) ?? 0,
     }))
     .filter((entry) => entry.value > 0)
@@ -147,7 +148,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
   const rankYMax = Math.min(25, Math.max(maxRevenueRank, maxUnitsRank, 25))
 
   const headerDescription = activeSnapshot
-    ? `Snapshot ${activeSnapshot.date} | ${brandTotals.length} brands tracked`
+    ? `Snapshot ${formatSnapshotDateFull(activeSnapshot.date)} | ${brandTotals.length} brands tracked`
     : "No snapshot data available"
 
   return (
@@ -180,12 +181,12 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
             )}
           >
             <Calendar className="w-4 h-4" />
-            {activeSnapshot?.date ?? "Snapshot"}
+            {activeSnapshot ? formatSnapshotDateFull(activeSnapshot.date) : "Snapshot"}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             {snapshots.map((snapshot) => (
               <DropdownMenuItem key={snapshot.date} onClick={() => setSnapshot(snapshot.date)}>
-                {snapshot.date}
+                {formatSnapshotDateFull(snapshot.date)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -265,7 +266,12 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
       </div>
 
       <div className="mb-6">
-        <AllBrandsRankChart snapshots={snapshots} title="Rolling 12mon Rank (All Brands)" maxRank={25} />
+        <AllBrandsRankChart
+          snapshots={snapshots}
+          selectedSnapshotDate={activeSnapshot?.date}
+          title="Rolling 12mon Rank (All Brands)"
+          maxRank={25}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">

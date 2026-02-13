@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import type { DashboardData, ProductSummary } from "@/lib/competitor-data"
 import { cn } from "@/lib/utils"
+import { formatSnapshotDateFull } from "@/lib/snapshot-date"
 
 const STATUS_COLORS = ["bg-emerald-500", "bg-amber-500", "bg-blue-500", "bg-slate-400"]
 
@@ -98,7 +99,7 @@ export function SurveysClient({ data }: { data: DashboardData }) {
   ]
 
   const headerDescription = activeSnapshot
-    ? `Snapshot ${activeSnapshot.date} | Survey control center`
+    ? `Snapshot ${formatSnapshotDateFull(activeSnapshot.date)} | Survey control center`
     : "Survey control center"
 
   return (
@@ -131,12 +132,12 @@ export function SurveysClient({ data }: { data: DashboardData }) {
             )}
           >
             <Calendar className="w-4 h-4" />
-            {selectedSnapshot?.date ?? "Snapshot"}
+            {selectedSnapshot ? formatSnapshotDateFull(selectedSnapshot.date) : "Snapshot"}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             {snapshots.map((snapshot) => (
               <DropdownMenuItem key={snapshot.date} onClick={() => setSnapshot(snapshot.date)}>
-                {snapshot.date}
+                {formatSnapshotDateFull(snapshot.date)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

@@ -2,6 +2,7 @@ import { readdir, readFile } from "fs/promises"
 import path from "path"
 
 import { loadCodeReaderScannerSnapshots } from "@/lib/code-reader-scanner-data"
+import { formatSnapshotLabelMonthEnd, normalizeSnapshotDate } from "@/lib/snapshot-date"
 
 export type CategoryId =
   | "dmm"
@@ -205,22 +206,6 @@ function monthKeyFromDate(dateValue: string) {
   return dateValue.slice(0, 7)
 }
 
-function monthEndFromMonthKey(monthKey: string) {
-  // monthKey: YYYY-MM
-  if (!/^\d{4}-\d{2}$/.test(monthKey)) return monthKey
-  const [yearRaw, monthRaw] = monthKey.split("-")
-  const year = Number(yearRaw)
-  const month = Number(monthRaw)
-  if (!Number.isFinite(year) || !Number.isFinite(month)) return monthKey
-
-  // day 0 of next month gives the last day of current month (UTC)
-  const end = new Date(Date.UTC(year, month, 0))
-  const yyyy = String(end.getUTCFullYear())
-  const mm = String(end.getUTCMonth() + 1).padStart(2, "0")
-  const dd = String(end.getUTCDate()).padStart(2, "0")
-  return `${yyyy}-${mm}-${dd}`
-}
-
 export async function loadDashboardData(): Promise<DashboardData> {
   const categories = await Promise.all(
     CATEGORY_CONFIG.map(async (category) => {
@@ -297,7 +282,7 @@ function groupFilesBySnapshot(files: string[]): Map<string, string[]> {
 
   const grouped = new Map<string, string[]>()
   for (const [monthKey, entry] of monthLatest.entries()) {
-    grouped.set(monthEndFromMonthKey(monthKey), entry.files)
+    grouped.set(normalizeSnapshotDate(monthKey), entry.files)
   }
 
   return grouped
@@ -427,7 +412,7 @@ function buildSnapshotSummary(date: string, records: RawRecord[]): SnapshotSumma
 
   return {
     date,
-    label: formatSnapshotLabel(date),
+    label: formatSnapshotLabelMonthEnd(date),
     totals: {
       revenue: totalRevenue,
       units: totalUnits,
@@ -527,9 +512,4 @@ function parseNumber(value: string): number {
   }
   const parsed = Number(cleaned)
   return Number.isFinite(parsed) ? parsed : 0
-}
-
-function formatSnapshotLabel(dateValue: string): string {
-  const date = new Date(`${dateValue}T00:00:00Z`)
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "2-digit" }).format(date)
 }

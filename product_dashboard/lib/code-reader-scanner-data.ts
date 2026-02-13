@@ -13,6 +13,7 @@ import type {
   TypeBreakdownMetric,
   TypeBreakdownSummary,
 } from "@/lib/competitor-data"
+import { formatSnapshotLabelMonthEnd, normalizeSnapshotDate } from "@/lib/snapshot-date"
 
 type ManifestFile = {
   month?: string
@@ -866,7 +867,7 @@ function buildSnapshot(
 
   return {
     date,
-    label: formatSnapshotLabel(date),
+    label: formatSnapshotLabelMonthEnd(date),
     totals: {
       revenue: totalRevenue,
       units: totalUnits,
@@ -1505,24 +1506,6 @@ async function readManifest(filePath: string): Promise<ManifestFile | null> {
 }
 
 function resolveSnapshotDate(month: string, snapshotDate?: string) {
-  // Snapshots are monthly, so represent each month by its month-end date (UTC).
-  const year = Number(month.slice(0, 4))
-  const mm = Number(month.slice(4, 6))
-  if (!Number.isFinite(year) || !Number.isFinite(mm) || mm < 1 || mm > 12) {
-    if (snapshotDate && /^\d{4}-\d{2}-\d{2}$/.test(snapshotDate)) {
-      return snapshotDate
-    }
-    return month
-  }
-
-  const end = new Date(Date.UTC(year, mm, 0))
-  const yyyy = String(end.getUTCFullYear())
-  const monthLabel = String(end.getUTCMonth() + 1).padStart(2, "0")
-  const dd = String(end.getUTCDate()).padStart(2, "0")
-  return `${yyyy}-${monthLabel}-${dd}`
-}
-
-function formatSnapshotLabel(dateValue: string) {
-  const date = new Date(`${dateValue}T00:00:00Z`)
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "2-digit" }).format(date)
+  const candidate = snapshotDate?.trim() || month
+  return normalizeSnapshotDate(candidate)
 }
