@@ -16,7 +16,7 @@ import type {
   SalesArchetype,
   TopContributor,
 } from "@/lib/chatbot/types"
-import type { CategorySummary, SnapshotSummary } from "@/lib/competitor-data"
+import type { CategorySummary, SnapshotSummary, TypeBreakdownMetric } from "@/lib/competitor-data"
 
 type BuildParams = {
   message: string
@@ -159,6 +159,30 @@ function runAnalyzer(
 
   if (analyzer === "growth_driver") {
     return analyzeGrowthDriver(params, brandArchetypes)
+  }
+
+  if (analyzer === "price_range") {
+    return analyzePriceTierGrowth(params)
+  }
+
+  if (analyzer === "brand_comparison") {
+    return analyzeBrandComparison(params)
+  }
+
+  if (analyzer === "trends_momentum") {
+    return analyzeTrendsMomentum(params)
+  }
+
+  if (analyzer === "rating_reviews") {
+    return analyzeRatingReviews(params)
+  }
+
+  if (analyzer === "feature_analysis") {
+    return analyzeFeatureAnalysis(params)
+  }
+
+  if (analyzer === "data_clarification") {
+    return analyzeDataClarification(params)
   }
 
   if (analyzer === "asin_history") {
@@ -997,6 +1021,313 @@ function analyzeGrowthDriver(
   }
 }
 
+function analyzePriceTierGrowth(params: AnalyzerParams): AnalyzerOutput {
+  const { mart } = params
+  const metric = params.parsed.plan.rankingMetric
+  const window = params.parsed.plan.growthWindow
+
+  const rankedTiers = mart.priceScopeMetrics
+    .filter(isDetailedPriceTierMetric)
+    .map((row) => {
+      const mom = metric === "units" ? row.unitsMoM : row.revenueMoM
+      const yoy = metric === "units" ? row.unitsYoY : row.revenueYoY
+      const growth = growthForWindow(window, mom, yoy)
+      return { row, growth }
+    })
+    .filter((item) => item.growth !== null)
+    .sort((a, b) => safe(b.growth) - safe(a.growth))
+    .slice(0, 5)
+
+  const topTier = rankedTiers[0]
+  if (!topTier) {
+    const fallbackTier = [...mart.snapshot.priceTiers].sort((a, b) => b.revenue - a.revenue)[0]
+    if (!fallbackTier) {
+      return unknownOutput(mart, "I couldn't find price-tier metrics in this snapshot.")
+    }
+    return {
+      answer: `Price-tier growth data is limited in this snapshot. Largest tier by revenue is ${fallbackTier.label}.`,
+      bullets: mart.snapshot.priceTiers
+        .slice()
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 4)
+        .map((tier) => `${tier.label}: ${formatCurrency(tier.revenue)} revenue (${formatPercent(tier.share)} share).`),
+      evidence: [
+        ...baseEvidence(mart.snapshot),
+        { label: "Scope", value: "Price Tiers" },
+        { label: "Top Tier", value: fallbackTier.label },
+      ],
+      confidence: 0.7,
+      assumptions: ["Detailed tier growth was missing; fallback uses current-tier revenue mix only."],
+      citations: [citation("Price tiers fallback", "snapshot.priceTiers", mart.snapshot.date)],
+      suggestedQuestions: [
+        "Which handheld/tablet/dongle segment is growing fastest MoM and YoY?",
+        "Who is the fastest growth brand by revenue and by units?",
+        "Which brands are driving most of this growth?",
+      ],
+      warnings: ["Detailed price-tier MoM/YoY metrics are not fully available for this month."],
+    }
+  }
+
+  return {
+    answer: `Fastest growing price tier (${windowLabel(window)}, ${metric}): ${topTier.row.label}.`,
+    bullets: rankedTiers.map(
+      (item, index) =>
+        `#${index + 1} ${item.row.label}: ${formatPercent(item.growth)} (${windowLabel(window)}), ${formatCurrency(item.row.revenue)} revenue, ${formatNumber(item.row.units)} units.`
+    ),
+    evidence: [
+      ...baseEvidence(mart.snapshot),
+      { label: "Scope", value: "Price Tiers" },
+      { label: "Window", value: windowLabel(window) },
+      { label: "Metric", value: metric.toUpperCase() },
+    ],
+    confidence: 0.85,
+    assumptions: ["Price-tier growth uses parsed type/price-scope metrics from analysis/summary tables."],
+    citations: [citation("Price-tier growth", "snapshot.typeBreakdowns.allAsins", mart.snapshot.date)],
+    suggestedQuestions: [
+      "Which handheld/tablet/dongle segment is growing fastest MoM and YoY?",
+      "Who is the fastest growth brand by revenue and by units?",
+      "Which brands are driving most of this growth?",
+    ],
+    warnings: [],
+  }
+}
+
+function analyzeBrandComparison(params: AnalyzerParams): AnalyzerOutput {
+  const { mart } = params
+  const explicitBrands = unique([
+    ...params.entities.brands,
+    ...(params.scope.mode === "explicit_brand" || params.scope.mode === "target_brand" ? params.scope.brands : []),
+  ])
+
+  const selectedBrands =
+    explicitBrands.length >= 2
+      ? explicitBrands.slice(0, 2)
+      : mart.snapshot.brandTotals
+          .slice()
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 2)
+          .map((row) => row.brand)
+
+  const [firstBrand, secondBrand] = selectedBrands
+  if (!firstBrand || !secondBrand) {
+    return unknownOutput(mart, "I couldn't find two brands to compare in this snapshot.")
+  }
+
+  const left = summarizeBrandCurrent(mart, firstBrand)
+  const right = summarizeBrandCurrent(mart, secondBrand)
+  if (!left || !right) {
+    return unknownOutput(mart, `I couldn't compare ${firstBrand} and ${secondBrand} from current data.`)
+  }
+
+  const leftRank = rankForBrandByMetric(mart.snapshot, left.brand, "revenue")
+  const rightRank = rankForBrandByMetric(mart.snapshot, right.brand, "revenue")
+  const aspGap = left.asp - right.asp
+  const revenueGap = left.revenue - right.revenue
+  const unitsGap = left.units - right.units
+
+  return {
+    answer:
+      revenueGap >= 0
+        ? `${left.brand} is ahead of ${right.brand} by ${formatCurrency(revenueGap)} monthly revenue.`
+        : `${right.brand} is ahead of ${left.brand} by ${formatCurrency(Math.abs(revenueGap))} monthly revenue.`,
+    bullets: [
+      `${left.brand}: rank #${leftRank ?? "n/a"}, ${formatCurrency(left.revenue)} revenue, ${formatNumber(left.units)} units, ASP ${formatCurrency(left.asp)}.`,
+      `${right.brand}: rank #${rightRank ?? "n/a"}, ${formatCurrency(right.revenue)} revenue, ${formatNumber(right.units)} units, ASP ${formatCurrency(right.asp)}.`,
+      `Gap summary: units ${formatSignedNumber(unitsGap)}, ASP ${formatSignedCurrencyRaw(aspGap)}.`,
+      `${left.brand} share ${formatPercent(left.revenueShare)} vs ${right.brand} share ${formatPercent(right.revenueShare)}.`,
+    ],
+    evidence: [
+      ...baseEvidence(mart.snapshot),
+      { label: "Brand A", value: left.brand },
+      { label: "Brand B", value: right.brand },
+      { label: "Revenue Gap", value: formatSignedCurrencyRaw(revenueGap) },
+    ],
+    confidence: 0.87,
+    assumptions: ["Brand comparison uses current-month brand totals and revenue-rank ordering."],
+    citations: [citation("Brand comparison", "snapshot.brandTotals", mart.snapshot.date)],
+    suggestedQuestions: [
+      "Which brand is closing the gap fastest?",
+      "Who is the fastest rank mover this month?",
+      "What price tier is growing fastest?",
+    ],
+    warnings: [],
+  }
+}
+
+function analyzeTrendsMomentum(params: AnalyzerParams): AnalyzerOutput {
+  const { mart } = params
+  const products = mart.products
+    .map((product) => ({ product, momentum: safe(product.revenueMoM) }))
+    .sort((a, b) => b.momentum - a.momentum)
+
+  const rising = products.slice(0, 3)
+  const declining = [...products].reverse().slice(0, 2)
+  const brandMovers = mart.snapshot.brandTotals
+    .map((row) => {
+      const prev = (mart.previous?.brandTotals ?? []).find((item) => normalize(item.brand) === normalize(row.brand))
+      return { brand: row.brand, delta: ratio(row.revenue, safe(prev?.revenue)) }
+    })
+    .sort((a, b) => b.delta - a.delta)
+    .slice(0, 3)
+
+  const topRise = rising[0]
+  if (!topRise) {
+    return unknownOutput(mart, "I couldn't compute momentum signals from this snapshot.")
+  }
+
+  return {
+    answer: `Top momentum product: ${topRise.product.brand} ${topRise.product.asin} (${formatPercent(topRise.product.revenueMoM)} revenue MoM).`,
+    bullets: [
+      ...rising.map(
+        (item, index) =>
+          `Rising #${index + 1}: ${item.product.brand} ${item.product.asin} (${formatPercent(item.product.revenueMoM)} revenue MoM, ${formatPercent(item.product.unitsMoM)} units MoM).`
+      ),
+      ...declining.map(
+        (item, index) =>
+          `Declining #${index + 1}: ${item.product.brand} ${item.product.asin} (${formatPercent(item.product.revenueMoM)} revenue MoM).`
+      ),
+      ...brandMovers.map((item) => `Brand momentum: ${item.brand} ${formatPercent(item.delta)} revenue MoM.`),
+    ],
+    evidence: [
+      ...baseEvidence(mart.snapshot),
+      { label: "Top Momentum Product", value: `${topRise.product.brand} ${topRise.product.asin}` },
+      { label: "Revenue MoM", value: formatPercent(topRise.product.revenueMoM) },
+    ],
+    confidence: 0.86,
+    assumptions: ["Momentum uses month-over-month change in product and brand revenue."],
+    citations: [citation("Momentum signals", "products + brandTotals vs prior snapshot", mart.snapshot.date)],
+    suggestedQuestions: [
+      "Which products are rising fastest now?",
+      "Who is the fastest growth brand this month (MoM)?",
+      "Who is the fastest rank mover this month?",
+    ],
+    warnings: [],
+  }
+}
+
+function analyzeRatingReviews(params: AnalyzerParams): AnalyzerOutput {
+  const { mart } = params
+  const strongQuality = mart.products
+    .filter((item) => item.rating >= 4.0 && item.revenue >= 100_000)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 4)
+  const mismatches = mart.products
+    .filter((item) => item.revenue >= 200_000)
+    .sort((a, b) => a.rating - b.rating)
+    .slice(0, 3)
+
+  if (!strongQuality.length && !mismatches.length) {
+    return unknownOutput(mart, "I couldn't find rating/review signals with enough coverage in this snapshot.")
+  }
+
+  const top = strongQuality[0] ?? mismatches[0]
+  return {
+    answer: top
+      ? `Rating-performance signal: ${top.brand} ${top.asin} combines ${top.rating.toFixed(1)}★ with ${formatCurrency(top.revenue)} monthly revenue.`
+      : "Rating-performance signal is limited in this snapshot.",
+    bullets: [
+      ...strongQuality.map(
+        (item) =>
+          `High-quality leader: ${item.brand} ${item.asin} (${item.rating.toFixed(1)}★, ${formatNumber(item.reviews)} reviews, ${formatCurrency(item.revenue)} revenue).`
+      ),
+      ...mismatches.map(
+        (item) =>
+          `Price-quality risk: ${item.brand} ${item.asin} has ${formatCurrency(item.revenue)} revenue but rating ${item.rating.toFixed(1)}★.`
+      ),
+    ],
+    evidence: [
+      ...baseEvidence(mart.snapshot),
+      { label: "High-Quality Leaders", value: `${strongQuality.length}` },
+      { label: "Mismatch Signals", value: `${mismatches.length}` },
+    ],
+    confidence: 0.81,
+    assumptions: ["Rating and review analysis uses current-month product ratings/reviews with revenue thresholds."],
+    citations: [citation("Rating/review analysis", "products (rating, reviews, revenue)", mart.snapshot.date)],
+    suggestedQuestions: [
+      "Any price-quality mismatch by brand?",
+      "Which products are rising stars this month?",
+      "What should I be worried about?",
+    ],
+    warnings: [],
+  }
+}
+
+function analyzeFeatureAnalysis(params: AnalyzerParams): AnalyzerOutput {
+  const { mart } = params
+  const tierRows = mart.priceScopeMetrics.filter(isDetailedPriceTierMetric)
+  const topTier = tierRows
+    .slice()
+    .sort((a, b) => safe(b.revenueShare) - safe(a.revenueShare))[0]
+
+  return {
+    answer:
+      "Feature-level columns are not consistently available in this snapshot, so I used type and price-tier proxies for feature-premium direction.",
+    bullets: [
+      topTier
+        ? `Highest-weight proxy tier: ${topTier.label} (${formatPercent(topTier.revenueShare)} revenue share, avg price ${formatCurrency(topTier.avgPrice)}).`
+        : "No detailed tier-level proxy was available this month.",
+      "For exact feature premium (for example Wi-Fi, true RMS, articulation), we need explicit feature columns in the source workbook.",
+      "You can still compare premium vs volume posture through ASP, units, and revenue movement by type scope.",
+    ],
+    evidence: [
+      ...baseEvidence(mart.snapshot),
+      { label: "Feature Columns", value: "Partial / not standardized" },
+      { label: "Proxy Source", value: "Type + Price Tier metrics" },
+    ],
+    confidence: topTier ? 0.72 : 0.62,
+    assumptions: ["Feature analysis falls back to price-tier/type proxies when structured feature fields are missing."],
+    citations: [citation("Feature proxy analysis", "snapshot.typeBreakdowns", mart.snapshot.date)],
+    suggestedQuestions: [
+      "What price tier is growing fastest?",
+      "Which handheld/tablet/dongle segment is growing fastest MoM and YoY?",
+      "Which brand is closing the gap fastest?",
+    ],
+    warnings: topTier ? [] : ["Feature-level premium requires workbook fields that are missing in this snapshot."],
+  }
+}
+
+function analyzeDataClarification(params: AnalyzerParams): AnalyzerOutput {
+  const { mart } = params
+  const normalized = params.parsed.normalized
+
+  let answer =
+    "Revenue and unit metrics in this dashboard are estimated market outputs from the monthly report pipeline, then normalized into snapshot tables."
+  const bullets: string[] = [
+    "MoM and YoY are computed using the nearest previous month and prior-year month snapshots when available.",
+    "Market share is brand revenue divided by total market revenue for the same snapshot month.",
+  ]
+
+  if (/\b(other|other brand|other category)\b/.test(normalized)) {
+    answer = "The 'Other' bucket represents brands/listings not broken out as named primary rows in the same scope table."
+    bullets.push("It is a residual grouping, not a single company.")
+  }
+  if (/\b(estimated|actual|helium|source|revenue estimated)\b/.test(normalized)) {
+    bullets.push("These values are treated as estimated market analytics, not direct confirmed POS transactions.")
+  }
+  if (/\b(share|jump|drop|flat|moved)\b/.test(normalized)) {
+    bullets.push("Share can rise when your revenue is flat if total market revenue falls faster.")
+  }
+
+  return {
+    answer,
+    bullets,
+    evidence: [
+      ...baseEvidence(mart.snapshot),
+      { label: "Source Mode", value: "Monthly snapshot normalization" },
+      { label: "Window", value: "Current month vs prior month / prior year" },
+    ],
+    confidence: 0.78,
+    assumptions: ["Clarification answers explain definitions used by the current dashboard data model."],
+    citations: [citation("Definitions", "competitor-data snapshot model", mart.snapshot.date)],
+    suggestedQuestions: [
+      "How is revenue estimated in this report?",
+      "Why did market share move while revenue stayed flat?",
+      "What is included in Other brand category?",
+    ],
+    warnings: [],
+  }
+}
+
 type TypeBrandGrowthRow = {
   brand: string
   revenue: number
@@ -1374,6 +1705,25 @@ function formatPercent(value: number | null) {
 
 function signedPoints(value: number) {
   return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)}pt`
+}
+
+function formatSignedCurrencyRaw(value: number) {
+  const abs = formatCurrency(Math.abs(value))
+  return `${value >= 0 ? "+" : "-"}${abs}`
+}
+
+function formatSignedNumber(value: number) {
+  const abs = formatNumber(Math.abs(value))
+  return `${value >= 0 ? "+" : "-"}${abs}`
+}
+
+function isDetailedPriceTierMetric(metric: TypeBreakdownMetric) {
+  const key = normalize(metric.scopeKey)
+  const label = metric.label.toLowerCase()
+  if (/\$/.test(label)) return true
+  if (/(tablet|handheld)/.test(key) && /\d/.test(key)) return true
+  if (/(plus|minus)/.test(key)) return true
+  return false
 }
 
 function describeTrend(value: number | null) {

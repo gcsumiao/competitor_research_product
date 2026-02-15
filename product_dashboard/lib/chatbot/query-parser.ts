@@ -81,6 +81,38 @@ function forceIntentFromPattern(
   normalized: string
 ): { intent: ChatIntent; confidence: number } | null {
   if (
+    /\b(price tier|price tiers|pricing tier|pricing tiers)\b/.test(normalized) &&
+    /\b(fastest|grow|growth|rising|increase)\b/.test(normalized)
+  ) {
+    return { intent: "price_range", confidence: 0.93 }
+  }
+  if (/\b(product should we prioritize|prioritize in this segment|prioritise in this segment)\b/.test(normalized)) {
+    return { intent: "opportunity_signal", confidence: 0.88 }
+  }
+  if (/\b(lower competitive density|competitive density|lower competition)\b/.test(normalized)) {
+    return { intent: "competitive_gaps", confidence: 0.86 }
+  }
+  if (
+    /\b(strongest competitors|top competitors|main competitors)\b/.test(normalized) &&
+    /\b(segment|type|tier)\b/.test(normalized)
+  ) {
+    return { intent: "brand_comparison", confidence: 0.88 }
+  }
+  if (
+    /\b(driving most of this growth|drivers? of growth|what is driving growth|what drives growth)\b/.test(
+      normalized
+    )
+  ) {
+    return { intent: "price_vs_volume_explainer", confidence: 0.9 }
+  }
+  if (
+    /\b(rising stars?|rising fastest|strongest momentum|trend acceleration|trend reversal|rank shifts?)\b/.test(
+      normalized
+    )
+  ) {
+    return { intent: "trends_momentum", confidence: 0.86 }
+  }
+  if (
     /\b(biggest competitor|main competitor|closest competitor|compete against|alternative to)\b/.test(
       normalized
     )
@@ -106,14 +138,14 @@ function forceIntentFromPattern(
     return { intent: "fastest_mover", confidence: 0.9 }
   }
   if (
-    /\b(fastest growth|grew the most|highest mom|highest yoy|fastest growing|growth leader)\b/.test(
+    /\b(fastest growth|growing fastest|grew fastest|grew the most|highest mom|highest yoy|fastest growing|growth leader)\b/.test(
       normalized
     )
   ) {
     return { intent: "fastest_mover", confidence: 0.9 }
   }
   if (
-    /\b(fastest rank mover|rank moved most|biggest rank jump|rank improvement|rank mover)\b/.test(
+    /\b(fastest rank mover|rank moved most|biggest rank jump|rank improvement|rank mover|closing the gap fastest)\b/.test(
       normalized
     )
   ) {
