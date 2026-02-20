@@ -34,7 +34,53 @@ import {
   truncateLabel,
 } from "@/lib/dashboard-format"
 
-const BRAND_COLORS = ["#3b82f6", "#22c55e", "#8b5cf6", "#f97316", "#0ea5e9", "#14b8a6"]
+const FIXED_BRAND_COLORS: Record<string, string> = {
+  autel: "#3b82f6",
+  launch: "#f97316",
+  topdon: "#8b5cf6",
+  ancel: "#22c55e",
+  foxwell: "#ef4444",
+  xtool: "#eab308",
+  obdlink: "#14b8a6",
+  innova: "#6366f1",
+  blcktec: "#10b981",
+  thinkcar: "#ec4899",
+  icarsoft: "#06b6d4",
+  bluedriver: "#334155",
+}
+
+const BRAND_COLOR_PALETTE = [
+  "#3b82f6",
+  "#f97316",
+  "#8b5cf6",
+  "#22c55e",
+  "#ef4444",
+  "#eab308",
+  "#14b8a6",
+  "#6366f1",
+  "#10b981",
+  "#ec4899",
+  "#06b6d4",
+  "#334155",
+]
+
+function normalizeBrand(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "")
+}
+
+function fallbackBrandColor(brand: string) {
+  const key = normalizeBrand(brand)
+  let hash = 0
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0
+  }
+  return BRAND_COLOR_PALETTE[hash % BRAND_COLOR_PALETTE.length]
+}
+
+function colorForBrand(brand: string) {
+  const key = normalizeBrand(brand)
+  return FIXED_BRAND_COLORS[key] ?? fallbackBrandColor(brand)
+}
 
 type BrandSortMode = "revenue" | "units"
 
@@ -72,10 +118,10 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
     : (scopeOptions[0]?.value ?? "all_asins")
 
   const shareRows = buildShareRows(activeSnapshot, resolvedScope, brandSortMode)
-  const brandShareItems = shareRows.slice(0, 6).map((brand, index) => ({
+  const brandShareItems = shareRows.slice(0, 6).map((brand) => ({
     label: brand.brand,
     value: brandSortMode === "units" ? brand.units : brand.revenue,
-    color: BRAND_COLORS[index % BRAND_COLORS.length],
+    color: colorForBrand(brand.brand),
   }))
 
   const topShareBrand = shareRows[0]
