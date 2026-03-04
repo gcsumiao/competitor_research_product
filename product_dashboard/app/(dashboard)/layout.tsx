@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { Suspense } from "react"
 import { DashboardChatbot } from "@/components/chatbot/dashboard-chatbot"
+import { ConsultMeResearchNotifier } from "@/components/consult-me/research-notifier"
 import { Header } from "@/components/dashboard/header"
 import { SpotlightAlerts } from "@/components/dashboard/spotlight-alerts"
 
@@ -15,6 +16,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <SpotlightAlerts />
         </Suspense>
         {children}
+        <Suspense fallback={null}>
+          <ConsultMeResearchNotifier />
+        </Suspense>
         <Suspense fallback={null}>
           <DashboardChatbot />
         </Suspense>

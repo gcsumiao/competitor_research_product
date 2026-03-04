@@ -3,9 +3,11 @@ import { NextResponse } from "next/server"
 import { buildDeterministicChatResponse } from "@/lib/chatbot/insights"
 import { detectIntent } from "@/lib/chatbot/intents"
 import type { ChatRequest, ChatResponse } from "@/lib/chatbot/types"
+import { resolveSnapshotTimeRange } from "@/lib/chatbot/time-resolver"
 import { loadDashboardData } from "@/lib/competitor-data"
+import { normalizeSnapshotDate } from "@/lib/snapshot-date"
 
-const CACHE_TTL_MS = 60_000
+const CACHE_TTL_MS = 15_000
 const MESSAGE_MAX_LENGTH = 1200
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 let dashboardCache:
@@ -26,6 +28,7 @@ export async function POST(request: Request) {
     const message = payload.message!.trim()
     const categoryId = payload.categoryId!
     const snapshotDate = payload.snapshotDate!
+    const normalizedSnapshotDate = normalizeSnapshotDate(snapshotDate)
     const targetBrand =
       typeof payload.targetBrand === "string" && payload.targetBrand.trim()
         ? payload.targetBrand.trim()
@@ -37,12 +40,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Unknown category: ${categoryId}` }, { status: 400 })
     }
 
-    const snapshot = category.snapshots.find((item) => item.date === snapshotDate)
+    const timeResolution = resolveSnapshotTimeRange({
+      message,
+      availableSnapshotDates: category.snapshots.map((item) => item.date),
+      fallbackSnapshotDate: snapshotDate,
+    })
+
+    let snapshotWarning: string | undefined
+    const snapshot =
+      category.snapshots.find((item) => item.date === timeResolution.primarySnapshotDate) ??
+      category.snapshots.find((item) => item.date === snapshotDate) ??
+      category.snapshots.find((item) => item.date === normalizedSnapshotDate) ??
+      category.snapshots.at(-1)
+
     if (!snapshot) {
       return NextResponse.json(
         { error: `Unknown snapshot date for category ${categoryId}: ${snapshotDate}` },
         { status: 400 }
       )
+    }
+
+    if (
+      snapshot.date !== snapshotDate &&
+      snapshot.date !== normalizedSnapshotDate &&
+      snapshot.date !== timeResolution.primarySnapshotDate
+    ) {
+      snapshotWarning = `Requested snapshot ${snapshotDate} was unavailable. Using latest ${snapshot.date}.`
     }
 
     const deterministic = await buildDeterministicChatResponse({
@@ -51,10 +74,33 @@ export async function POST(request: Request) {
       snapshot,
       snapshots: category.snapshots,
       targetBrand,
+      resolvedTime: timeResolution,
     })
 
-    const enhanced = await maybeEnhanceWithLlm(message, deterministic)
-    return NextResponse.json(enhanced ?? deterministic)
+    const deterministicWithSnapshotWarning = snapshotWarning
+      ? {
+          ...deterministic,
+          warnings: [snapshotWarning, ...(deterministic.warnings ?? [])].slice(0, 6),
+        }
+      : deterministic
+
+    const deterministicWithTime = {
+      ...deterministicWithSnapshotWarning,
+      snapshotUsed: deterministicWithSnapshotWarning.snapshotUsed ?? snapshot.date,
+      compareSnapshotUsed:
+        deterministicWithSnapshotWarning.compareSnapshotUsed ?? timeResolution.compareSnapshotDate,
+      windowUsed:
+        deterministicWithSnapshotWarning.windowUsed ??
+        (timeResolution.resolvedWindow ? windowToLabel(timeResolution.resolvedWindow) : undefined),
+      warnings: [
+        ...(timeResolution.warnings ?? []),
+        ...(deterministicWithSnapshotWarning.warnings ?? []),
+      ].slice(0, 6),
+    }
+
+    const enhanced = await maybeEnhanceWithLlm(message, deterministicWithTime)
+    const finalResponse = addSnapshotPrefix(enhanced ?? deterministicWithTime)
+    return NextResponse.json(finalResponse)
   } catch {
     return NextResponse.json(
       {
@@ -233,4 +279,21 @@ async function loadDashboardDataCached() {
     data,
   }
   return data
+}
+
+function windowToLabel(value: "1m" | "3m" | "6m" | "12m" | "all") {
+  if (value === "1m") return "Last 1 month"
+  if (value === "3m") return "Last 3 months"
+  if (value === "6m") return "Last 6 months"
+  if (value === "12m") return "Last 12 months"
+  return "Full history"
+}
+
+function addSnapshotPrefix(response: ChatResponse): ChatResponse {
+  if (!response.snapshotUsed) return response
+  if (response.answer.startsWith("(Snapshot used:")) return response
+  return {
+    ...response,
+    answer: `(Snapshot used: ${response.snapshotUsed}) ${response.answer}`,
+  }
 }

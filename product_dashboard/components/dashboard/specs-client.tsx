@@ -68,6 +68,7 @@ export function SpecsClient({
   const isCodeReader = selectedCategory?.id === "code_reader_scanner"
 
   const [selectedScope, setSelectedScope] = useState<TypeScope>("all_asins")
+  const [typeMixMetric, setTypeMixMetric] = useState<"revenue" | "units">("revenue")
 
   const scopeOptions = buildScopeOptions(activeSnapshot?.typeBreakdowns?.allAsins ?? [])
   const resolvedScope = scopeOptions.some((option) => option.value === selectedScope)
@@ -90,13 +91,20 @@ export function SpecsClient({
     revenue: row.revenue,
   }))
 
-  const typeShareItems = scopeRows.slice(0, 6).map((row, index) => ({
+  const scopeRowsForMix = [...scopeRows]
+    .sort((a, b) => (typeMixMetric === "units" ? b.units - a.units : b.revenue - a.revenue))
+    .slice(0, 6)
+
+  const typeShareItems = scopeRowsForMix.map((row, index) => ({
     label: row.label,
-    value: row.revenue,
+    value: typeMixMetric === "revenue" ? row.revenue : row.units,
     color: SPEC_COLORS[index % SPEC_COLORS.length],
+    revenueShare: row.revenueShare,
+    unitsShare: row.unitsShare,
   }))
 
   const topScopeRow = scopeRows[0]
+  const topScopeRowForMix = scopeRowsForMix[0]
   const previousTopScope = previousScopeRows.find((item) => item.scopeKey === topScopeRow?.scopeKey)
 
   const topTypeProducts = (activeSnapshot?.topProducts ?? [])
@@ -112,6 +120,7 @@ export function SpecsClient({
     })
     .slice(0, 4)
     .map((product) => ({
+      asin: product.asin,
       name: truncateLabel(product.title, 36),
       brand: product.brand,
       priceLabel: product.price ? formatCurrency(product.price, 0) : "n/a",
@@ -231,19 +240,40 @@ export function SpecsClient({
         </div>
         <div className="lg:col-span-2 h-full">
           <SalesMap
-            title="Top product types"
-            subtitle="Revenue split by selected type scope"
+            title={typeMixMetric === "revenue" ? "Price tier mix" : "Units tier mix"}
+            subtitle={typeMixMetric === "revenue"
+              ? "Revenue share by selected scope"
+              : "Units share by selected scope"}
             items={typeShareItems}
-            topLabel={topScopeRow?.label ?? "n/a"}
-            topValue={formatCurrencyCompact(topScopeRow?.revenue ?? 0)}
+            topLabel={topScopeRowForMix?.label ?? "n/a"}
+            topValue={typeMixMetric === "revenue"
+              ? formatCurrencyCompact(topScopeRowForMix?.revenue ?? 0)
+              : formatNumberCompact(topScopeRowForMix?.units ?? 0)}
             growthLabel="Top share"
-            growthValue={topScopeRow ? formatPercent(topScopeRow.revenueShare, 1) : "n/a"}
-            totalLabel="Scope revenue"
-            totalValue={formatCurrencyCompact(scopeRows.reduce((sum, row) => sum + row.revenue, 0))}
+            growthValue={topScopeRowForMix
+              ? formatPercent(
+                  typeMixMetric === "revenue"
+                    ? topScopeRowForMix.revenueShare
+                    : topScopeRowForMix.unitsShare,
+                  1
+                )
+              : "n/a"}
+            totalLabel={typeMixMetric === "revenue" ? "Scope revenue" : "Scope units"}
+            totalValue={typeMixMetric === "revenue"
+              ? formatCurrencyCompact(scopeRows.reduce((sum, row) => sum + row.revenue, 0))
+              : formatNumberCompact(scopeRows.reduce((sum, row) => sum + row.units, 0))}
             primaryControl={{
               value: resolvedScope,
               onChange: (value) => setSelectedScope(value as TypeScope),
               options: scopeOptions,
+            }}
+            toggleControl={{
+              value: typeMixMetric,
+              onChange: (value) => setTypeMixMetric(value as "revenue" | "units"),
+              options: [
+                { value: "revenue", label: "Revenue" },
+                { value: "units", label: "Units" },
+              ],
             }}
           />
         </div>

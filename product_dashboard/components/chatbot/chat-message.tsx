@@ -36,12 +36,28 @@ export function ChatMessage({ message, onSuggestedQuestion }: ChatMessageProps) 
   const proactive = response?.proactive ?? []
   const warnings = response?.warnings ?? []
   const suggestedQuestions = response?.suggestedQuestions ?? []
+  const snapshotUsed = response?.snapshotUsed
+  const compareSnapshotUsed = response?.compareSnapshotUsed
+  const windowUsed = response?.windowUsed
 
   return (
     <div className="flex justify-start">
       <Card className="w-full border border-border bg-card">
         <CardContent className="space-y-3 p-3">
           <p className="text-xs text-foreground">{body}</p>
+
+          {snapshotUsed || compareSnapshotUsed || windowUsed ? (
+            <div className="rounded-md border border-border bg-background/60 px-2 py-1.5">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Time Context
+              </p>
+              <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                {snapshotUsed ? <p>Snapshot used: {snapshotUsed}</p> : null}
+                {compareSnapshotUsed ? <p>Compare snapshot: {compareSnapshotUsed}</p> : null}
+                {windowUsed ? <p>Window: {windowUsed}</p> : null}
+              </div>
+            </div>
+          ) : null}
 
           {bullets.length > 0 ? (
             <ul className="space-y-1 text-xs text-muted-foreground">

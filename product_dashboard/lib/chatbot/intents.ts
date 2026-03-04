@@ -280,6 +280,7 @@ const SUGGESTED_QUESTIONS: Record<ChatIntent, string[]> = {
   top_products: [
     "Show the top products by revenue.",
     "Show the top products by units.",
+    "Who is the top 1 scanner in Jan 2026?",
   ],
   product_type_mix: [
     "How is revenue split by product type?",
@@ -315,11 +316,13 @@ const SUGGESTED_QUESTIONS: Record<ChatIntent, string[]> = {
   ],
   self_assessment: [
     "How did Innova and BLCKTEC perform this month vs last month?",
+    "How did Innova perform in Jan 2026?",
     "What percentage of our revenue comes from the top 3 SKUs?",
     "How does our ASP compare with the market average?",
   ],
   competitive_benchmarking: [
     "Who gained the most market share this month?",
+    "Who gained the most market share in 2026-01?",
     "Where do we rank in revenue and units this month?",
     "Did any competitor make aggressive price moves in our core segments?",
   ],
@@ -340,6 +343,7 @@ const SUGGESTED_QUESTIONS: Record<ChatIntent, string[]> = {
   ],
   unknown: [
     "How did we do this month?",
+    "How did we do in Jan 2026?",
     "What are competitors doing?",
     "What should I be worried about?",
   ],

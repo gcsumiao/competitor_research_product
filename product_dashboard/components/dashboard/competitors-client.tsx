@@ -122,6 +122,8 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
     label: brand.brand,
     value: brandSortMode === "units" ? brand.units : brand.revenue,
     color: colorForBrand(brand.brand),
+    revenueShare: brand.revenueShare,
+    unitsShare: brand.unitsShare,
   }))
 
   const topShareBrand = shareRows[0]
@@ -259,12 +261,12 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
           onChange: setBrandScope,
           options: scopeOptions,
         }}
-        secondaryControl={{
+        toggleControl={{
           value: brandSortMode,
           onChange: (value) => setBrandSortMode(value as BrandSortMode),
           options: [
-            { value: "revenue", label: "Sort: Revenue" },
-            { value: "units", label: "Sort: Units" },
+            { value: "revenue", label: "Revenue" },
+            { value: "units", label: "Units" },
           ],
         }}
       />
@@ -298,6 +300,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
         <div>
           <TopProducts
             products={featuredBrandProducts.map((product) => ({
+              asin: product.asin,
               name: truncateLabel(product.title, 36),
               brand: product.brand,
               priceLabel: product.price ? formatCurrency(product.price, 0) : "n/a",
@@ -353,7 +356,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium">Brands</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 max-h-[420px] overflow-auto">
+          <CardContent className="space-y-2">
             {brandListings.map((brand) => {
               return (
                 <button
@@ -505,14 +508,23 @@ function buildShareRows(
   scope: string,
   sortMode: BrandSortMode
 ) {
-  if (!snapshot) return [] as Array<{ brand: string; revenue: number; units: number; share: number }>
+  if (!snapshot) {
+    return [] as Array<{
+      brand: string
+      revenue: number
+      units: number
+      revenueShare: number
+      unitsShare: number
+    }>
+  }
 
   if (scope === "all_asins") {
     const rows = snapshot.brandTotals.map((brand) => ({
       brand: brand.brand,
       revenue: brand.revenue,
       units: brand.units,
-      share: brand.share,
+      revenueShare: brand.share,
+      unitsShare: snapshot.totals.units ? brand.units / snapshot.totals.units : 0,
     }))
     return rows.sort((a, b) =>
       sortMode === "units" ? b.units - a.units : b.revenue - a.revenue
@@ -525,7 +537,8 @@ function buildShareRows(
       brand: row.brand,
       revenue: row.revenue,
       units: row.units,
-      share: sortMode === "units" ? row.unitsShare : row.revenueShare,
+      revenueShare: row.revenueShare,
+      unitsShare: row.unitsShare,
     })) ?? []
 
   return mixRows.sort((a, b) =>

@@ -110,7 +110,7 @@ export type CodeReaderDataMart = {
   qualityWarnings: string[]
 }
 
-const CACHE_TTL_MS = 180_000
+const CACHE_TTL_MS = 30_000
 
 const martCache = new Map<
   string,
@@ -643,8 +643,12 @@ function getYoYSnapshot(sortedSnapshots: SnapshotSummary[], snapshotDate: string
   if (Number.isNaN(date.getTime())) return undefined
   date.setUTCFullYear(date.getUTCFullYear() - 1)
   const month = `${date.getUTCMonth() + 1}`.padStart(2, "0")
-  const yoyKey = `${date.getUTCFullYear()}-${month}-01`
-  return sortedSnapshots.find((item) => item.date === yoyKey)
+  const yoyMonthKey = `${date.getUTCFullYear()}-${month}`
+  const exact = sortedSnapshots.find((item) => item.date.startsWith(`${yoyMonthKey}-`))
+  if (exact) return exact
+
+  const earlier = sortedSnapshots.filter((item) => item.date.slice(0, 7) <= yoyMonthKey)
+  return earlier[earlier.length - 1]
 }
 
 function indexOfRank(source: ProductSummary[], asin: string) {

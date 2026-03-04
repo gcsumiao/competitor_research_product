@@ -8,6 +8,7 @@ import {
 } from "@/lib/chatbot/intent-calculators"
 import { categorySuggestedQuestions } from "@/lib/chatbot/question-bank"
 import { buildFrameworkProactiveSuggestions, buildProactiveSuggestions } from "@/lib/chatbot/proactive"
+import type { TimeResolution } from "@/lib/chatbot/time-resolver"
 import { resolveCategorySourceWorkbook } from "@/lib/chatbot/category-sources"
 import {
   normalizeCategoryWorkbookData,
@@ -64,9 +65,10 @@ type BuildParams = {
   snapshot: SnapshotSummary
   snapshots: SnapshotSummary[]
   targetBrand?: string
+  resolvedTime?: TimeResolution
 }
 
-const CATEGORY_DATA_CACHE_TTL_MS = 180_000
+const CATEGORY_DATA_CACHE_TTL_MS = 30_000
 
 const categoryDataCache = new Map<
   string,
@@ -82,6 +84,7 @@ export async function buildDeterministicChatResponse({
   snapshot,
   snapshots,
   targetBrand,
+  resolvedTime,
 }: BuildParams): Promise<ChatResponse> {
   const detection = detectIntent(message, category.id)
   const isCodeReader = category.id === "code_reader_scanner"
@@ -105,6 +108,7 @@ export async function buildDeterministicChatResponse({
       snapshot,
       snapshots,
       targetBrand,
+      resolvedTime,
     })
     if (v2) {
       return v2

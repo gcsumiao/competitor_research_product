@@ -241,7 +241,7 @@ async function parseReportWorkbook(reportPath: string, issues: DataQualityIssue[
 function parseRollingSheet(rows: string[][], issues: DataQualityIssue[]): ParsedRolling {
   const headers: Array<{ index: number; metric: "revenue" | "units" }> = []
 
-  for (let i = 0; i < Math.min(rows.length, 140); i += 1) {
+  for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i]
     if (!isRollingHeaderRow(row)) continue
 
@@ -249,6 +249,7 @@ function parseRollingSheet(rows: string[][], issues: DataQualityIssue[]): Parsed
     if (!metric) continue
     if (headers.some((item) => item.metric === metric)) continue
     headers.push({ index: i, metric })
+    if (headers.length >= 2) break
   }
 
   const parsed: ParsedRolling = {}
@@ -271,7 +272,7 @@ function parseRollingSheet(rows: string[][], issues: DataQualityIssue[]): Parsed
 
 function parseRollingSection(rows: string[][], headerIndex: number): ParsedRollingSection | null {
   const header = rows[headerIndex]
-  const brandCol = findColumn(header, ["brand"])
+  const brandCol = findStrictColumn(header, ["brand"])
   if (brandCol < 0) return null
 
   let grandTotalCol = findColumn(header, ["grandtotal", "12morevenue", "12mounits"])
@@ -383,8 +384,35 @@ function detectRollingMetric(
 }
 
 function isRollingHeaderRow(row: string[]): boolean {
-  const brandCol = findColumn(row, ["brand"])
+  const brandCol = findStrictColumn(row, ["brand"])
   if (brandCol < 0) return false
+  const normalized = row.map(normalizeText)
+  const hasGrandTotal = normalized.some(
+    (cell) =>
+      cell.includes("grandtotal") || cell.includes("12morevenue") || cell.includes("12mounits")
+  )
+  if (!hasGrandTotal) return false
+
+  const hasPeriodLabels = normalized.some(
+    (cell) =>
+      cell.includes("monthlyrevenue") ||
+      cell.includes("monthlysales") ||
+      cell.includes("monthlyunits") ||
+      cell.includes("january") ||
+      cell.includes("february") ||
+      cell.includes("march") ||
+      cell.includes("april") ||
+      cell.includes("may") ||
+      cell.includes("june") ||
+      cell.includes("july") ||
+      cell.includes("august") ||
+      cell.includes("september") ||
+      cell.includes("october") ||
+      cell.includes("november") ||
+      cell.includes("december")
+  )
+  if (!hasPeriodLabels) return false
+
   const nonEmptyCells = row.filter((cell) => cell.trim() !== "")
   return nonEmptyCells.length >= 4
 }
@@ -1196,6 +1224,7 @@ function parseProductTable(
   ])
   const reviewsCol = findColumn(header, ["reviewcount", "#ofreviews", "totalreviews"])
   const toolRatingCol = findColumn(header, ["toolrating", "reviewsrating", "avgrating"])
+  const imageCol = findColumn(header, ["imageurl", "image", "imageurllink"])
   const urlCol = findColumn(header, ["url", "link", "column1", "column2"])
 
   if (
@@ -1256,6 +1285,7 @@ function parseProductTable(
         monthlyUnitsCol >= 0 ? parseNumber(getCell(row, monthlyUnitsCol)) : undefined,
       toolRating: toolRatingCol >= 0 ? parseNumber(getCell(row, toolRatingCol)) : undefined,
       subcategory: typeCol >= 0 ? getCell(row, typeCol).trim() || undefined : undefined,
+      imageUrl: imageCol >= 0 ? getCell(row, imageCol).trim() || undefined : undefined,
       url: resolveProductUrl(asin, urlCol >= 0 ? getCell(row, urlCol).trim() : ""),
     }
 
@@ -1379,6 +1409,11 @@ function findLabelColumn(header: string[]): number {
 function findColumn(row: string[], aliases: string[]): number {
   const normalized = row.map(normalizeText)
   return normalized.findIndex((value) => aliases.some((alias) => value.includes(alias)))
+}
+
+function findStrictColumn(row: string[], aliases: string[]): number {
+  const normalized = row.map(normalizeText)
+  return normalized.findIndex((value) => aliases.some((alias) => value === alias))
 }
 
 function normalizeText(value: string): string {

@@ -8,8 +8,10 @@ import type {
   RankingMetric,
   RankingTarget,
   TargetLevel,
+  TimeIntent,
 } from "@/lib/chatbot/types"
 import type { CategoryId } from "@/lib/competitor-data"
+import { parseTimeReference } from "@/lib/chatbot/time-parser"
 
 export type QueryScope = {
   compareToLastMonth: boolean
@@ -27,9 +29,22 @@ export type ParsedQuery = {
   plan: QueryPlan
 }
 
-export function parseQuery(message: string, categoryId: CategoryId): ParsedQuery {
+type ParseQueryOverrides = {
+  resolvedPrimarySnapshot?: string
+  resolvedCompareSnapshot?: string
+  resolvedWindow?: HistoricalWindow
+  timeIntent?: TimeIntent
+  requestedMonth?: string
+}
+
+export function parseQuery(
+  message: string,
+  categoryId: CategoryId,
+  overrides?: ParseQueryOverrides
+): ParsedQuery {
   const normalized = message.toLowerCase().trim()
   const detected = detectIntent(message, categoryId)
+  const timeRef = parseTimeReference(message)
 
   const forced = forceIntentFromPattern(normalized)
   const intent = forced?.intent ?? detected.intent
@@ -73,6 +88,11 @@ export function parseQuery(message: string, categoryId: CategoryId): ParsedQuery
       rankingTarget,
       targetLevel,
       typeScope,
+      timeIntent: overrides?.timeIntent ?? timeRef.timeIntent,
+      requestedMonth: overrides?.requestedMonth ?? timeRef.requestedMonth,
+      resolvedPrimarySnapshot: overrides?.resolvedPrimarySnapshot,
+      resolvedCompareSnapshot: overrides?.resolvedCompareSnapshot,
+      resolvedWindow: overrides?.resolvedWindow ?? timeRef.requestedWindow ?? historicalWindow,
     },
   }
 }

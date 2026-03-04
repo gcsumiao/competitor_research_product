@@ -15,6 +15,7 @@
     "lint:product": "pnpm -C product_dashboard lint",
     "lint:template": "pnpm -C dashboard_templatev0 lint",
     "archive:code-reader": "pnpm -C product_dashboard archive:code-reader",
-    "backfill:code-reader-history": "pnpm -C product_dashboard backfill:code-reader-history"
+    "backfill:code-reader-history": "pnpm -C product_dashboard backfill:code-reader-history",
+    "prelaunch:code-reader": "cd \"Amazon_Monthly_Competitor_Report copy\" && .venv/bin/python script/run_prelaunch_dashboard_pipeline.py"
   }
 }

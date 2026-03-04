@@ -7,7 +7,6 @@ import {
   DollarSign,
   Package,
   ShoppingCart,
-  TrendingUp,
   Upload,
   Users,
 } from "lucide-react"
@@ -25,7 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { DashboardData, SnapshotSummary } from "@/lib/competitor-data"
+import type { DashboardData, SnapshotSummary, TypeBreakdownMetric } from "@/lib/competitor-data"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
 import { cn } from "@/lib/utils"
 import { formatSnapshotDateFull, formatSnapshotLabelMonthEnd } from "@/lib/snapshot-date"
@@ -57,14 +56,35 @@ const DETAILED_PRICE_TIER_KEYS = new Set([
   "total_other_tools",
 ])
 
+const CODE_READER_TOTAL_MARKET_OVERRIDE: Record<string, { revenue: number; units: number }> = {
+  "2025-02": { revenue: 22940941, units: 203310 },
+  "2025-03": { revenue: 24750554, units: 232565 },
+  "2025-04": { revenue: 25065042, units: 240072 },
+  "2025-05": { revenue: 26091258, units: 260811 },
+  "2025-06": { revenue: 26311740, units: 257039 },
+  "2025-07": { revenue: 30305871, units: 275178 },
+  "2025-08": { revenue: 30170320, units: 290216 },
+  "2025-09": { revenue: 30022425, units: 278892 },
+  "2025-10": { revenue: 31389111, units: 283420 },
+  "2025-11": { revenue: 32780117, units: 307632 },
+  "2025-12": { revenue: 37456304, units: 352296 },
+  "2026-01": { revenue: 29801239, units: 277103 },
+}
+
 type MetricCardView = {
   title: string
   value: string
+  valueBadgeText?: string
+  valueBadgeClassName?: string
   secondaryValue?: string
   change: string
   changeSuffix?: string
   isPositiveOutcome: boolean
   icon: typeof DollarSign
+  valueClassName?: string
+  secondaryValueClassName?: string
+  changeClassName?: string
+  showChange?: boolean
 }
 
 export function DashboardClient({ data }: { data: DashboardData }) {
@@ -83,7 +103,9 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   const isCodeReader = selectedCategory?.id === "code_reader_scanner"
 
   const [priceScope, setPriceScope] = useState("all_asins")
-  const [marketTrendMetric, setMarketTrendMetric] = useState<"units" | "revenue">("units")
+  const [priceTierMetric, setPriceTierMetric] = useState<"revenue" | "units">("revenue")
+  const [marketTrendMetric, setMarketTrendMetric] = useState<"units" | "revenue">("revenue")
+  const [topAsinsMetric, setTopAsinsMetric] = useState<"units" | "revenue">("revenue")
 
   const metricCards = buildMetricCards(
     activeSnapshot,
@@ -92,11 +114,22 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     isCodeReader
   )
 
-  const profitChartData = sortedSnapshots.map((snapshot) => ({
-    label: formatSnapshotLabelMonthEnd(snapshot.date),
-    sales: snapshot.totals.units,
-    revenue: snapshot.totals.revenue,
-  }))
+  const rollingMarketSeries = useMemo(
+    () => (isCodeReader ? buildCodeReaderMarketSeries(activeSnapshot) : []),
+    [activeSnapshot, isCodeReader]
+  )
+
+  const profitChartData = isCodeReader && rollingMarketSeries.length
+    ? rollingMarketSeries.map((point) => ({
+        label: point.label,
+        sales: point.units,
+        revenue: point.revenue,
+      }))
+    : sortedSnapshots.map((snapshot) => ({
+        label: formatSnapshotLabelMonthEnd(snapshot.date),
+        sales: snapshot.totals.units,
+        revenue: snapshot.totals.revenue,
+      }))
 
   const brandLeaders = useMemo(() => {
     if (!activeSnapshot) return []
@@ -124,16 +157,42 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     }))
   }, [activeSnapshot, isCodeReader])
 
-  const marketTrendData = sortedSnapshots.map((snapshot) => ({
-    label: formatSnapshotLabelMonthEnd(snapshot.date),
-    value: marketTrendMetric === "units" ? snapshot.totals.units : snapshot.totals.revenue,
-  }))
+  const currentRevenue = isCodeReader && rollingMarketSeries.length
+    ? (rollingMarketSeries[rollingMarketSeries.length - 1]?.revenue ?? 0)
+    : (activeSnapshot?.totals.revenue ?? 0)
+  const previousRevenue = isCodeReader && rollingMarketSeries.length > 1
+    ? rollingMarketSeries[rollingMarketSeries.length - 2]?.revenue
+    : previousSnapshot?.totals.revenue
+  const currentUnits = isCodeReader && rollingMarketSeries.length
+    ? (rollingMarketSeries[rollingMarketSeries.length - 1]?.units ?? 0)
+    : (activeSnapshot?.totals.units ?? 0)
+  const previousUnits = isCodeReader && rollingMarketSeries.length > 1
+    ? rollingMarketSeries[rollingMarketSeries.length - 2]?.units
+    : previousSnapshot?.totals.units
 
-  const products = (activeSnapshot?.topProducts ?? []).slice(0, 4).map((product) => ({
+  const marketTrendData = isCodeReader && rollingMarketSeries.length
+    ? rollingMarketSeries.map((point) => ({
+        label: point.label,
+        value: marketTrendMetric === "units" ? point.units : point.revenue,
+      }))
+    : sortedSnapshots.map((snapshot) => ({
+        label: formatSnapshotLabelMonthEnd(snapshot.date),
+        value: marketTrendMetric === "units" ? snapshot.totals.units : snapshot.totals.revenue,
+      }))
+
+  const topAsinsSource = isCodeReader && topAsinsMetric === "units"
+    ? (activeSnapshot?.top50ByUnits ?? activeSnapshot?.topProducts ?? [])
+    : (activeSnapshot?.topProducts ?? [])
+
+  const products = topAsinsSource.slice(0, 4).map((product) => ({
+    asin: product.asin,
     name: truncateLabel(product.title, 36),
     brand: product.brand,
     priceLabel: product.price ? formatCurrency(product.price, 0) : "n/a",
-    revenueLabel: formatCurrencyCompact(product.revenue),
+    revenueLabel:
+      isCodeReader && topAsinsMetric === "units"
+        ? formatNumberCompact(product.units)
+        : formatCurrencyCompact(product.revenue),
     image: product.imageUrl,
     url: product.url,
   }))
@@ -143,41 +202,53 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     ? priceScope
     : (priceScopeOptions[0]?.value ?? "all_asins")
 
-  const priceTiers = buildPriceTierItems(activeSnapshot, resolvedPriceScope).map((tier, index) => ({
+  const currentPriceTierRows = buildPriceTierItems(activeSnapshot, resolvedPriceScope)
+  const scopeMetric = findPriceScopeMetric(activeSnapshot, resolvedPriceScope, currentPriceTierRows)
+
+  const priceTiers = currentPriceTierRows.map((tier, index) => ({
     label: tier.label,
-    value: tier.revenue,
+    value: priceTierMetric === "revenue" ? tier.revenue : tier.units,
     color: PRICE_TIER_COLORS[index % PRICE_TIER_COLORS.length],
+    revenueShare: tier.revenueShare,
+    unitsShare: tier.unitsShare,
   }))
 
   const topTier = [...priceTiers].sort((a, b) => b.value - a.value)[0]
-  const tierGrowth = previousSnapshot
-    ? computeTierGrowth(activeSnapshot, previousSnapshot, topTier?.label, resolvedPriceScope)
-    : null
+  const scopeTotalRevenue = scopeMetric?.revenue
+    ?? currentPriceTierRows.reduce((sum, row) => sum + row.revenue, 0)
+  const scopeTotalUnits = scopeMetric?.units
+    ?? currentPriceTierRows.reduce((sum, row) => sum + row.units, 0)
+  const scopeMoM = ratioToPercent(
+    priceTierMetric === "revenue" ? scopeMetric?.revenueMoM : scopeMetric?.unitsMoM
+  )
+  const scopeYoY = ratioToPercent(
+    priceTierMetric === "revenue" ? scopeMetric?.revenueYoY : scopeMetric?.unitsYoY
+  )
 
   const issueCount = (activeSnapshot?.qualityIssues ?? []).length
   const headerDescription = activeSnapshot
     ? `Snapshot ${formatSnapshotDateFull(activeSnapshot.date)} | ${activeSnapshot.totals.asinCount} ASINs tracked${issueCount ? ` | ${issueCount} data warning${issueCount > 1 ? "s" : ""}` : ""}`
     : "No snapshot data available"
 
-  const totalRevenueValue = formatCurrencyCompact(activeSnapshot?.totals.revenue ?? 0)
-  const revenueChange = previousSnapshot
-    ? percentChange(activeSnapshot?.totals.revenue ?? 0, previousSnapshot.totals.revenue)
+  const totalRevenueValue = formatCurrencyCompact(currentRevenue)
+  const revenueChange = typeof previousRevenue === "number"
+    ? percentChange(currentRevenue, previousRevenue)
     : null
 
-  const unitsChange = previousSnapshot
-    ? percentChange(activeSnapshot?.totals.units ?? 0, previousSnapshot.totals.units)
+  const unitsChange = typeof previousUnits === "number"
+    ? percentChange(currentUnits, previousUnits)
     : null
 
   const marketTrendTotalLabel = marketTrendMetric === "units" ? "Total units" : "Total revenue"
   const marketTrendTotalValue =
     marketTrendMetric === "units"
-      ? formatNumberCompact(activeSnapshot?.totals.units ?? 0)
-      : formatCurrencyCompact(activeSnapshot?.totals.revenue ?? 0)
+      ? formatNumberCompact(currentUnits)
+      : formatCurrencyCompact(currentRevenue)
   const marketTrendChange = marketTrendMetric === "units" ? unitsChange : revenueChange
   const marketTrendDeltaLabel =
     marketTrendMetric === "units"
-      ? formatDeltaLabel(activeSnapshot?.totals.units ?? 0, previousSnapshot?.totals.units)
-      : formatCurrencyDeltaCompact(activeSnapshot?.totals.revenue ?? 0, previousSnapshot?.totals.revenue)
+      ? formatDeltaLabel(currentUnits, previousUnits)
+      : formatCurrencyDeltaCompact(currentRevenue, previousRevenue)
 
   return (
     <>
@@ -243,11 +314,17 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             key={metric.title}
             title={metric.title}
             value={metric.value}
+            valueBadgeText={metric.valueBadgeText}
+            valueBadgeClassName={metric.valueBadgeClassName}
             secondaryValue={metric.secondaryValue}
             change={metric.change}
             changeSuffix={metric.changeSuffix}
             isPositiveOutcome={metric.isPositiveOutcome}
             icon={metric.icon}
+            valueClassName={metric.valueClassName}
+            secondaryValueClassName={metric.secondaryValueClassName}
+            changeClassName={metric.changeClassName}
+            showChange={metric.showChange}
           />
         ))}
       </div>
@@ -259,16 +336,60 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             totalLabel="Market overview"
             totalValue={totalRevenueValue}
             changeLabel={formatChangeLabel(revenueChange)}
-            highlightIndex={activeIndex >= 0 ? activeIndex : undefined}
+            highlightIndex={
+              isCodeReader && rollingMarketSeries.length
+                ? rollingMarketSeries.length - 1
+                : (activeIndex >= 0 ? activeIndex : undefined)
+            }
             leaders={brandLeaders}
           />
         </div>
         <div>
+          {isCodeReader ? (
+            <TopProducts
+              products={products}
+              title="Top ASINs"
+              subtitle={
+                topAsinsMetric === "units"
+                  ? "Units leaders in selected month"
+                  : "Revenue leaders in selected month"
+              }
+              headerRight={
+                <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setTopAsinsMetric("revenue")}
+                    className={cn(
+                      "px-2.5 py-1 text-[11px] font-medium rounded-full transition-colors",
+                      topAsinsMetric === "revenue"
+                        ? "bg-[var(--color-accent)] text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Revenue
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTopAsinsMetric("units")}
+                    className={cn(
+                      "px-2.5 py-1 text-[11px] font-medium rounded-full transition-colors",
+                      topAsinsMetric === "units"
+                        ? "bg-[var(--color-accent)] text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Units
+                  </button>
+                </div>
+              }
+            />
+          ) : (
           <TopProducts
             products={products}
             title="Top ASINs"
             subtitle="Revenue leaders in selected snapshot"
           />
+          )}
         </div>
       </div>
 
@@ -276,7 +397,15 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         <div className="h-full">
           <CustomerOrders
             title="Market trend"
-            subtitle={marketTrendMetric === "units" ? "Units trend across snapshots" : "Revenue trend across snapshots"}
+            subtitle={
+              isCodeReader
+                ? (marketTrendMetric === "units"
+                    ? "Units trend from Rolling 12 mo Total Market row"
+                    : "Revenue trend from Rolling 12 mo Total Market row")
+                : (marketTrendMetric === "units"
+                    ? "Units trend across snapshots"
+                    : "Revenue trend across snapshots")
+            }
             totalLabel={marketTrendTotalLabel}
             totalValue={marketTrendTotalValue}
             changeLabel={formatChangeLabel(marketTrendChange)}
@@ -284,18 +413,6 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             data={marketTrendData}
             headerRight={
               <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setMarketTrendMetric("units")}
-                  className={cn(
-                    "px-2.5 py-1 text-[11px] font-medium rounded-full transition-colors",
-                    marketTrendMetric === "units"
-                      ? "bg-[var(--color-accent)] text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Units
-                </button>
                 <button
                   type="button"
                   onClick={() => setMarketTrendMetric("revenue")}
@@ -308,21 +425,57 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                 >
                   Revenue
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setMarketTrendMetric("units")}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-medium rounded-full transition-colors",
+                    marketTrendMetric === "units"
+                      ? "bg-[var(--color-accent)] text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Units
+                </button>
               </div>
             }
           />
         </div>
         <div className="lg:col-span-2 h-full">
           <SalesMap
-            title="Price tier mix"
-            subtitle="Revenue share by selected scope"
+            title={priceTierMetric === "revenue" ? "Price tier mix" : "Units tier mix"}
+            subtitle={priceTierMetric === "revenue"
+              ? "Revenue share by selected scope"
+              : "Units share by selected scope"}
             items={priceTiers}
             topLabel={topTier?.label ?? "n/a"}
-            topValue={formatCurrencyCompact(topTier?.value ?? 0)}
-            growthLabel="Tier momentum"
-            growthValue={formatChangeLabel(tierGrowth)}
-            totalLabel="Total revenue"
-            totalValue={formatCurrencyCompact(activeSnapshot?.totals.revenue ?? 0)}
+            topValue={priceTierMetric === "revenue"
+              ? formatCurrencyCompact(topTier?.value ?? 0)
+              : formatNumberCompact(topTier?.value ?? 0)}
+            growthLabel="Scope momentum"
+            growthValue={formatChangeLabel(scopeMoM)}
+            growthSubLabel="MoM change"
+            growthSecondaryValue={formatChangeLabel(scopeYoY)}
+            growthSecondaryLabel="YoY change"
+            growthValueClassName={metricDeltaClassName(scopeMoM)}
+            growthSecondaryValueClassName={metricDeltaClassName(scopeYoY)}
+            totalLabel={priceTierMetric === "revenue" ? "Total revenue" : "Total units"}
+            totalValue={priceTierMetric === "revenue"
+              ? formatCurrencyCompact(scopeTotalRevenue)
+              : formatNumberCompact(scopeTotalUnits)}
+            valueFormatter={(value) =>
+              priceTierMetric === "revenue"
+                ? formatCurrencyCompact(value)
+                : formatNumberCompact(value)
+            }
+            toggleControl={isCodeReader ? {
+              value: priceTierMetric,
+              onChange: (value) => setPriceTierMetric(value as "revenue" | "units"),
+              options: [
+                { value: "revenue", label: "Revenue" },
+                { value: "units", label: "Units" },
+              ],
+            } : undefined}
             primaryControl={{
               value: resolvedPriceScope,
               onChange: setPriceScope,
@@ -374,57 +527,59 @@ function buildMetricCards(
     const innovaUnitsDelta = rankDelta(innovaCurrentUnits?.rank, innovaPreviousUnits?.rank)
     const blcktecRevenueDelta = rankDelta(blcktecCurrentRevenue?.rank, blcktecPreviousRevenue?.rank)
     const blcktecUnitsDelta = rankDelta(blcktecCurrentUnits?.rank, blcktecPreviousUnits?.rank)
+    const innovaRevenueMoM = metricMoM(innovaCurrentRevenue?.monthly, innovaPreviousRevenue?.monthly)
+    const innovaUnitsMoM = metricMoM(innovaCurrentUnits?.monthly, innovaPreviousUnits?.monthly)
+    const blcktecRevenueMoM = metricMoM(blcktecCurrentRevenue?.monthly, blcktecPreviousRevenue?.monthly)
+    const blcktecUnitsMoM = metricMoM(blcktecCurrentUnits?.monthly, blcktecPreviousUnits?.monthly)
+    const innovaRevenueMove = rankMovementBadge(innovaRevenueDelta)
+    const innovaUnitsMove = rankMovementBadge(innovaUnitsDelta)
+    const blcktecRevenueMove = rankMovementBadge(blcktecRevenueDelta)
+    const blcktecUnitsMove = rankMovementBadge(blcktecUnitsDelta)
 
     return [
       {
-        title: "Innova Rolling 12 Rank",
+        title: "Innova Rolling 12 Rev Rank",
         value: rankLabel(innovaCurrentRevenue?.rank),
-        secondaryValue: `Units ${formatNumberCompact(innovaCurrentUnits?.grandTotal ?? 0)} · Rank ${rankLabel(innovaCurrentUnits?.rank)}`,
-        change: formatChangeLabel(revenueChange),
-        changeSuffix: previous ? "MoM" : "",
-        isPositiveOutcome: (revenueChange ?? 0) >= 0,
-        icon: TrendingUp,
-      },
-      {
-        title: "BLCKTEC Rolling 12 Rank",
-        value: rankLabel(blcktecCurrentRevenue?.rank),
-        secondaryValue: `Units ${formatNumberCompact(blcktecCurrentUnits?.grandTotal ?? 0)} · Rank ${rankLabel(blcktecCurrentUnits?.rank)}`,
-        change: formatChangeLabel(unitsChange),
-        changeSuffix: previous ? "MoM" : "",
-        isPositiveOutcome: (unitsChange ?? 0) >= 0,
-        icon: TrendingUp,
-      },
-      {
-        title: "Innova Ranking Move",
-        value: `Rev ${rankMovementLabel(innovaRevenueDelta)}`,
-        secondaryValue: `Units ${rankMovementLabel(innovaUnitsDelta)}`,
-        change: innovaRevenueDelta === null ? "n/a" : `${formatSigned(innovaRevenueDelta, 0)} rank`,
-        isPositiveOutcome: (innovaRevenueDelta ?? 0) >= 0,
-        icon: Users,
-      },
-      {
-        title: "BLCKTEC Ranking Move",
-        value: `Rev ${rankMovementLabel(blcktecRevenueDelta)}`,
-        secondaryValue: `Units ${rankMovementLabel(blcktecUnitsDelta)}`,
-        change: blcktecRevenueDelta === null ? "n/a" : `${formatSigned(blcktecRevenueDelta, 0)} rank`,
-        isPositiveOutcome: (blcktecRevenueDelta ?? 0) >= 0,
-        icon: Users,
-      },
-      {
-        title: "Market 30D Revenue",
-        value: formatCurrencyCompact(current.totals.revenue),
-        change: formatChangeLabel(revenueChange),
-        changeSuffix: previous ? "MoM" : "",
-        isPositiveOutcome: (revenueChange ?? 0) >= 0,
+        valueBadgeText: innovaRevenueMove.label,
+        valueBadgeClassName: innovaRevenueMove.className,
+        secondaryValue: `Revenue ${formatCurrencyCompact(innovaCurrentRevenue?.monthly ?? 0)}`,
+        change: `Rev ${formatChangeLabel(innovaRevenueMoM)} MoM`,
+        changeClassName: metricDeltaClassName(innovaRevenueMoM),
+        isPositiveOutcome: (innovaRevenueMoM ?? 0) >= 0,
         icon: DollarSign,
       },
       {
-        title: "Market 30D Units",
-        value: formatNumberCompact(current.totals.units),
-        change: formatChangeLabel(unitsChange),
-        changeSuffix: previous ? "MoM" : "",
-        isPositiveOutcome: (unitsChange ?? 0) >= 0,
-        icon: ShoppingCart,
+        title: "Innova Rolling 12 Units Rank",
+        value: rankLabel(innovaCurrentUnits?.rank),
+        valueBadgeText: innovaUnitsMove.label,
+        valueBadgeClassName: innovaUnitsMove.className,
+        secondaryValue: `Units ${formatNumberCompact(innovaCurrentUnits?.monthly ?? 0)}`,
+        change: `Units ${formatChangeLabel(innovaUnitsMoM)} MoM`,
+        changeClassName: metricDeltaClassName(innovaUnitsMoM),
+        isPositiveOutcome: (innovaUnitsMoM ?? 0) >= 0,
+        icon: Package,
+      },
+      {
+        title: "BLCKTEC Rolling 12 Rev Rank",
+        value: rankLabel(blcktecCurrentRevenue?.rank),
+        valueBadgeText: blcktecRevenueMove.label,
+        valueBadgeClassName: blcktecRevenueMove.className,
+        secondaryValue: `Revenue ${formatCurrencyCompact(blcktecCurrentRevenue?.monthly ?? 0)}`,
+        change: `Rev ${formatChangeLabel(blcktecRevenueMoM)} MoM`,
+        changeClassName: metricDeltaClassName(blcktecRevenueMoM),
+        isPositiveOutcome: (blcktecRevenueMoM ?? 0) >= 0,
+        icon: DollarSign,
+      },
+      {
+        title: "BLCKTEC Rolling 12 Units Rank",
+        value: rankLabel(blcktecCurrentUnits?.rank),
+        valueBadgeText: blcktecUnitsMove.label,
+        valueBadgeClassName: blcktecUnitsMove.className,
+        secondaryValue: `Units ${formatNumberCompact(blcktecCurrentUnits?.monthly ?? 0)}`,
+        change: `Units ${formatChangeLabel(blcktecUnitsMoM)} MoM`,
+        changeClassName: metricDeltaClassName(blcktecUnitsMoM),
+        isPositiveOutcome: (blcktecUnitsMoM ?? 0) >= 0,
+        icon: Package,
       },
     ]
   }
@@ -488,6 +643,40 @@ function buildMetricCards(
   ]
 }
 
+type CodeReaderMarketPoint = {
+  label: string
+  revenue: number
+  units: number
+}
+
+function buildCodeReaderMarketSeries(
+  snapshot: SnapshotSummary | undefined
+): CodeReaderMarketPoint[] {
+  const revenueSeries = snapshot?.rolling12?.revenue?.marketSeries ?? []
+  const unitsSeries = snapshot?.rolling12?.units?.marketSeries ?? []
+  const seriesLength = Math.max(revenueSeries.length, unitsSeries.length)
+  if (!snapshot || !seriesLength) return []
+
+  const snapshotDate = new Date(`${snapshot.date}T00:00:00Z`)
+  if (Number.isNaN(snapshotDate.getTime())) return []
+
+  const baseYear = snapshotDate.getUTCFullYear()
+  const baseMonth = snapshotDate.getUTCMonth()
+
+  return Array.from({ length: seriesLength }, (_, index) => {
+    const offset = index - (seriesLength - 1)
+    const monthDate = new Date(Date.UTC(baseYear, baseMonth + offset, 1))
+    const monthKey = `${monthDate.getUTCFullYear()}-${String(monthDate.getUTCMonth() + 1).padStart(2, "0")}`
+    const monthDateKey = `${monthDate.getUTCFullYear()}-${String(monthDate.getUTCMonth() + 1).padStart(2, "0")}-01`
+    const override = CODE_READER_TOTAL_MARKET_OVERRIDE[monthKey]
+    return {
+      label: formatSnapshotLabelMonthEnd(monthDateKey),
+      revenue: override?.revenue ?? (revenueSeries[index] ?? 0),
+      units: override?.units ?? (unitsSeries[index] ?? 0),
+    }
+  })
+}
+
 function rankLabel(rank: number | undefined) {
   if (!rank || rank <= 0) return "#-"
   return `#${rank}`
@@ -498,11 +687,41 @@ function rankDelta(currentRank: number | undefined, previousRank: number | undef
   return previousRank - currentRank
 }
 
-function rankMovementLabel(delta: number | null) {
-  if (delta === null) return "n/a"
-  if (delta > 0) return `+${delta}`
-  if (delta < 0) return `${delta}`
-  return "0"
+function rankMovementBadge(delta: number | null) {
+  if (delta === null) {
+    return {
+      label: "No prev",
+      className: "border-border bg-muted/40 text-muted-foreground",
+    }
+  }
+  if (delta > 0) {
+    return {
+      label: `+${delta}`,
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    }
+  }
+  if (delta < 0) {
+    return {
+      label: `${delta}`,
+      className: "border-red-200 bg-red-50 text-red-700",
+    }
+  }
+  return {
+    label: "0",
+    className: "border-slate-300 bg-slate-100 text-foreground",
+  }
+}
+
+function metricDeltaClassName(delta: number | null) {
+  if (delta === null) return "text-muted-foreground"
+  if (delta > 0) return "text-[var(--color-positive)]"
+  if (delta < 0) return "text-[var(--color-negative)]"
+  return "text-foreground"
+}
+
+function metricMoM(currentValue: number | undefined, previousValue: number | undefined) {
+  if (typeof currentValue !== "number" || typeof previousValue !== "number") return null
+  return percentChange(currentValue, previousValue)
 }
 
 function findRollingRank(
@@ -536,87 +755,117 @@ function buildPriceScopeOptions(snapshot: SnapshotSummary | undefined) {
   return options
 }
 
+type PriceTierItem = {
+  scopeKey: string
+  label: string
+  units: number
+  unitsShare: number
+  unitsMoM: number | null
+  unitsYoY: number | null
+  revenue: number
+  revenueShare: number
+  revenueMoM: number | null
+  revenueYoY: number | null
+}
+
+function toPriceTierItem(metric: TypeBreakdownMetric): PriceTierItem {
+  return {
+    scopeKey: metric.scopeKey,
+    label: metric.label,
+    units: metric.units,
+    unitsShare: metric.unitsShare,
+    unitsMoM: metric.unitsMoM,
+    unitsYoY: metric.unitsYoY,
+    revenue: metric.revenue,
+    revenueShare: metric.revenueShare,
+    revenueMoM: metric.revenueMoM,
+    revenueYoY: metric.revenueYoY,
+  }
+}
+
 function buildPriceTierItems(snapshot: SnapshotSummary | undefined, scope: string) {
-  if (!snapshot) return [] as Array<{ label: string; revenue: number; share: number }>
+  if (!snapshot) return [] as PriceTierItem[]
 
   const metrics = snapshot.typeBreakdowns?.allAsins ?? []
   if (!metrics.length) {
     return snapshot.priceTiers.map((tier) => ({
+      scopeKey: tier.label.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
       label: tier.label,
+      units: 0,
+      unitsShare: 0,
+      unitsMoM: null,
+      unitsYoY: null,
       revenue: tier.revenue,
-      share: tier.share,
+      revenueShare: tier.share,
+      revenueMoM: null,
+      revenueYoY: null,
     }))
   }
 
   if (scope === "all_asins") {
     const detailed = metrics.filter((metric) => DETAILED_PRICE_TIER_KEYS.has(metric.scopeKey))
     if (detailed.length) {
-      return detailed.map((metric) => ({
-        label: metric.label,
-        revenue: metric.revenue,
-        share: metric.revenueShare,
-      }))
+      return detailed.map(toPriceTierItem)
     }
   }
 
   if (scope === "total_tablet") {
     return metrics
       .filter((metric) => ["tablet_800_plus", "tablet_400_800", "tablet_under_400"].includes(metric.scopeKey))
-      .map((metric) => ({
-        label: metric.label,
-        revenue: metric.revenue,
-        share: metric.revenueShare,
-      }))
+      .map(toPriceTierItem)
   }
 
   if (scope === "total_handheld") {
     return metrics
       .filter((metric) => ["handheld_75_plus", "handheld_under_75"].includes(metric.scopeKey))
-      .map((metric) => ({
-        label: metric.label,
-        revenue: metric.revenue,
-        share: metric.revenueShare,
-      }))
+      .map(toPriceTierItem)
   }
 
   if (scope === "total_dongle") {
     return metrics
       .filter((metric) => metric.scopeKey === "total_dongle")
-      .map((metric) => ({
-        label: metric.label,
-        revenue: metric.revenue,
-        share: metric.revenueShare,
-      }))
+      .map(toPriceTierItem)
   }
 
   if (scope === "total_other_tools") {
     return metrics
       .filter((metric) => metric.scopeKey === "total_other_tools")
-      .map((metric) => ({
-        label: metric.label,
-        revenue: metric.revenue,
-        share: metric.revenueShare,
-      }))
+      .map(toPriceTierItem)
   }
 
   return snapshot.priceTiers.map((tier) => ({
+    scopeKey: tier.label.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
     label: tier.label,
+    units: 0,
+    unitsShare: 0,
+    unitsMoM: null,
+    unitsYoY: null,
     revenue: tier.revenue,
-    share: tier.share,
+    revenueShare: tier.share,
+    revenueMoM: null,
+    revenueYoY: null,
   }))
 }
 
-function computeTierGrowth(
-  current: SnapshotSummary | undefined,
-  previous: SnapshotSummary,
-  label: string | undefined,
-  scope: string
+function findPriceScopeMetric(
+  snapshot: SnapshotSummary | undefined,
+  scope: string,
+  scopedRows: PriceTierItem[]
 ) {
-  if (!current || !label) return null
+  const rows = snapshot?.typeBreakdowns?.allAsins ?? []
+  if (!rows.length) return undefined
+  if (scope === "all_asins") {
+    return rows.find((row) => row.scopeKey === "total")
+      ?? rows.find((row) => row.scopeKey === "all_asins")
+      ?? undefined
+  }
+  return rows.find((row) => row.scopeKey === scope)
+    ?? (scopedRows.length === 1
+      ? rows.find((row) => row.scopeKey === scopedRows[0].scopeKey)
+      : undefined)
+}
 
-  const currentTier = buildPriceTierItems(current, scope).find((tier) => tier.label === label)
-  const previousTier = buildPriceTierItems(previous, scope).find((tier) => tier.label === label)
-
-  if (!currentTier || !previousTier) return null
-  return pointChange(currentTier.share, previousTier.share)
+function ratioToPercent(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null
+  return value * 100
 }

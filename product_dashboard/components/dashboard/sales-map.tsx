@@ -14,6 +14,8 @@ export type SalesMapItem = {
   label: string
   value: number
   color: string
+  revenueShare?: number
+  unitsShare?: number
 }
 
 export type SalesMapControl = {
@@ -30,9 +32,15 @@ interface SalesMapProps {
   topValue: string
   growthLabel: string
   growthValue: string
+  growthSubLabel?: string
+  growthSecondaryValue?: string
+  growthSecondaryLabel?: string
+  growthValueClassName?: string
+  growthSecondaryValueClassName?: string
   totalLabel: string
   totalValue: string
   valueFormatter?: (value: number) => string
+  toggleControl?: SalesMapControl
   primaryControl?: SalesMapControl
   secondaryControl?: SalesMapControl
 }
@@ -52,6 +60,12 @@ const CustomTooltip = ({
       <div className="bg-card px-3 py-2 rounded-lg shadow-lg text-xs font-medium border border-border">
         <p className="font-semibold">{data.label}</p>
         <p style={{ color: data.color }}>{formatValue(data.value)}</p>
+        {typeof data.revenueShare === "number" ? (
+          <p className="text-muted-foreground">Revenue %: {formatPercent(data.revenueShare)}</p>
+        ) : null}
+        {typeof data.unitsShare === "number" ? (
+          <p className="text-muted-foreground">Units %: {formatPercent(data.unitsShare)}</p>
+        ) : null}
       </div>
     )
   }
@@ -66,9 +80,15 @@ export function SalesMap({
   topValue,
   growthLabel,
   growthValue,
+  growthSubLabel,
+  growthSecondaryValue,
+  growthSecondaryLabel,
+  growthValueClassName,
+  growthSecondaryValueClassName,
   totalLabel,
   totalValue,
   valueFormatter,
+  toggleControl,
   primaryControl,
   secondaryControl,
 }: SalesMapProps) {
@@ -82,8 +102,28 @@ export function SalesMap({
           <CardTitle className="text-base font-medium">{title}</CardTitle>
           <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
-        {primaryControl || secondaryControl ? (
+        {toggleControl || primaryControl || secondaryControl ? (
           <div className="flex items-center gap-2">
+            {toggleControl ? (
+              <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
+                {toggleControl.options.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => toggleControl.onChange(option.value)}
+                    className={[
+                      "px-2.5 py-1 text-[11px] font-medium rounded-full transition-colors",
+                      toggleControl.value === option.value
+                        ? "bg-[var(--color-accent)] text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    ].join(" ")}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
             {primaryControl ? (
               <Select
                 value={primaryControl.value}
@@ -137,8 +177,23 @@ export function SalesMap({
             </div>
             <div>
               <p className="text-xs text-muted-foreground">{growthLabel}</p>
-              <p className="text-2xl font-semibold text-[var(--color-positive)]">{growthValue}</p>
-              <p className="text-xs text-muted-foreground">MoM change</p>
+              <p className={["text-2xl font-semibold", growthValueClassName ?? "text-[var(--color-positive)]"].join(" ")}>
+                {growthValue}
+              </p>
+              <p className="text-xs text-muted-foreground">{growthSubLabel ?? "MoM change"}</p>
+              {growthSecondaryValue ? (
+                <>
+                  <p
+                    className={[
+                      "text-base font-semibold mt-1",
+                      growthSecondaryValueClassName ?? "text-[var(--color-positive)]",
+                    ].join(" ")}
+                  >
+                    {growthSecondaryValue}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{growthSecondaryLabel ?? "YoY change"}</p>
+                </>
+              ) : null}
             </div>
             <div>
               <p className="text-xs text-muted-foreground">{totalLabel}</p>
@@ -186,4 +241,11 @@ export function SalesMap({
       </CardContent>
     </Card>
   )
+}
+
+function formatPercent(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "percent",
+    maximumFractionDigits: 1,
+  }).format(value)
 }

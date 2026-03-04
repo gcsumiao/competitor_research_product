@@ -8,6 +8,7 @@ import { ChatPanel } from "@/components/chatbot/chat-panel"
 import type { ChatPanelMessage } from "@/components/chatbot/chat-message"
 import { Button } from "@/components/ui/button"
 import type { ChatResponse } from "@/lib/chatbot/types"
+import { normalizeSnapshotDate } from "@/lib/snapshot-date"
 
 const ASK_OWN_QUESTION = "Ask your own question"
 const SELF_ASSESSMENT_ACTION = "How did we do this month?"
@@ -27,7 +28,7 @@ export function DashboardChatbot() {
   const searchParams = useSearchParams()
 
   const categoryId = searchParams.get("category") ?? "code_reader_scanner"
-  const snapshotDate = searchParams.get("snapshot") ?? ""
+  const snapshotDate = normalizeSnapshotDate(searchParams.get("snapshot") ?? "")
 
   const storageKey = useMemo(
     () => `dashboard-chat:${categoryId}:${snapshotDate || "unspecified"}`,

@@ -1,0 +1,122 @@
+{
+  "version": 2,
+  "records": [
+    {
+      "taskId": "fc2545f5-128b-4368-aae2-79e25211fbf5",
+      "companyKey": "autel",
+      "companyLabel": "Autel",
+      "researchType": "company",
+      "researchSubject": "autel",
+      "status": "completed",
+      "hasReport": true,
+      "deliverables": [
+        {
+          "type": "csv",
+          "source": "remote",
+          "title": "Generate CSV deliverable for company research on a",
+          "subtitle": "CSV File",
+          "fileName": "c1a6da12-2876-4948-b2cd-ed09c53fff88",
+          "relativePath": "",
+          "remoteUrl": "https://api.valyu.ai/v1/deepresearch/tasks/fc2545f5-128b-4368-aae2-79e25211fbf5/assets/c1a6da12-2876-4948-b2cd-ed09c53fff88?token=fc2545f5-128b-4368-aae2-79e25211fbf5:c1a6da12-2876-4948-b2cd-ed09c53fff88:9a856577715dc7967e89993644237e9f",
+          "sizeBytes": 0,
+          "modifiedAt": "2026-02-27T22:40:54.785Z"
+        },
+        {
+          "type": "docx",
+          "source": "remote",
+          "title": "Generate DOCX deliverable for company research on",
+          "subtitle": "DOCX File",
+          "fileName": "e2c062e3-9f3a-44bc-8262-8bb267ef1958",
+          "relativePath": "",
+          "remoteUrl": "https://api.valyu.ai/v1/deepresearch/tasks/fc2545f5-128b-4368-aae2-79e25211fbf5/assets/e2c062e3-9f3a-44bc-8262-8bb267ef1958?token=fc2545f5-128b-4368-aae2-79e25211fbf5:e2c062e3-9f3a-44bc-8262-8bb267ef1958:9c5d41543bd47a724a7569a8bedca6ac",
+          "sizeBytes": 0,
+          "modifiedAt": "2026-02-27T22:40:54.785Z"
+        },
+        {
+          "type": "pptx",
+          "source": "remote",
+          "title": "Generate PPTX deliverable for company research on",
+          "subtitle": "PPTX File",
+          "fileName": "fbe79e71-2b87-471f-b2e8-6bba7f769e4f",
+          "relativePath": "",
+          "remoteUrl": "https://api.valyu.ai/v1/deepresearch/tasks/fc2545f5-128b-4368-aae2-79e25211fbf5/assets/fbe79e71-2b87-471f-b2e8-6bba7f769e4f?token=fc2545f5-128b-4368-aae2-79e25211fbf5:fbe79e71-2b87-471f-b2e8-6bba7f769e4f:dc9f4440f91a773e2205c5e7ae4aaf69",
+          "sizeBytes": 0,
+          "modifiedAt": "2026-02-27T22:40:54.785Z"
+        },
+        {
+          "type": "pdf",
+          "source": "remote",
+          "title": "Full Research Report",
+          "subtitle": "PDF File",
+          "fileName": "e47b8867-4aae-4dcf-8963-8b582594a8be",
+          "relativePath": "",
+          "remoteUrl": "https://api.valyu.ai/v1/deepresearch/tasks/fc2545f5-128b-4368-aae2-79e25211fbf5/assets/e47b8867-4aae-4dcf-8963-8b582594a8be?token=fc2545f5-128b-4368-aae2-79e25211fbf5:e47b8867-4aae-4dcf-8963-8b582594a8be:0c52450d32747f74161146a56cb27ed1",
+          "sizeBytes": 0,
+          "modifiedAt": "2026-02-27T22:40:54.785Z"
+        }
+      ],
+      "createdAt": "2026-02-27T00:22:08.150Z",
+      "updatedAt": "2026-02-27T22:40:54.785Z",
+      "completedAt": "2026-02-27T22:40:54.785Z"
+    },
+    {
+      "taskId": "e9e82a0f-0716-4f46-a33f-1bf60084920d",
+      "companyKey": "launchtecvehiclediagnostic",
+      "companyLabel": "Launch",
+      "researchType": "company",
+      "researchSubject": "Launch TEC Vehicle diagnostic",
+      "status": "completed",
+      "hasReport": true,
+      "deliverables": [
+        {
+          "type": "csv",
+          "source": "remote",
+          "title": "Generate CSV deliverable for company research on L",
+          "subtitle": "CSV File",
+          "fileName": "e3be0f0d-ed28-4340-a431-9c993e178380",
+          "relativePath": "",
+          "remoteUrl": "https://api.valyu.ai/v1/deepresearch/tasks/e9e82a0f-0716-4f46-a33f-1bf60084920d/assets/e3be0f0d-ed28-4340-a431-9c993e178380?token=e9e82a0f-0716-4f46-a33f-1bf60084920d:e3be0f0d-ed28-4340-a431-9c993e178380:e5ba03bd4071a21bdf1d16fbff2df60a",
+          "sizeBytes": 0,
+          "modifiedAt": "2026-02-27T22:40:49.874Z"
+        },
+        {
+          "type": "docx",
+          "source": "remote",
+          "title": "Generate DOCX deliverable for company research on",
+          "subtitle": "DOCX File",
+          "fileName": "64c4e4b2-a07c-428e-b0c8-06fc7b0a8729",
+          "relativePath": "",
+          "remoteUrl": "https://api.valyu.ai/v1/deepresearch/tasks/e9e82a0f-0716-4f46-a33f-1bf60084920d/assets/64c4e4b2-a07c-428e-b0c8-06fc7b0a8729?token=e9e82a0f-0716-4f46-a33f-1bf60084920d:64c4e4b2-a07c-428e-b0c8-06fc7b0a8729:9d4e27637eb894318913295f53e26f9f",
+          "sizeBytes": 0,
+          "modifiedAt": "2026-02-27T22:40:49.874Z"
+        },
+        {
+          "type": "pptx",
+          "source": "remote",
+          "title": "Generate PPTX deliverable for company research on",
+          "subtitle": "PPTX File",
+          "fileName": "3a175071-f0ba-4d40-a120-745c99fa2660",
+          "relativePath": "",
+          "remoteUrl": "https://api.valyu.ai/v1/deepresearch/tasks/e9e82a0f-0716-4f46-a33f-1bf60084920d/assets/3a175071-f0ba-4d40-a120-745c99fa2660?token=e9e82a0f-0716-4f46-a33f-1bf60084920d:3a175071-f0ba-4d40-a120-745c99fa2660:4d612619abc2c419e01ac97cc40bb95c",
+          "sizeBytes": 0,
+          "modifiedAt": "2026-02-27T22:40:49.874Z"
+        },
+        {
+          "type": "pdf",
+          "source": "remote",
+          "title": "Full Research Report",
+          "subtitle": "PDF File",
+          "fileName": "964fa619-99c8-48c8-aa72-6540f7488492",
+          "relativePath": "",
+          "remoteUrl": "https://api.valyu.ai/v1/deepresearch/tasks/e9e82a0f-0716-4f46-a33f-1bf60084920d/assets/964fa619-99c8-48c8-aa72-6540f7488492?token=e9e82a0f-0716-4f46-a33f-1bf60084920d:964fa619-99c8-48c8-aa72-6540f7488492:07ffd732d303cf9980b0ea39c64c7e49",
+          "sizeBytes": 0,
+          "modifiedAt": "2026-02-27T22:40:49.874Z"
+        }
+      ],
+      "createdAt": "2026-02-27T01:44:33.478Z",
+      "updatedAt": "2026-02-27T22:40:49.874Z",
+      "completedAt": "2026-02-27T22:40:49.874Z"
+    }
+  ],
+  "hiddenSeedTaskIds": []
+}

@@ -73,6 +73,8 @@ export type ChatResponse = {
   capabilities?: ChatIntent[]
   sourcesUsed?: string[]
   windowUsed?: string
+  snapshotUsed?: string
+  compareSnapshotUsed?: string
 }
 
 export type IntentDetection = {
@@ -123,6 +125,7 @@ export type GrowthWindow = "mom" | "yoy" | "both"
 export type RankingTarget = "revenue_rank" | "units_rank" | "overall_rank"
 export type TargetLevel = "brand" | "type" | "asin" | "market"
 export type ProductTypeScope = "tablet" | "dongle" | "handheld" | "other_tools"
+export type TimeIntent = "explicit_month" | "this_month" | "last_month" | "window" | "none"
 
 export type ScopeMode = "explicit_brand" | "target_brand" | "own_brands" | "all_brands"
 
@@ -159,6 +162,11 @@ export type QueryPlan = {
   growthWindow: GrowthWindow
   rankingTarget: RankingTarget
   typeScope?: ProductTypeScope
+  timeIntent?: TimeIntent
+  requestedMonth?: string
+  resolvedPrimarySnapshot?: string
+  resolvedCompareSnapshot?: string
+  resolvedWindow?: HistoricalWindow
 }
 
 export type AnalyzerInput = {

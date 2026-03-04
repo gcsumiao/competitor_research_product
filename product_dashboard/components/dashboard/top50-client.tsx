@@ -112,6 +112,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
   ]
 
   const topProductsCard = activeTop50.slice(0, 4).map((product) => ({
+    asin: product.asin,
     name: truncateLabel(product.title, 36),
     brand: product.brand,
     priceLabel: product.price ? formatCurrency(product.price, 0) : "n/a",

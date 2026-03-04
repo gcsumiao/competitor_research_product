@@ -6,6 +6,7 @@ type CategoryQuestionMap = Partial<Record<ChatIntent, string[]>>
 
 const DEFAULT_QUESTIONS: string[] = [
   "How big is this market this month and who is leading?",
+  "How big was this market in Jan 2026 and who was leading?",
   "Which products drive the most revenue right now?",
   "What is the biggest competitive risk this month?",
 ]
@@ -52,11 +53,13 @@ const NIGHT_VISION_QUESTIONS: CategoryQuestionMap = {
 const CODE_READER_QUESTIONS: CategoryQuestionMap = {
   self_assessment: [
     "How did Innova/BLCKTEC perform this month vs last month?",
+    "How did Innova/BLCKTEC perform in Jan 2026?",
     "What is our revenue, units, and share trend over the last 6-12 months?",
     "Which of our products grew the most and which declined?",
   ],
   competitive_benchmarking: [
     "Where do we rank in overall revenue and units this month?",
+    "Where did we rank in Jan 2026?",
     "Who gained the most market share this month and who lost the most?",
     "Who is the fastest rank mover this month by revenue and by units?",
     "Which competitor is closest to Innova 5610 in price positioning and performance?",

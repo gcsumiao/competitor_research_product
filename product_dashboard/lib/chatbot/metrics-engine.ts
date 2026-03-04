@@ -4,6 +4,7 @@ import { resolveEntities } from "@/lib/chatbot/entity-resolver"
 import { routeIntent, type AnalyzerId } from "@/lib/chatbot/intent-router"
 import { parseQuery, type ParsedQuery } from "@/lib/chatbot/query-parser"
 import { buildSynthesisSummary } from "@/lib/chatbot/synthesis-engine"
+import type { TimeResolution } from "@/lib/chatbot/time-resolver"
 import type {
   AnalysisTraceStep,
   ChatResponse,
@@ -24,6 +25,7 @@ type BuildParams = {
   snapshot: SnapshotSummary
   snapshots: SnapshotSummary[]
   targetBrand?: string
+  resolvedTime?: TimeResolution
 }
 
 type AnalyzerOutput = {
@@ -55,6 +57,7 @@ export function buildCodeReaderBrainResponse({
   category,
   snapshot,
   targetBrand,
+  resolvedTime,
 }: BuildParams): ChatResponse | null {
   const trace: AnalysisTraceStep[] = []
 
@@ -64,7 +67,12 @@ export function buildCodeReaderBrainResponse({
   }
   trace.push({ step: "Build Code Reader data mart", status: "ok" })
 
-  const parsed = parseQuery(message, category.id)
+  const parsed = parseQuery(message, category.id, {
+    requestedMonth: resolvedTime?.primarySnapshotDate?.slice(0, 7),
+    resolvedPrimarySnapshot: mart.snapshot.date,
+    resolvedCompareSnapshot: resolvedTime?.compareSnapshotDate,
+    resolvedWindow: resolvedTime?.resolvedWindow,
+  })
   trace.push({ step: `Parse query intent (${parsed.intent})`, status: parsed.confidence > 0 ? "ok" : "partial" })
 
   const resolved = resolveEntities(message, mart, {
@@ -118,9 +126,23 @@ export function buildCodeReaderBrainResponse({
   const synthesis = buildSynthesisSummary(mart)
   trace.push({ step: "Build proactive synthesis", status: synthesis.proactive.length ? "ok" : "partial" })
 
+  const snapshotPrefix = `(Snapshot used: ${mart.snapshot.date})`
+  const compareSnapshotUsed =
+    resolvedTime?.compareSnapshotDate ??
+    (parsed.plan.growthWindow === "yoy"
+      ? mart.yoy?.date
+      : parsed.plan.growthWindow === "mom" || parsed.scope.compareToLastMonth
+        ? mart.previous?.date
+        : undefined)
+  const windowUsed = parsed.plan.resolvedWindow
+    ? windowToLabel(parsed.plan.resolvedWindow)
+    : undefined
+
   return {
     intent: routed.analyzer,
-    answer: output.answer,
+    answer: output.answer.startsWith("(Snapshot used:")
+      ? output.answer
+      : `${snapshotPrefix} ${output.answer}`,
     bullets: output.bullets,
     evidence: output.evidence,
     proactive: synthesis.proactive,
@@ -134,7 +156,18 @@ export function buildCodeReaderBrainResponse({
     historicalWindow: output.historicalWindow,
     salesArchetype: output.salesArchetype,
     topContributors: output.topContributors,
+    snapshotUsed: mart.snapshot.date,
+    compareSnapshotUsed,
+    windowUsed,
   }
+}
+
+function windowToLabel(value: HistoricalWindow) {
+  if (value === "1m") return "Last 1 month"
+  if (value === "3m") return "Last 3 months"
+  if (value === "6m") return "Last 6 months"
+  if (value === "12m") return "Last 12 months"
+  return "Full history"
 }
 
 function runAnalyzer(

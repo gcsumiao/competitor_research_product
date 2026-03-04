@@ -1,20 +1,22 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { CheckCircle2, Download, Eye, Presentation } from "lucide-react"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { BrandResearchAsset, DeliverableType } from "@/lib/consult-me/types"
+import type {
+  DeliverableFile,
+  DeliverableType,
+  ResearchStatusResponse,
+} from "@/lib/consult-me/types"
 
 type ResultsWorkspaceProps = {
   selectedBrand: string
-  asset?: BrandResearchAsset
+  result?: ResearchStatusResponse
   stepsCompleted: number
   sourcesFound: number
   activityFeed: string[]
-  notifyLater: boolean
-  onToggleNotify: () => void
   onStartNewResearch: () => void
 }
 
@@ -27,25 +29,26 @@ const DELIVERABLES: Array<{ type: DeliverableType; title: string; subtitle: stri
 
 export function ResultsWorkspace({
   selectedBrand,
-  asset,
+  result,
   stepsCompleted,
   sourcesFound,
   activityFeed,
-  notifyLater,
-  onToggleNotify,
   onStartNewResearch,
 }: ResultsWorkspaceProps) {
   const [activeView, setActiveView] = useState<DeliverableType>("docx")
 
-  const deliverablesByType = useMemo(() => {
-    const map = new Map<DeliverableType, { fileName: string }>()
-    for (const file of asset?.available ?? []) {
-      map.set(file.type, { fileName: file.fileName })
+  const deliverablesByType = new Map<DeliverableType, DeliverableFile>()
+  for (const file of result?.deliverables ?? []) {
+    if (file.source === "seed_local" && file.seedId) {
+      deliverablesByType.set(file.type, { ...file, source: "seed_local" })
+      continue
     }
-    return map
-  }, [asset])
+    if (file.remoteUrl) {
+      deliverablesByType.set(file.type, { ...file, source: "remote" })
+    }
+  }
 
-  const hasAnyAsset = Boolean(asset?.available.length)
+  const hasAnyAsset = deliverablesByType.size > 0
 
   return (
     <div className="space-y-4">
@@ -72,7 +75,15 @@ export function ResultsWorkspace({
         </div>
       </details>
 
-      {hasAnyAsset && asset ? (
+      {result?.usage?.totalCost !== undefined ? (
+        <Card className="border border-border bg-card">
+          <CardContent className="py-3 text-sm text-muted-foreground">
+            Usage cost: <span className="font-medium text-foreground">{formatCurrency(result.usage.totalCost)}</span>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {hasAnyAsset ? (
         <>
           <Card className="border border-border bg-card">
             <CardHeader className="pb-2">
@@ -81,11 +92,7 @@ export function ResultsWorkspace({
             <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {DELIVERABLES.map((item) => {
                 const file = deliverablesByType.get(item.type)
-                const baseUrl = file
-                  ? `/api/consult-me/download?brand=${encodeURIComponent(
-                    asset!.brandKey
-                  )}&file=${encodeURIComponent(file.fileName)}`
-                  : ""
+                const baseUrl = file ? buildDownloadUrl(file) : ""
 
                 return (
                   <div key={item.type} className="rounded-md border border-border bg-background/70 p-3">
@@ -120,7 +127,7 @@ export function ResultsWorkspace({
                       ) : (
                         <Button type="button" disabled>
                           <Download className="mr-2 h-4 w-4" />
-                          Not available
+                          Not available yet
                         </Button>
                       )}
                     </div>
@@ -135,22 +142,41 @@ export function ResultsWorkspace({
               <CardTitle className="text-base font-medium">Full Report</CardTitle>
             </CardHeader>
             <CardContent>
-              {renderView({ activeView, asset, deliverablesByType })}
+              {renderView({ activeView, result, deliverablesByType })}
             </CardContent>
           </Card>
+
+          {result?.sources?.length ? (
+            <Card className="border border-border bg-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-medium">Sources</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {result.sources.map((source, index) => (
+                  <a
+                    key={`${source.url}-${index}`}
+                    href={source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-md border border-border bg-background/70 px-3 py-2 text-xs"
+                  >
+                    <p className="font-medium text-foreground">{source.title ?? source.url}</p>
+                    {source.snippet ? <p className="mt-1 text-muted-foreground">{source.snippet}</p> : null}
+                  </a>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
         </>
       ) : (
         <Card className="border border-border bg-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium">Research Queue Notice</CardTitle>
+            <CardTitle className="text-base font-medium">Deliverables</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              {`Deep research for ${selectedBrand} is queued. Deliverables are not ready yet. Please come back later.`}
+              {`No downloadable files are available yet for ${selectedBrand}.`}
             </p>
-            <Button type="button" variant={notifyLater ? "default" : "outline"} onClick={onToggleNotify}>
-              {notifyLater ? "Notification Saved" : "Notify Me Later"}
-            </Button>
           </CardContent>
         </Card>
       )}
@@ -164,19 +190,17 @@ export function ResultsWorkspace({
 
 function renderView({
   activeView,
-  asset,
+  result,
   deliverablesByType,
 }: {
   activeView: DeliverableType
-  asset: BrandResearchAsset
-  deliverablesByType: Map<DeliverableType, { fileName: string }>
+  result?: ResearchStatusResponse
+  deliverablesByType: Map<DeliverableType, DeliverableFile>
 }) {
   if (activeView === "pdf") {
     const file = deliverablesByType.get("pdf")
     if (!file) return <UnavailableView />
-    const url = `/api/consult-me/download?brand=${encodeURIComponent(
-      asset.brandKey
-    )}&file=${encodeURIComponent(file.fileName)}&disposition=inline`
+    const url = `${buildDownloadUrl(file)}&disposition=inline`
     return (
       <div className="space-y-2">
         <p className="text-xs text-muted-foreground">PDF preview</p>
@@ -190,13 +214,27 @@ function renderView({
   }
 
   if (activeView === "csv") {
-    if (!asset.csvPreview) return <UnavailableView />
+    const csvPreview = result?.csvPreview
+    if (!csvPreview) {
+      const file = deliverablesByType.get("csv")
+      if (!file) return <UnavailableView />
+      const url = `${buildDownloadUrl(file)}&disposition=inline`
+      return (
+        <div className="rounded-md border border-border bg-background/70 p-3 text-sm text-muted-foreground">
+          <p className="mb-2">CSV preview table is not available for this report.</p>
+          <a className={buttonVariants({ variant: "default" })} href={url} target="_blank" rel="noreferrer">
+            <Eye className="mr-2 h-4 w-4" />
+            Open CSV
+          </a>
+        </div>
+      )
+    }
     return (
       <div className="overflow-auto rounded-md border border-border">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border bg-muted/40">
-              {asset.csvPreview.columns.slice(0, 12).map((column) => (
+              {csvPreview.columns.slice(0, 12).map((column) => (
                 <th key={column} className="px-2 py-2 text-left font-medium text-muted-foreground">
                   {column}
                 </th>
@@ -204,9 +242,9 @@ function renderView({
             </tr>
           </thead>
           <tbody>
-            {asset.csvPreview.rows.map((row, rowIndex) => (
+            {csvPreview.rows.map((row, rowIndex) => (
               <tr key={`row-${rowIndex}`} className="border-b border-border last:border-0">
-                {asset.csvPreview!.columns.slice(0, 12).map((_, colIndex) => (
+                {csvPreview.columns.slice(0, 12).map((_, colIndex) => (
                   <td key={`cell-${rowIndex}-${colIndex}`} className="px-2 py-2 text-muted-foreground">
                     {row[colIndex] ?? ""}
                   </td>
@@ -220,10 +258,25 @@ function renderView({
   }
 
   if (activeView === "docx") {
+    const reportText = result?.outputText || result?.executiveSummaryExcerpt
+    if (!reportText) {
+      const file = deliverablesByType.get("docx")
+      if (!file) return <UnavailableView />
+      const url = `${buildDownloadUrl(file)}&disposition=attachment`
+      return (
+        <div className="rounded-md border border-border bg-background/70 p-3 text-sm text-muted-foreground">
+          <p className="mb-2">Inline DOCX text preview is not available for this report.</p>
+          <a className={buttonVariants({ variant: "default" })} href={url} target="_blank" rel="noreferrer">
+            <Eye className="mr-2 h-4 w-4" />
+            Open DOCX
+          </a>
+        </div>
+      )
+    }
     return (
       <div className="max-h-[520px] overflow-auto rounded-md border border-border bg-background/70 p-3">
         <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-          {asset.fullReportText || asset.executiveSummaryExcerpt || "No DOCX text preview available."}
+          {reportText || "No DOCX text preview available."}
         </p>
       </div>
     )
@@ -232,9 +285,7 @@ function renderView({
   if (activeView === "pptx") {
     const file = deliverablesByType.get("pptx")
     if (!file) return <UnavailableView />
-    const url = `/api/consult-me/download?brand=${encodeURIComponent(
-      asset.brandKey
-    )}&file=${encodeURIComponent(file.fileName)}&disposition=attachment`
+    const url = `${buildDownloadUrl(file)}&disposition=attachment`
     return (
       <div className="rounded-md border border-border bg-background/70 p-3 text-sm text-muted-foreground">
         <p className="mb-2">PPTX preview is not supported inline in this workspace.</p>
@@ -255,4 +306,23 @@ function UnavailableView() {
       Selected deliverable is not available.
     </div>
   )
+}
+
+function buildDownloadUrl(file: DeliverableFile) {
+  if (file.source === "seed_local" && file.seedId) {
+    const seedId = encodeURIComponent(file.seedId)
+    const type = encodeURIComponent(file.type)
+    return `/api/consult-me/download?seedId=${seedId}&type=${type}`
+  }
+  const remote = encodeURIComponent(file.remoteUrl ?? "")
+  const type = encodeURIComponent(file.type)
+  return `/api/consult-me/download?remoteUrl=${remote}&type=${type}`
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(value)
 }

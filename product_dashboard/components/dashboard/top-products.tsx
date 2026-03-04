@@ -1,10 +1,12 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Image from "next/image"
 
 export type TopProduct = {
+  asin?: string
   name: string
   brand: string
   priceLabel: string
@@ -17,9 +19,15 @@ interface TopProductsProps {
   products: TopProduct[]
   title?: string
   subtitle?: string
+  headerRight?: ReactNode
 }
 
-export function TopProducts({ products, title = "Top Products", subtitle = "Revenue leaders in this snapshot" }: TopProductsProps) {
+export function TopProducts({
+  products,
+  title = "Top Products",
+  subtitle = "Revenue leaders in this snapshot",
+  headerRight,
+}: TopProductsProps) {
   return (
     <Card className="bg-card border-border h-full">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -27,32 +35,38 @@ export function TopProducts({ products, title = "Top Products", subtitle = "Reve
           <CardTitle className="text-base font-medium">{title}</CardTitle>
           <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
+        {headerRight}
       </CardHeader>
       <CardContent className="space-y-4">
-        {products.map((product, index) => (
-          <div key={index} className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-lg bg-muted overflow-hidden">
-                <TopProductImage product={product} />
+        {products.map((product, index) => {
+          const rowKey = getProductRowKey(product, index)
+          return (
+            <div key={rowKey} className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-muted overflow-hidden">
+                  <TopProductImage key={`image-${rowKey}`} product={product} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{product.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {product.brand} | {product.priceLabel}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium">{product.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {product.brand} | {product.priceLabel}
-                </p>
-              </div>
+              <span className="text-sm font-medium">{product.revenueLabel}</span>
             </div>
-            <span className="text-sm font-medium">{product.revenueLabel}</span>
-          </div>
-        ))}
+          )
+        })}
       </CardContent>
     </Card>
   )
 }
 
 function TopProductImage({ product }: { product: TopProduct }) {
-  const initialSrc = useMemo(() => resolveImageSrc(product), [product])
-  const [src, setSrc] = useState(initialSrc)
+  const candidates = useMemo(() => resolveImageCandidates(product), [product])
+  const [candidateIndex, setCandidateIndex] = useState(0)
+  const safeIndex = Math.min(candidateIndex, candidates.length - 1)
+  const src = candidates[safeIndex] ?? "/placeholder.svg"
 
   const image = (
     <Image
@@ -63,8 +77,8 @@ function TopProductImage({ product }: { product: TopProduct }) {
       className="w-full h-full object-cover"
       unoptimized
       onError={() => {
-        if (src !== "/placeholder.svg") {
-          setSrc("/placeholder.svg")
+        if (candidateIndex < candidates.length - 1) {
+          setCandidateIndex((current) => current + 1)
         }
       }}
     />
@@ -81,17 +95,28 @@ function TopProductImage({ product }: { product: TopProduct }) {
   return image
 }
 
-function resolveImageSrc(product: TopProduct) {
-  if (product.image && product.image.trim()) {
-    return product.image.trim()
+function resolveImageCandidates(product: TopProduct) {
+  const values: string[] = []
+  const image = product.image?.trim()
+  if (image) {
+    values.push(image)
   }
 
-  const asin = extractAsin(product.url)
+  const asin = product.asin?.trim().toUpperCase() || extractAsin(product.url)
   if (asin) {
-    return `https://m.media-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_.jpg`
+    values.push(`https://m.media-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_.jpg`)
+    values.push(`https://images-na.ssl-images-amazon.com/images/P/${asin}.01.LZZZZZZZ.jpg`)
+    values.push(`https://m.media-amazon.com/images/P/${asin}.01._SL160_.jpg`)
+    values.push(`https://m.media-amazon.com/images/P/${asin}.01._AC_UL160_.jpg`)
   }
 
-  return "/placeholder.svg"
+  values.push("/placeholder.svg")
+
+  const unique: string[] = []
+  for (const value of values) {
+    if (!unique.includes(value)) unique.push(value)
+  }
+  return unique
 }
 
 function extractAsin(url?: string) {
@@ -101,4 +126,11 @@ function extractAsin(url?: string) {
 
   const match = url.match(/(?:\/dp\/|\/gp\/product\/)([A-Z0-9]{10})/i)
   return match?.[1]?.toUpperCase() ?? null
+}
+
+function getProductRowKey(product: TopProduct, index: number) {
+  const asin = product.asin?.trim().toUpperCase() || extractAsin(product.url)
+  if (asin) return `${asin}-${index}`
+  if (product.url) return `${product.url}-${index}`
+  return `${product.brand}-${product.name}-${index}`
 }

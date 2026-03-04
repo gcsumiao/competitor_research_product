@@ -167,9 +167,6 @@ export function AllBrandsRankChart({
       <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2">
         <div>
           <CardTitle className="text-base font-medium">{title}</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Excel-style rank matrix by month. Latest month is highlighted with movement badges.
-          </p>
         </div>
         <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
           <button
