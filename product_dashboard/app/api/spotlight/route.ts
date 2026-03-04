@@ -37,18 +37,61 @@ function pctChange(current: number, previous: number) {
   return ((current - previous) / previous) * 100
 }
 
-function pointChange(current: number, previous: number) {
-  return (current - previous) * 100
-}
-
 function formatChange(value: number | null) {
   if (value === null || !Number.isFinite(value)) return "n/a"
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`
 }
 
-function formatPoints(value: number) {
-  if (!Number.isFinite(value)) return "n/a"
-  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}pt`
+type RevenueMoMCandidate = {
+  label: string
+  mom: number
+  kind: "brand" | "type"
+}
+
+function selectTopRevenueMoMMovers(active: SnapshotSummary, previous: SnapshotSummary) {
+  const candidates: RevenueMoMCandidate[] = []
+
+  const prevRevenueByBrand = new Map(
+    previous.brandTotals.map((brand) => [brand.brand.toLowerCase(), brand.revenue])
+  )
+  for (const brand of active.brandTotals) {
+    const prior = prevRevenueByBrand.get(brand.brand.toLowerCase())
+    if (typeof prior !== "number" || prior <= 0) continue
+    const mom = pctChange(brand.revenue, prior)
+    if (mom === null || !Number.isFinite(mom)) continue
+    candidates.push({
+      label: brand.brand,
+      mom,
+      kind: "brand",
+    })
+  }
+
+  const scopeRows = active.typeBreakdowns?.allAsins ?? []
+  const typeScopeKeys = new Set([
+    "total_tablet",
+    "total_handheld",
+    "total_dongle",
+    "total_other_tools",
+  ])
+  for (const row of scopeRows) {
+    if (!typeScopeKeys.has(row.scopeKey)) continue
+    if (typeof row.revenueMoM !== "number" || !Number.isFinite(row.revenueMoM)) continue
+    candidates.push({
+      label: row.label,
+      mom: row.revenueMoM * 100,
+      kind: "type",
+    })
+  }
+
+  const topOverall = [...candidates].sort((a, b) => b.mom - a.mom)[0]
+  const topBrand = [...candidates]
+    .filter((candidate) => candidate.kind === "brand")
+    .sort((a, b) => b.mom - a.mom)[0]
+  const topType = [...candidates]
+    .filter((candidate) => candidate.kind === "type")
+    .sort((a, b) => b.mom - a.mom)[0]
+
+  return { topOverall, topBrand, topType }
 }
 
 function findSnapshot(categorySnapshots: SnapshotSummary[], snapshotDate: string | null) {
@@ -88,23 +131,30 @@ function buildAlerts(categoryId: CategoryId, active: SnapshotSummary, previous?:
       })
     }
 
-    const prevShare = new Map(
-      previous.brandTotals.map((b) => [b.brand.toLowerCase(), b.share])
-    )
-    let best: { brand: string; delta: number } | null = null
-    for (const brand of active.brandTotals) {
-      const prior = prevShare.get(brand.brand.toLowerCase()) ?? 0
-      const delta = pointChange(brand.share, prior)
-      if (!best || Math.abs(delta) > Math.abs(best.delta)) {
-        best = { brand: brand.brand, delta }
-      }
-    }
-    if (best && Number.isFinite(best.delta)) {
+    const mover = selectTopRevenueMoMMovers(active, previous)
+    if (mover.topOverall) {
+      const top = mover.topOverall
+      const topBrandLine = mover.topBrand
+        ? `Top brand: ${mover.topBrand.label} ${formatChange(mover.topBrand.mom)} MoM.`
+        : null
+      const topTypeLine = mover.topType
+        ? `Top type: ${mover.topType.label} ${formatChange(mover.topType.mom)} MoM.`
+        : null
+
+      const detailLines = [
+        `Highest revenue MoM mover: ${top.label} (${top.kind}) ${formatChange(top.mom)}.`,
+        topBrandLine,
+        topTypeLine,
+      ].filter(Boolean) as string[]
+
+      const severity: SpotlightSeverity =
+        Math.abs(top.mom) >= 10 ? (top.mom < 0 ? "risk" : "watch") : "info"
+
       alerts.push({
         id: "share_mover",
-        severity: Math.abs(best.delta) >= 2 ? "watch" : "info",
+        severity,
         title: "Biggest share mover",
-        detail: `${best.brand} share moved ${formatPoints(best.delta)} vs last month.`,
+        detail: detailLines.join(" "),
       })
     }
 
