@@ -2,23 +2,34 @@ import { readFile } from "fs/promises"
 import path from "path"
 import { NextResponse } from "next/server"
 
-const BASE_DIRS = {
-  dmm: path.resolve(process.cwd(), "..", "DMM_h10"),
-  code_reader_scanner: path.resolve(process.cwd(), "data", "code_reader_scanner"),
-} as const
+import {
+  isFullDashboardEnabled,
+  resolveCodeReaderDataDir,
+  resolveNonCodeDataRoot,
+} from "@/lib/dashboard-runtime"
 
-type ReportSource = keyof typeof BASE_DIRS
+type ReportSource = "dmm" | "code_reader_scanner"
+
+function resolveBaseDir(source: ReportSource) {
+  if (source === "code_reader_scanner") {
+    return resolveCodeReaderDataDir()
+  }
+  return isFullDashboardEnabled() ? resolveNonCodeDataRoot() : null
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const fileParam = searchParams.get("file")
   const sourceParam = (searchParams.get("source") ?? "dmm") as ReportSource
 
-  if (!(sourceParam in BASE_DIRS)) {
+  if (sourceParam !== "dmm" && sourceParam !== "code_reader_scanner") {
     return NextResponse.json({ error: "Invalid report source" }, { status: 400 })
   }
 
-  const baseDir = BASE_DIRS[sourceParam]
+  const baseDir = resolveBaseDir(sourceParam)
+  if (!baseDir) {
+    return NextResponse.json({ error: "Report source unavailable" }, { status: 404 })
+  }
 
   if (!fileParam) {
     return NextResponse.json({ error: "Missing file" }, { status: 400 })

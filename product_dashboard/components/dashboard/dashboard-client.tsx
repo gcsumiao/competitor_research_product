@@ -5,6 +5,7 @@ import {
   BarChart3,
   Calendar,
   DollarSign,
+  Lightbulb,
   Package,
   ShoppingCart,
   Upload,
@@ -18,6 +19,7 @@ import { CustomerOrders } from "@/components/dashboard/customer-orders"
 import { TopProducts } from "@/components/dashboard/top-products"
 import { SalesMap } from "@/components/dashboard/sales-map"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,7 +29,11 @@ import {
 import type { DashboardData, SnapshotSummary, TypeBreakdownMetric } from "@/lib/competitor-data"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
 import { cn } from "@/lib/utils"
-import { formatSnapshotDateFull, formatSnapshotLabelMonthEnd } from "@/lib/snapshot-date"
+import {
+  formatSnapshotDateFull,
+  formatSnapshotLabelMonthEnd,
+  getSnapshotMonthRange,
+} from "@/lib/snapshot-date"
 import {
   buildRange,
   formatChangeLabel,
@@ -87,6 +93,13 @@ type MetricCardView = {
   showChange?: boolean
 }
 
+type DashboardEntryInsights = {
+  pricingGap: string
+  concentrationRisk: string
+  specWhitespace: string
+  entryAngles: string[]
+}
+
 export function DashboardClient({ data }: { data: DashboardData }) {
   const {
     categories,
@@ -106,13 +119,18 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   const [priceTierMetric, setPriceTierMetric] = useState<"revenue" | "units">("revenue")
   const [marketTrendMetric, setMarketTrendMetric] = useState<"units" | "revenue">("revenue")
   const [topAsinsMetric, setTopAsinsMetric] = useState<"units" | "revenue">("revenue")
+  const selectedTimeRangeLabel = activeSnapshot ? formatSnapshotRangeLabel(activeSnapshot.date) : "n/a"
 
   const metricCards = buildMetricCards(
     activeSnapshot,
     previousSnapshot,
     sortedSnapshots,
-    isCodeReader
+    isCodeReader,
+    selectedTimeRangeLabel
   )
+  const entryInsights = !isCodeReader
+    ? buildDashboardEntryInsights(activeSnapshot, previousSnapshot)
+    : undefined
 
   const rollingMarketSeries = useMemo(
     () => (isCodeReader ? buildCodeReaderMarketSeries(activeSnapshot) : []),
@@ -226,8 +244,11 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   )
 
   const issueCount = (activeSnapshot?.qualityIssues ?? []).length
+  const rangeFragment = !isCodeReader && activeSnapshot
+    ? ` | Selected range ${selectedTimeRangeLabel}`
+    : ""
   const headerDescription = activeSnapshot
-    ? `Snapshot ${formatSnapshotDateFull(activeSnapshot.date)} | ${activeSnapshot.totals.asinCount} ASINs tracked${issueCount ? ` | ${issueCount} data warning${issueCount > 1 ? "s" : ""}` : ""}`
+    ? `Snapshot ${formatSnapshotDateFull(activeSnapshot.date)}${rangeFragment} | ${activeSnapshot.totals.asinCount} ASINs tracked${issueCount ? ` | ${issueCount} data warning${issueCount > 1 ? "s" : ""}` : ""}`
     : "No snapshot data available"
 
   const totalRevenueValue = formatCurrencyCompact(currentRevenue)
@@ -308,26 +329,54 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         </Button>
       </PageHeader>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {metricCards.map((metric) => (
-          <MetricCard
-            key={metric.title}
-            title={metric.title}
-            value={metric.value}
-            valueBadgeText={metric.valueBadgeText}
-            valueBadgeClassName={metric.valueBadgeClassName}
-            secondaryValue={metric.secondaryValue}
-            change={metric.change}
-            changeSuffix={metric.changeSuffix}
-            isPositiveOutcome={metric.isPositiveOutcome}
-            icon={metric.icon}
-            valueClassName={metric.valueClassName}
-            secondaryValueClassName={metric.secondaryValueClassName}
-            changeClassName={metric.changeClassName}
-            showChange={metric.showChange}
-          />
-        ))}
-      </div>
+      {isCodeReader ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {metricCards.map((metric) => (
+            <MetricCard
+              key={metric.title}
+              title={metric.title}
+              value={metric.value}
+              valueBadgeText={metric.valueBadgeText}
+              valueBadgeClassName={metric.valueBadgeClassName}
+              secondaryValue={metric.secondaryValue}
+              change={metric.change}
+              changeSuffix={metric.changeSuffix}
+              isPositiveOutcome={metric.isPositiveOutcome}
+              icon={metric.icon}
+              valueClassName={metric.valueClassName}
+              secondaryValueClassName={metric.secondaryValueClassName}
+              changeClassName={metric.changeClassName}
+              showChange={metric.showChange}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mb-6">
+          <div className="xl:col-span-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {metricCards.map((metric) => (
+              <MetricCard
+                key={metric.title}
+                title={metric.title}
+                value={metric.value}
+                valueBadgeText={metric.valueBadgeText}
+                valueBadgeClassName={metric.valueBadgeClassName}
+                secondaryValue={metric.secondaryValue}
+                change={metric.change}
+                changeSuffix={metric.changeSuffix}
+                isPositiveOutcome={metric.isPositiveOutcome}
+                icon={metric.icon}
+                valueClassName={metric.valueClassName}
+                secondaryValueClassName={metric.secondaryValueClassName}
+                changeClassName={metric.changeClassName}
+                showChange={metric.showChange}
+              />
+            ))}
+          </div>
+          <div className="xl:col-span-4">
+            <EntryInsightsCard insights={entryInsights} />
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <div className="lg:col-span-2">
@@ -488,6 +537,43 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   )
 }
 
+function EntryInsightsCard({ insights }: { insights: DashboardEntryInsights | undefined }) {
+  if (!insights) return null
+
+  return (
+    <Card className="bg-card border border-border h-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base font-medium flex items-center gap-2">
+          <Lightbulb className="w-4 h-4" />
+          Entry Insights
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <InsightRow label="Pricing Gap" value={insights.pricingGap} />
+        <InsightRow label="Concentration Risk" value={insights.concentrationRisk} />
+        <InsightRow label="Spec Whitespace" value={insights.specWhitespace} />
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground mb-1">Entry Angles</p>
+          <ul className="text-xs space-y-1">
+            {insights.entryAngles.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function InsightRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold text-muted-foreground mb-1">{label}</p>
+      <p className="text-xs">{value}</p>
+    </div>
+  )
+}
+
 function formatCurrencyDeltaCompact(current: number, previous?: number) {
   if (typeof previous !== "number" || !Number.isFinite(previous)) return ""
   const delta = current - previous
@@ -499,7 +585,8 @@ function buildMetricCards(
   current: SnapshotSummary | undefined,
   previous: SnapshotSummary | undefined,
   snapshots: SnapshotSummary[],
-  isCodeReader: boolean
+  isCodeReader: boolean,
+  selectedTimeRangeLabel: string
 ): MetricCardView[] {
   if (!current) {
     return []
@@ -596,16 +683,18 @@ function buildMetricCards(
 
   return [
     {
-      title: "Market 30D Revenue",
+      title: "Market Monthly Revenue",
       value: formatCurrencyCompact(current.totals.revenue),
+      secondaryValue: `Selected range ${selectedTimeRangeLabel}`,
       change: formatChangeLabel(revenueChange),
       changeSuffix: revenueChange === null ? "" : "MoM",
       isPositiveOutcome: (revenueChange ?? 0) >= 0,
       icon: DollarSign,
     },
     {
-      title: "Market 30D Units",
+      title: "Market Monthly Units",
       value: formatNumberCompact(current.totals.units),
+      secondaryValue: `Selected range ${selectedTimeRangeLabel}`,
       change: formatChangeLabel(unitsChange),
       changeSuffix: unitsChange === null ? "" : "MoM",
       isPositiveOutcome: (unitsChange ?? 0) >= 0,
@@ -868,4 +957,134 @@ function findPriceScopeMetric(
 function ratioToPercent(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null
   return value * 100
+}
+
+function formatSnapshotRangeLabel(snapshotDate: string) {
+  const range = getSnapshotMonthRange(snapshotDate)
+  return `${range.start} to ${range.end}`
+}
+
+function buildDashboardEntryInsights(
+  current: SnapshotSummary | undefined,
+  previous: SnapshotSummary | undefined
+): DashboardEntryInsights {
+  if (!current) {
+    return {
+      pricingGap: "No snapshot selected yet.",
+      concentrationRisk: "No snapshot selected yet.",
+      specWhitespace: "No snapshot selected yet.",
+      entryAngles: ["Select a snapshot to generate entry suggestions."],
+    }
+  }
+
+  const pricingGap = buildPricingGapInsight(current)
+  const concentrationRisk = buildConcentrationInsight(current, previous)
+  const specWhitespace = buildWhitespaceInsight(current)
+  const entryAngles = buildEntryAngleInsights(current)
+
+  return {
+    pricingGap,
+    concentrationRisk,
+    specWhitespace,
+    entryAngles,
+  }
+}
+
+function buildPricingGapInsight(snapshot: SnapshotSummary) {
+  const products = snapshot.topProducts ?? []
+  if (!products.length) {
+    return "No product-level pricing evidence available."
+  }
+
+  const bands = [
+    { label: "<$100", min: 0, max: 100 },
+    { label: "$100-$200", min: 100, max: 200 },
+    { label: "$200-$400", min: 200, max: 400 },
+    { label: "$400+", min: 400, max: Number.POSITIVE_INFINITY },
+  ]
+
+  const totals = bands.map((band) => {
+    const inBand = products.filter((product) => product.price >= band.min && product.price < band.max)
+    const revenue = inBand.reduce((sum, product) => sum + product.revenue, 0)
+    return { label: band.label, count: inBand.length, revenue }
+  })
+
+  const totalCount = totals.reduce((sum, item) => sum + item.count, 0) || 1
+  const totalRevenue = totals.reduce((sum, item) => sum + item.revenue, 0) || 1
+  const strongestGap = totals
+    .map((item) => ({
+      ...item,
+      countShare: item.count / totalCount,
+      revenueShare: item.revenue / totalRevenue,
+      gap: item.revenue / totalRevenue - item.count / totalCount,
+    }))
+    .sort((a, b) => b.gap - a.gap)[0]
+
+  if (strongestGap && strongestGap.revenueShare >= 0.12 && strongestGap.gap >= 0.08) {
+    return `${strongestGap.label} over-indexes on revenue with fewer listings; this is the main pricing gap.`
+  }
+
+  return "Price bands are balanced; differentiation should focus on specs and bundle value."
+}
+
+function buildConcentrationInsight(
+  current: SnapshotSummary,
+  previous: SnapshotSummary | undefined
+) {
+  const top3 = current.totals.top3Share
+  const top3Delta = previous ? pointChange(top3, previous.totals.top3Share) : null
+  const direction = top3Delta === null ? "" : ` (${formatSigned(top3Delta, 1)}pt vs prior snapshot)`
+
+  if (top3 >= 0.8) {
+    return `High concentration: top 3 brands control ${formatPercent(top3, 1)}${direction}. Entry is difficult without sharp differentiation.`
+  }
+  if (top3 >= 0.65) {
+    return `Moderate concentration: top 3 brands control ${formatPercent(top3, 1)}${direction}. Entry is viable with targeted positioning.`
+  }
+  return `Low concentration: top 3 brands control ${formatPercent(top3, 1)}${direction}. Market remains open for new entrants.`
+}
+
+function buildWhitespaceInsight(snapshot: SnapshotSummary) {
+  const typeRows = (snapshot.typeBreakdowns?.allAsins ?? [])
+    .filter((row) => {
+      const scope = row.scopeKey.toLowerCase()
+      return !scope.startsWith("total") && scope !== "all_asins" && scope !== "total"
+    })
+    .sort((a, b) => b.revenueShare - a.revenueShare)
+
+  const whitespaceCandidate = typeRows.find(
+    (row) => row.revenueShare >= 0.06 && row.unitsShare > 0 && row.unitsShare <= row.revenueShare * 0.75
+  )
+
+  if (whitespaceCandidate) {
+    return `${whitespaceCandidate.label} shows whitespace: ${formatPercent(whitespaceCandidate.revenueShare, 1)} revenue share with lower unit share ${formatPercent(whitespaceCandidate.unitsShare, 1)}.`
+  }
+
+  return "No clear whitespace bucket in current type rows; test differentiation inside top segments."
+}
+
+function buildEntryAngleInsights(snapshot: SnapshotSummary) {
+  const angles: string[] = []
+  const topBrand = snapshot.brandTotals[0]
+  const secondBrand = snapshot.brandTotals[1]
+  const avgTopPrice = averagePrice(snapshot.topProducts)
+
+  if (topBrand) {
+    angles.push(
+      `Position against ${topBrand.brand} (${formatPercent(topBrand.share, 1)} share) with focused SKU messaging.`
+    )
+  }
+  if (secondBrand) {
+    angles.push(`Use ${secondBrand.brand} price/spec bands as the secondary benchmark lane.`)
+  }
+  if (avgTopPrice > 0) {
+    angles.push(`Target launch MSRP near ${formatCurrency(avgTopPrice, 0)} with differentiated features.`)
+  }
+  return angles.slice(0, 3)
+}
+
+function averagePrice(products: SnapshotSummary["topProducts"]) {
+  const prices = products.filter((product) => product.price > 0).map((product) => product.price)
+  if (!prices.length) return 0
+  return prices.reduce((sum, value) => sum + value, 0) / prices.length
 }

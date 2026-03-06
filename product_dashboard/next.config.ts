@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
+  outputFileTracingIncludes: {
+    "/*": ["./data/code_reader_scanner/**/*", "./data/non_code_categories/**/*"],
+  },
   images: {
     remotePatterns: [
       {

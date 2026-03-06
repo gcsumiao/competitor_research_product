@@ -7,6 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "sync:non-code-data": "node scripts/sync-non-code-data.mjs",
     "archive:code-reader": "node scripts/archive-code-reader-monthly.mjs",
     "backfill:code-reader-history": "node scripts/backfill-code-reader-history.mjs"
   },

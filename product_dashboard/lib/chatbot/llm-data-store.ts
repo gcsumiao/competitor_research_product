@@ -4,6 +4,12 @@ import path from "path"
 
 import type { LlmTableName } from "@/lib/chatbot/llm-data-catalog"
 import { loadDashboardData, type ProductSummary } from "@/lib/competitor-data"
+import {
+  isFullDashboardEnabled,
+  resolveCodeReaderDataDir,
+  resolveNonCodeCategoryDir,
+  resolveNonCodeDataRoot,
+} from "@/lib/dashboard-runtime"
 
 type Primitive = string | number | boolean | null
 export type LlmRow = Record<string, Primitive>
@@ -20,18 +26,12 @@ const CACHE_TTL_MS = 120_000
 
 let cachedStore: LlmDataStore | null = null
 
-const RAW_CATEGORY_DIRS: Record<string, string> = {
-  dmm: "DMM_h10/raw_data",
-  borescope: "DMM_h10/Borescope/raw_data",
-  thermal_imager: "DMM_h10/Thermal Imager/raw_data",
-  night_vision: "DMM_h10/Night Vision Monoculars/raw_data",
-}
+const IGNORED_SOURCE_DIRS = new Set([".git", ".venv", "__pycache__", "_archive"])
 
 const SNAPSHOT_DATE_REGEX = /(\d{4}-\d{2}-\d{2})/
 
 export async function loadLlmDataStore(): Promise<LlmDataStore> {
-  const repoRoot = resolveRepoRoot()
-  const sourceFiles = await discoverSourceFiles(repoRoot)
+  const sourceFiles = await discoverSourceFiles()
   const fingerprint = await computeFingerprint(sourceFiles)
   const now = Date.now()
 
@@ -169,7 +169,9 @@ export async function loadLlmDataStore(): Promise<LlmDataStore> {
     }
   }
 
-  await appendRawCsvRows(tables, repoRoot)
+  if (isFullDashboardEnabled()) {
+    await appendRawCsvRows(tables)
+  }
 
   const store: LlmDataStore = {
     loadedAt: now,
@@ -264,9 +266,11 @@ function appendCodeReaderRows(
   }
 }
 
-async function appendRawCsvRows(tables: LlmTableMap, repoRoot: string) {
-  for (const [categoryId, relativeDir] of Object.entries(RAW_CATEGORY_DIRS)) {
-    const baseDir = path.join(repoRoot, relativeDir)
+async function appendRawCsvRows(tables: LlmTableMap) {
+  const categories = ["dmm", "borescope", "thermal_imager", "night_vision"] as const
+  for (const categoryId of categories) {
+    const baseDir = resolveNonCodeCategoryDir(categoryId, "raw_data")
+    if (!baseDir) continue
     const files = await listCsvFiles(baseDir).catch(() => [])
     for (const file of files) {
       const raw = await readFile(file, "utf8").catch(() => "")
@@ -312,6 +316,7 @@ async function listCsvFiles(baseDir: string): Promise<string[]> {
   for (const entry of entries) {
     const fullPath = path.join(baseDir, entry.name)
     if (entry.isDirectory()) {
+      if (IGNORED_SOURCE_DIRS.has(entry.name)) continue
       out.push(...(await listCsvFiles(fullPath)))
     } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".csv")) {
       out.push(fullPath)
@@ -320,11 +325,12 @@ async function listCsvFiles(baseDir: string): Promise<string[]> {
   return out
 }
 
-async function discoverSourceFiles(repoRoot: string) {
-  const targets = [
-    path.join(repoRoot, "DMM_h10"),
-    path.join(repoRoot, "product_dashboard/data/code_reader_scanner"),
-  ]
+async function discoverSourceFiles() {
+  const targets = [resolveCodeReaderDataDir()]
+  const nonCodeRoot = isFullDashboardEnabled() ? resolveNonCodeDataRoot() : null
+  if (nonCodeRoot) {
+    targets.push(nonCodeRoot)
+  }
   const files: string[] = []
   for (const target of targets) {
     files.push(...(await listRelevantFiles(target).catch(() => [])))
@@ -339,6 +345,7 @@ async function listRelevantFiles(baseDir: string): Promise<string[]> {
   for (const entry of entries) {
     const full = path.join(baseDir, entry.name)
     if (entry.isDirectory()) {
+      if (IGNORED_SOURCE_DIRS.has(entry.name)) continue
       out.push(...(await listRelevantFiles(full)))
       continue
     }
@@ -402,11 +409,6 @@ function createEmptyTables(): LlmTableMap {
     raw_rows_csv: [],
     code_reader_workbook_rows: [],
   }
-}
-
-function resolveRepoRoot() {
-  const cwd = process.cwd()
-  return path.basename(cwd) === "product_dashboard" ? path.resolve(cwd, "..") : cwd
 }
 
 function parseCsv(input: string) {

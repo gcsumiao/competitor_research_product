@@ -1,9 +1,24 @@
 Product market research dashboard (Next.js App Router).
 
 - Main dashboard pages live under `app/(dashboard)` (e.g. `/`, `/sales`, `/customers`, `/reports`, `/specs`, `/orders`).
-- Data is loaded from `../DMM_h10/**/raw_data/*.csv` and report `.xlsx` files at runtime.
+- Non-code category data is deployed from `data/non_code_categories/**`.
+- Local sync source for non-code data remains `../NewProductCategory/**`.
 - Code Reader & Scanner snapshots are loaded from `data/code_reader_scanner/YYYYMM/`.
 - The older single-page mock dashboard is still available at `/legacy`.
+
+## Deployment Modes
+
+- `DASHBOARD_DEPLOYMENT_MODE=code_reader_only` keeps the existing code-reader-only deployment behavior.
+- `DASHBOARD_DEPLOYMENT_MODE=full` enables all product categories.
+- If the env var is omitted, local development defaults to `full` and Vercel defaults to `code_reader_only`.
+
+## Non-Code Data Sync
+
+Sync the deployable non-code payload before committing a full-dashboard deploy:
+
+```bash
+pnpm sync:non-code-data
+```
 
 ## Code Reader & Scanner Data
 

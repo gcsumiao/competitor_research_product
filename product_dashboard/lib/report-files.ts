@@ -1,6 +1,8 @@
 import { readdir, readFile, stat } from "fs/promises"
 import path from "path"
 
+import { isFullDashboardEnabled, resolveCodeReaderDataDir, resolveNonCodeDataRoot } from "@/lib/dashboard-runtime"
+
 export type ReportSource = "dmm" | "code_reader_scanner"
 
 export type ReportFile = {
@@ -15,10 +17,11 @@ export type ReportFile = {
 const EXCLUDE_PREFIXES = ["~$", "._", ".__"]
 const EXCLUDE_KEYWORDS = ["type_mapping", "mapping", "__zip"]
 const CODE_READER_FILES = ["report.xlsx", "analysis.xlsx"] as const
+const IGNORED_SOURCE_DIRS = new Set([".git", ".venv", "__pycache__", "_archive"])
 
 export async function loadReportFiles(): Promise<ReportFile[]> {
   const [dmmReports, codeReaderReports] = await Promise.all([
-    loadDmmReportFiles(),
+    isFullDashboardEnabled() ? loadDmmReportFiles() : Promise.resolve([]),
     loadCodeReaderReportFiles(),
   ])
 
@@ -28,7 +31,8 @@ export async function loadReportFiles(): Promise<ReportFile[]> {
 }
 
 async function loadDmmReportFiles(): Promise<ReportFile[]> {
-  const baseDir = path.resolve(process.cwd(), "..", "DMM_h10")
+  const baseDir = resolveNonCodeDataRoot()
+  if (!baseDir) return []
   const files = await listFiles(baseDir)
   const reports: ReportFile[] = []
   for (const filePath of files) {
@@ -53,7 +57,7 @@ async function loadDmmReportFiles(): Promise<ReportFile[]> {
 }
 
 async function loadCodeReaderReportFiles(): Promise<ReportFile[]> {
-  const baseDir = path.resolve(process.cwd(), "data", "code_reader_scanner")
+  const baseDir = resolveCodeReaderDataDir()
   const monthEntries = await readdir(baseDir, { withFileTypes: true }).catch(() => [])
   const reports: ReportFile[] = []
 
@@ -96,6 +100,7 @@ async function listFiles(dir: string): Promise<string[]> {
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name)
     if (entry.isDirectory()) {
+      if (IGNORED_SOURCE_DIRS.has(entry.name)) continue
       const nested = await listFiles(fullPath)
       files.push(...nested)
     } else if (entry.isFile()) {

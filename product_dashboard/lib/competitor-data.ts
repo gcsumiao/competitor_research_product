@@ -2,6 +2,11 @@ import { readdir, readFile } from "fs/promises"
 import path from "path"
 
 import { loadCodeReaderScannerSnapshots } from "@/lib/code-reader-scanner-data"
+import {
+  getDashboardDeploymentMode,
+  resolveCodeReaderDataDir,
+  resolveNonCodeCategoryDir,
+} from "@/lib/dashboard-runtime"
 import { formatSnapshotLabelMonthEnd, normalizeSnapshotDate } from "@/lib/snapshot-date"
 
 export type CategoryId =
@@ -164,28 +169,37 @@ type CsvCategoryConfig = {
   id: Exclude<CategoryId, "code_reader_scanner">
   label: string
   source: "csv"
-  dir: string
 }
 
 type WorkbookCategoryConfig = {
   id: "code_reader_scanner"
   label: string
   source: "workbook"
-  dir: string
 }
 
 type CategoryConfig = CsvCategoryConfig | WorkbookCategoryConfig
 
 const CATEGORY_CONFIG: CategoryConfig[] = [
-  { id: "dmm", label: "DMM / Automotive", source: "csv", dir: "DMM_h10/raw_data" },
-  { id: "borescope", label: "Borescope", source: "csv", dir: "DMM_h10/Borescope/raw_data" },
-  { id: "thermal_imager", label: "Thermal Imager", source: "csv", dir: "DMM_h10/Thermal Imager/raw_data" },
-  { id: "night_vision", label: "Night Vision", source: "csv", dir: "DMM_h10/Night Vision Monoculars/raw_data" },
+  { id: "dmm", label: "DMM / Automotive", source: "csv" },
+  {
+    id: "borescope",
+    label: "Borescope",
+    source: "csv",
+  },
+  {
+    id: "thermal_imager",
+    label: "Thermal Imager",
+    source: "csv",
+  },
+  {
+    id: "night_vision",
+    label: "Night Vision",
+    source: "csv",
+  },
   {
     id: "code_reader_scanner",
     label: "Code Reader & Scanner",
     source: "workbook",
-    dir: "data/code_reader_scanner",
   },
 ]
 
@@ -197,6 +211,8 @@ const PRICE_TIERS = [
 ]
 
 const TOP_PRODUCTS_COUNT = 50
+const IGNORED_SOURCE_DIRS = new Set([".git", ".venv", "__pycache__", "_archive"])
+const NON_CODE_READER_PRICE_CEILING = 1000
 
 const CSV_DATE_REGEX = /(\d{4}-\d{2}-\d{2})/
 
@@ -207,12 +223,16 @@ function monthKeyFromDate(dateValue: string) {
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {
+  const deploymentMode = getDashboardDeploymentMode()
+  const enabledCategories = CATEGORY_CONFIG.filter(
+    (category) => deploymentMode === "full" || category.id === "code_reader_scanner"
+  )
   const categories = await Promise.all(
-    CATEGORY_CONFIG.map(async (category) => {
+    enabledCategories.map(async (category) => {
       const snapshots =
         category.source === "csv"
-          ? await loadCsvCategorySnapshots(path.resolve(process.cwd(), "..", category.dir))
-          : await loadCodeReaderScannerSnapshots(path.resolve(process.cwd(), category.dir))
+          ? await loadCsvCategorySnapshots(resolveNonCodeCategoryDir(category.id, "raw_data"))
+          : await loadCodeReaderScannerSnapshots(resolveCodeReaderDataDir())
 
       return {
         id: category.id,
@@ -228,9 +248,10 @@ export async function loadDashboardData(): Promise<DashboardData> {
   }
 }
 
-async function loadCsvCategorySnapshots(baseDir: string) {
+async function loadCsvCategorySnapshots(baseDir: string | null) {
+  if (!baseDir) return []
   const files = await listCsvFiles(baseDir).catch(() => [])
-  const grouped = groupFilesBySnapshot(files)
+  const grouped = groupFilesBySnapshot(files, baseDir)
   const snapshots = await Promise.all(
     Array.from(grouped.entries()).map(async ([date, dateFiles]) => {
       const records = await loadSnapshotRecords(dateFiles)
@@ -250,6 +271,7 @@ async function listCsvFiles(dir: string): Promise<string[]> {
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name)
     if (entry.isDirectory()) {
+      if (IGNORED_SOURCE_DIRS.has(entry.name)) continue
       const nested = await listCsvFiles(fullPath)
       files.push(...nested)
     } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".csv")) {
@@ -260,22 +282,24 @@ async function listCsvFiles(dir: string): Promise<string[]> {
   return files
 }
 
-function groupFilesBySnapshot(files: string[]): Map<string, string[]> {
+function groupFilesBySnapshot(files: string[], baseDir: string): Map<string, string[]> {
   // CSV exports can be created on different days within the same month.
-  // The dashboard treats each month as one snapshot and selects the latest run in that month.
+  // For non-code-reader categories, month folders (YYYYMM) are the source of truth for snapshot period.
+  // Within a month bucket, keep only the latest export run date.
   const monthLatest = new Map<string, { runDate: string; files: string[] }>()
 
   for (const file of files) {
     const match = path.basename(file).match(CSV_DATE_REGEX)
-    if (!match) continue
-    const date = match[1]
-    const monthKey = monthKeyFromDate(date)
+    const runDate = match?.[1] ?? "0000-00-00"
+    const folderMonthKey = monthKeyFromFolderName(file, baseDir)
+    const monthKey = folderMonthKey ?? (match ? monthKeyFromDate(runDate) : null)
+    if (!monthKey) continue
     const existing = monthLatest.get(monthKey)
-    if (!existing || date > existing.runDate) {
-      monthLatest.set(monthKey, { runDate: date, files: [file] })
+    if (!existing || runDate > existing.runDate) {
+      monthLatest.set(monthKey, { runDate, files: [file] })
       continue
     }
-    if (date === existing.runDate) {
+    if (runDate === existing.runDate) {
       existing.files.push(file)
     }
   }
@@ -286,6 +310,18 @@ function groupFilesBySnapshot(files: string[]): Map<string, string[]> {
   }
 
   return grouped
+}
+
+function monthKeyFromFolderName(file: string, baseDir: string) {
+  const relative = path.relative(baseDir, file)
+  const segments = relative.split(path.sep).slice(0, -1)
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const segment = segments[index]
+    if (/^\d{6}$/.test(segment)) {
+      return `${segment.slice(0, 4)}-${segment.slice(4, 6)}`
+    }
+  }
+  return null
 }
 
 async function loadSnapshotRecords(files: string[]): Promise<RawRecord[]> {
@@ -322,6 +358,11 @@ async function loadSnapshotRecords(files: string[]): Promise<RawRecord[]> {
         subcategory: getValue("Subcategory").trim() || undefined,
         url: getValue("URL").trim() || undefined,
         imageUrl: getValue("Image URL").trim() || undefined,
+      }
+
+      // Enforce category-wide ceiling for non-code-reader snapshots.
+      if (record.price > NON_CODE_READER_PRICE_CEILING) {
+        continue
       }
 
       const existing = records.get(asin)

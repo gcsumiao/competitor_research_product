@@ -4,6 +4,7 @@ import { access, readFile } from "fs/promises"
 import * as XLSX from "xlsx"
 
 import type { CategoryId } from "@/lib/competitor-data"
+import { getDashboardDeploymentMode, resolveNonCodeDataRoot } from "@/lib/dashboard-runtime"
 
 export type TypeSummarySection = {
   title: string
@@ -18,11 +19,15 @@ export type CategoryTypeSummary = {
 }
 
 const CATEGORY_FILES: Record<CategoryId, string[]> = {
-  dmm: ["DMM_market_research_summary.xlsx"],
-  borescope: ["Borescope/25-11-25 Borescope V4.xlsx", "Borescope/26-01-14 Borescope.xlsx"],
+  dmm: ["DMM/outputs/DMM_market_research_summary.xlsx"],
+  borescope: [
+    "Borescope/outputs/26-02-19 Borescope.xlsx",
+    "Borescope/outputs/26-01-14 Borescope.xlsx",
+    "Borescope/25-11-25 Borescope V4.xlsx",
+  ],
   thermal_imager: [
-    "Thermal Imager/25-11-25 Thermal Imager V4.xlsx",
     "Thermal Imager/26-01-14 Thermal Imager.xlsx",
+    "Thermal Imager/25-11-25 Thermal Imager V4.xlsx",
   ],
   night_vision: ["Night Vision Monoculars/outputs/Night_Vision_Monoculars_top50(20260115).xlsx"],
   code_reader_scanner: [],
@@ -31,12 +36,18 @@ const CATEGORY_FILES: Record<CategoryId, string[]> = {
 const SUMMARY_SHEET_REGEX = /^Top\s?50.*Summary/i
 
 export async function loadTypeSummaries(): Promise<Record<CategoryId, CategoryTypeSummary | null>> {
-  const baseDir = path.resolve(process.cwd(), "..", "DMM_h10")
   const result = {} as Record<CategoryId, CategoryTypeSummary | null>
+  const deploymentMode = getDashboardDeploymentMode()
+  const baseDir = deploymentMode === "full" ? resolveNonCodeDataRoot() : null
 
   for (const categoryId of Object.keys(CATEGORY_FILES) as CategoryId[]) {
+    if (categoryId !== "code_reader_scanner" && deploymentMode !== "full") {
+      result[categoryId] = null
+      continue
+    }
+
     const files = CATEGORY_FILES[categoryId]
-    const filePath = await resolveWorkbookPath(baseDir, files)
+    const filePath = baseDir ? await resolveWorkbookPath(baseDir, files) : null
 
     if (!filePath) {
       result[categoryId] = null

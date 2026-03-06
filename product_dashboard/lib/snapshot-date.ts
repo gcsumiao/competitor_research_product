@@ -57,3 +57,17 @@ export function formatSnapshotLabelMonthEnd(input: string) {
     timeZone: "UTC",
   }).format(date)
 }
+
+export function getSnapshotMonthRange(input: string) {
+  const normalized = normalizeSnapshotDate(input)
+  const match = normalized.match(DATE_YYYYMMDD)
+  if (!match) {
+    return { start: normalized, end: normalized }
+  }
+  const year = match[1]
+  const month = match[2]
+  return {
+    start: `${year}-${month}-01`,
+    end: normalized,
+  }
+}

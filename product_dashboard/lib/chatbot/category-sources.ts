@@ -2,25 +2,12 @@ import { readdir, stat } from "fs/promises"
 import path from "path"
 
 import type { CategoryId } from "@/lib/competitor-data"
+import { isFullDashboardEnabled, resolveNonCodeCategoryDir } from "@/lib/dashboard-runtime"
 
 type CategorySource = {
   categoryId: CategoryId
   filePath: string
 }
-
-const DMM_SOURCE = path.resolve(
-  process.cwd(),
-  "..",
-  "DMM_h10",
-  "outputs",
-  "DMM_market_research_summary.xlsx"
-)
-
-const SOURCE_DIRS = {
-  borescope: path.resolve(process.cwd(), "..", "DMM_h10", "Borescope", "outputs"),
-  thermal_imager: path.resolve(process.cwd(), "..", "DMM_h10", "Thermal Imager"),
-  night_vision: path.resolve(process.cwd(), "..", "DMM_h10", "Night Vision Monoculars", "outputs"),
-} as const
 
 const SOURCE_PATTERNS = {
   borescope: /^Borescope_Market_Analysis.*\.xlsx$/i,
@@ -31,34 +18,34 @@ const SOURCE_PATTERNS = {
 export async function resolveCategorySourceWorkbook(
   categoryId: CategoryId
 ): Promise<CategorySource | null> {
+  if (!isFullDashboardEnabled()) {
+    return null
+  }
+
   if (categoryId === "dmm") {
+    const filePath = resolveNonCodeCategoryDir("dmm", "outputs", "DMM_market_research_summary.xlsx")
+    if (!filePath) return null
     return {
       categoryId,
-      filePath: DMM_SOURCE,
+      filePath,
     }
   }
 
   if (categoryId === "borescope") {
-    const file = await findLatestWorkbook(
-      SOURCE_DIRS.borescope,
-      SOURCE_PATTERNS.borescope
-    )
+    const dir = resolveNonCodeCategoryDir("borescope", "outputs")
+    const file = dir ? await findLatestWorkbook(dir, SOURCE_PATTERNS.borescope) : null
     return file ? { categoryId, filePath: file } : null
   }
 
   if (categoryId === "thermal_imager") {
-    const file = await findLatestWorkbook(
-      SOURCE_DIRS.thermal_imager,
-      SOURCE_PATTERNS.thermal_imager
-    )
+    const dir = resolveNonCodeCategoryDir("thermal_imager")
+    const file = dir ? await findLatestWorkbook(dir, SOURCE_PATTERNS.thermal_imager) : null
     return file ? { categoryId, filePath: file } : null
   }
 
   if (categoryId === "night_vision") {
-    const file = await findLatestWorkbook(
-      SOURCE_DIRS.night_vision,
-      SOURCE_PATTERNS.night_vision
-    )
+    const dir = resolveNonCodeCategoryDir("night_vision", "outputs")
+    const file = dir ? await findLatestWorkbook(dir, SOURCE_PATTERNS.night_vision) : null
     return file ? { categoryId, filePath: file } : null
   }
 
