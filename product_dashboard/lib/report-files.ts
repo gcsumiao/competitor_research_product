@@ -1,9 +1,20 @@
 import { readdir, readFile, stat } from "fs/promises"
 import path from "path"
+import { unstable_cache } from "next/cache"
 
+import type { CategoryId } from "@/lib/competitor-data"
+import { DASHBOARD_DATA_TAG, DEFAULT_CACHE_REVALIDATE_SECONDS, REPORT_FILES_TAG } from "@/lib/db/constants"
+import { queryDb } from "@/lib/db/client"
 import { isFullDashboardEnabled, resolveCodeReaderDataDir, resolveNonCodeDataRoot } from "@/lib/dashboard-runtime"
+import { isPostgresDashboardSource } from "@/lib/dashboard-runtime"
+import {
+  findNonCodeCategoryByFolder,
+  getNonCodeCategoryConfig,
+  isConfiguredVisibleReport,
+  isNonCodeCategoryId,
+} from "@/lib/non-code-category-config"
 
-export type ReportSource = "dmm" | "code_reader_scanner"
+export type ReportSource = CategoryId
 
 export type ReportFile = {
   name: string
@@ -20,17 +31,32 @@ const CODE_READER_FILES = ["report.xlsx", "analysis.xlsx"] as const
 const IGNORED_SOURCE_DIRS = new Set([".git", ".venv", "__pycache__", "_archive"])
 
 export async function loadReportFiles(): Promise<ReportFile[]> {
-  const [dmmReports, codeReaderReports] = await Promise.all([
-    isFullDashboardEnabled() ? loadDmmReportFiles() : Promise.resolve([]),
+  return isPostgresDashboardSource()
+    ? loadReportFilesFromPostgresCached()
+    : loadReportFilesFromFiles()
+}
+
+export async function loadReportFilesFromFiles(): Promise<ReportFile[]> {
+  const [nonCodeReports, codeReaderReports] = await Promise.all([
+    isFullDashboardEnabled() ? loadNonCodeReportFiles() : Promise.resolve([]),
     loadCodeReaderReportFiles(),
   ])
 
-  return [...dmmReports, ...codeReaderReports].sort((a, b) =>
+  return [...nonCodeReports, ...codeReaderReports].sort((a, b) =>
     b.modifiedAt.localeCompare(a.modifiedAt)
   )
 }
 
-async function loadDmmReportFiles(): Promise<ReportFile[]> {
+const loadReportFilesFromPostgresCached = unstable_cache(
+  loadReportFilesFromPostgres,
+  ["report-files", "postgres"],
+  {
+    tags: [DASHBOARD_DATA_TAG, REPORT_FILES_TAG],
+    revalidate: DEFAULT_CACHE_REVALIDATE_SECONDS,
+  }
+)
+
+async function loadNonCodeReportFiles(): Promise<ReportFile[]> {
   const baseDir = resolveNonCodeDataRoot()
   if (!baseDir) return []
   const files = await listFiles(baseDir)
@@ -40,16 +66,16 @@ async function loadDmmReportFiles(): Promise<ReportFile[]> {
     if (!isReportFile(name)) continue
 
     const relativePath = path.relative(baseDir, filePath)
-    const parts = relativePath.split(path.sep)
-    const category = parts.length > 1 ? parts[0] : "General"
+    const category = findNonCodeCategoryByFolder(relativePath)
+    if (!category || !isConfiguredVisibleReport(category.id, relativePath)) continue
     const stats = await stat(filePath)
 
     reports.push({
       name,
       relativePath,
-      category,
+      category: category.label,
       modifiedAt: stats.mtime.toISOString(),
-      source: "dmm",
+      source: category.id,
     })
   }
 
@@ -158,4 +184,76 @@ function getCodeReaderDisplayName({
   const mm = month.slice(4, 6)
   const title = fileName === "report.xlsx" ? "Report" : "Analysis"
   return `${year}-${mm} Code Reader & Scanner ${title}.xlsx`
+}
+
+export async function loadReportFilesFromPostgres(): Promise<ReportFile[]> {
+  const fullDashboardEnabled = isFullDashboardEnabled()
+  const result = await queryDb<{
+    artifact_path: string
+    category_id: string | null
+    month_key: string | null
+    file_name: string
+    modified_at: Date | string | null
+    metadata: Record<string, unknown> | string | null
+  }>(
+    `
+      SELECT artifact_path, category_id, month_key, file_name, modified_at, metadata
+      FROM source_artifacts
+      WHERE COALESCE((metadata->>'reportVisible')::boolean, false) = true
+      ORDER BY modified_at DESC NULLS LAST, artifact_path ASC
+    `
+  )
+
+  return result.rows
+    .filter((row) => fullDashboardEnabled || row.category_id === "code_reader_scanner")
+    .map((row) => {
+      const metadata = parseMetadata(row.metadata)
+      const configuredLabel =
+        isNonCodeCategoryId(row.category_id)
+          ? getNonCodeCategoryConfig(row.category_id)?.label
+          : null
+      const categoryLabel =
+        typeof metadata.categoryLabel === "string"
+          ? metadata.categoryLabel
+          : row.category_id === "code_reader_scanner"
+          ? "Code Reader & Scanner"
+          : configuredLabel ?? "General"
+    const displayName =
+      typeof metadata.displayName === "string" && metadata.displayName.trim()
+        ? metadata.displayName.trim()
+        : row.file_name
+
+      return {
+        name: displayName,
+        relativePath: row.artifact_path,
+        category: categoryLabel,
+        modifiedAt:
+          row.modified_at instanceof Date
+            ? row.modified_at.toISOString()
+            : (row.modified_at ?? new Date(0).toISOString()),
+        source: normalizeReportSource(row.category_id),
+        month: row.month_key ?? undefined,
+      } satisfies ReportFile
+    })
+}
+
+function parseMetadata(value: Record<string, unknown> | string | null) {
+  if (!value) return {}
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as unknown
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {}
+    } catch {
+      return {}
+    }
+  }
+  return value
+}
+
+function normalizeReportSource(categoryId: string | null): ReportSource {
+  if (categoryId === "code_reader_scanner") return "code_reader_scanner"
+  if (isNonCodeCategoryId(categoryId)) return categoryId
+  return "code_reader_scanner"
 }

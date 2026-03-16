@@ -1,11 +1,17 @@
+import { Suspense } from "react"
+
 import { SpecsClient } from "@/components/dashboard/specs-client"
 import { loadDashboardData } from "@/lib/competitor-data"
 import { loadTypeSummaries } from "@/lib/type-summaries"
 
-export const dynamic = "force-dynamic"
+export const revalidate = 3600
 
 export default async function SpecsPage() {
   const [data, summaries] = await Promise.all([loadDashboardData(), loadTypeSummaries()])
 
-  return <SpecsClient data={data} summaries={summaries} />
+  return (
+    <Suspense fallback={null}>
+      <SpecsClient data={data} summaries={summaries} />
+    </Suspense>
+  )
 }

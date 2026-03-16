@@ -3,9 +3,13 @@ import type {
   ProductSummary,
   SnapshotSummary,
 } from "@/lib/competitor-data"
+import {
+  getTargetDimensionPreset,
+  type TargetDimensionPreset,
+} from "@/lib/non-code-category-config"
 import type { CategoryTypeSummary } from "@/lib/type-summaries"
 
-export type TargetCategoryId = Extract<CategoryId, "borescope" | "thermal_imager">
+export type TargetCategoryId = TargetDimensionPreset
 export type TrendMetric = "revenue" | "units"
 export type DimensionSource = "snapshot" | "workbook"
 
@@ -76,10 +80,8 @@ const BASIC_RESOLUTION_REGEX = /\b(80x60|96x96|120x90|128x96|160x120|256x192|320
 const SUPER_RESOLUTION_REGEX =
   /\b(160x120|192x192|240x180|240x240|320x240|480x360|512x384)\b/i
 
-export function isTargetTypesCategory(
-  categoryId: CategoryId | undefined
-): categoryId is TargetCategoryId {
-  return categoryId === "borescope" || categoryId === "thermal_imager"
+export function getTargetCategoryPreset(categoryId: CategoryId | undefined): TargetCategoryId | null {
+  return getTargetDimensionPreset(categoryId)
 }
 
 export function getDimensionOptions(categoryId: TargetCategoryId): DimensionOption[] {

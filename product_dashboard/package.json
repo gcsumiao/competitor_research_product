@@ -2,14 +2,25 @@
   "name": "product_dashboard",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "sync:non-code-data": "node scripts/sync-non-code-data.mjs",
-    "archive:code-reader": "node scripts/archive-code-reader-monthly.mjs",
-    "backfill:code-reader-history": "node scripts/backfill-code-reader-history.mjs"
+    "sync:non-code-data": "node -r dotenv/config --import tsx scripts/db-ingest-non-code.mts dotenv_config_path=.env.local",
+    "sync:non-code-files": "node --import tsx scripts/sync-non-code-data.mts",
+    "reports:generate:non-code": "node --import tsx scripts/generate-non-code-reports.mts",
+    "archive:code-reader": "node -r dotenv/config --import tsx scripts/db-ingest-code-reader.mts dotenv_config_path=.env.local",
+    "archive:code-reader:files": "node scripts/archive-code-reader-monthly.mjs",
+    "backfill:code-reader-history": "node scripts/backfill-code-reader-history.mjs",
+    "db:migrate": "node -r dotenv/config --import tsx scripts/db-migrate.mts dotenv_config_path=.env.local",
+    "db:backfill": "node -r dotenv/config --import tsx scripts/db-backfill.mts dotenv_config_path=.env.local",
+    "db:ingest:code-reader": "node -r dotenv/config --import tsx scripts/db-ingest-code-reader.mts dotenv_config_path=.env.local",
+    "db:ingest:non-code": "node -r dotenv/config --import tsx scripts/db-ingest-non-code.mts dotenv_config_path=.env.local",
+    "db:verify:parity": "node -r dotenv/config --import tsx scripts/verify-dashboard-parity.mts dotenv_config_path=.env.local",
+    "deploy:check-env": "node -r dotenv/config --import tsx scripts/check-deployment-env.mts dotenv_config_path=.env.local",
+    "deploy:smoke": "node -r dotenv/config --import tsx scripts/smoke-dashboard-deployment.mts dotenv_config_path=.env.local"
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",
@@ -17,6 +28,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.562.0",
     "next": "16.1.4",
+    "pg": "^8.16.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "2.15.4",
@@ -28,11 +40,13 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.15.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
     "tailwindcss": "^4",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }

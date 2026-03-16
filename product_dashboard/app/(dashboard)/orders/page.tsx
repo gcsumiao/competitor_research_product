@@ -1,10 +1,16 @@
+import { Suspense } from "react"
+
 import { SurveysClient } from "@/components/dashboard/surveys-client"
 import { loadDashboardData } from "@/lib/competitor-data"
 
-export const dynamic = "force-dynamic"
+export const revalidate = 3600
 
 export default async function OrdersPage() {
   const data = await loadDashboardData()
 
-  return <SurveysClient data={data} />
+  return (
+    <Suspense fallback={null}>
+      <SurveysClient data={data} />
+    </Suspense>
+  )
 }

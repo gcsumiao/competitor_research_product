@@ -1,9 +1,9 @@
 Product market research dashboard (Next.js App Router).
 
 - Main dashboard pages live under `app/(dashboard)` (e.g. `/`, `/sales`, `/customers`, `/reports`, `/specs`, `/orders`).
-- Non-code category data is deployed from `data/non_code_categories/**`.
-- Local sync source for non-code data remains `../NewProductCategory/**`.
-- Code Reader & Scanner snapshots are loaded from `data/code_reader_scanner/YYYYMM/`.
+- `DASHBOARD_DATA_SOURCE=file|postgres` controls whether runtime reads from snapshot files or PostgreSQL.
+- Non-code category data is still generated from `data/non_code_categories/**` and `../NewProductCategory/**`, but the dashboard should now read PostgreSQL in normal operation.
+- Code Reader & Scanner snapshots are still produced from the monthly pipeline, then ingested into PostgreSQL with artifacts attached.
 - The older single-page mock dashboard is still available at `/legacy`.
 
 ## Deployment Modes
@@ -12,27 +12,84 @@ Product market research dashboard (Next.js App Router).
 - `DASHBOARD_DEPLOYMENT_MODE=full` enables all product categories.
 - If the env var is omitted, local development defaults to `full` and Vercel defaults to `code_reader_only`.
 
-## Non-Code Data Sync
+## PostgreSQL Runtime
 
-Sync the deployable non-code payload before committing a full-dashboard deploy:
+Local development is designed for Docker PostgreSQL 18. Production stays compatible with Neon PostgreSQL 17.
+
+Create envs from `.env.example`:
 
 ```bash
-pnpm sync:non-code-data
+DATABASE_URL=postgresql://dashboard:dashboard@localhost:55432/competitor_dashboard
+DATABASE_URL_UNPOOLED=postgresql://dashboard:dashboard@localhost:55432/competitor_dashboard
+DASHBOARD_DATA_SOURCE=postgres
+DASHBOARD_DEPLOYMENT_MODE=full
+DASHBOARD_REVALIDATE_SECRET=replace-me
+```
+
+The Docker default in this repo uses `localhost:55432` to avoid collisions with existing local PostgreSQL services.
+
+Start the local database and apply migrations:
+
+```bash
+pnpm db:up
+pnpm db:migrate
+```
+
+Backfill all existing dashboard data into PostgreSQL:
+
+```bash
+pnpm db:backfill
+```
+
+For Vercel + Neon:
+
+- `DATABASE_URL` should use Neon pooled runtime connections.
+- `DATABASE_URL_UNPOOLED` should use Neon direct connections for migrations and backfills.
+- Keep schema and SQL PG17-compatible even if local Docker uses PG18.
+- Production and Preview deployment runbook: [`docs/neon-vercel-production.md`](/Users/sumiaoc/competitor_research_product/product_dashboard/docs/neon-vercel-production.md)
+- Validate deployment envs before cutover with `pnpm deploy:check-env`.
+- Validate file-vs-postgres parity before cutover with `pnpm db:verify:parity`.
+- Validate a deployed Preview or Production site with `pnpm deploy:smoke -- --base-url https://<deployment-domain>`.
+
+## Non-Code Data Sync
+
+In the new flow, ingest normalized non-code snapshots into PostgreSQL:
+
+```bash
+pnpm db:ingest:non-code
+```
+
+Legacy file-copy behavior is still available for rollback only:
+
+```bash
+pnpm sync:non-code-files
 ```
 
 ## Code Reader & Scanner Data
 
-- Historical official report+analysis files are archived under `data/code_reader_scanner/YYYYMM/`.
-- Monthly raw imports should be archived with:
+- Historical official report+analysis files under `data/code_reader_scanner/YYYYMM/` are still supported for backfill and rollback.
+- The normal monthly path is now:
+  1. run the Python pipeline
+  2. emit `dashboard_snapshot_rows.json`
+  3. ingest structured rows + artifacts into PostgreSQL
+  4. trigger dashboard tag revalidation
+
+Monthly ingest command:
 
 ```bash
-pnpm archive:code-reader -- --month YYYYMM
+pnpm db:ingest:code-reader -- --month YYYYMM
 ```
 
-- One-time backfill command (already run in this repo):
+If you explicitly need the old file archive as a rollback artifact:
 
 ```bash
-pnpm backfill:code-reader-history
+pnpm db:ingest:code-reader -- --month YYYYMM --write-file-archive
+```
+
+One-time historical backfill command:
+
+```bash
+pnpm db:backfill
 ```
 
 ## Getting Started

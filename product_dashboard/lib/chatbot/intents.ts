@@ -366,6 +366,10 @@ const CATEGORY_KEYWORD_BOOSTS: Partial<Record<CategoryId, Array<{ intent: ChatIn
     { intent: "feature_analysis", terms: ["magnification", "night vision", "thermal monocular"] },
     { intent: "price_range", terms: ["price point", "budget"] },
   ],
+  smoke_machine: [
+    { intent: "feature_analysis", terms: ["built-in air pump", "pressure gauge", "smoke fluid", "adapter"] },
+    { intent: "product_type_mix", terms: ["leak detector", "high volume", "accessory", "fluid", "evap"] },
+  ],
 }
 
 export function detectIntent(message: string, categoryId?: CategoryId): IntentDetection {

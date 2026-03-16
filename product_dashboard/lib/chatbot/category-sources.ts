@@ -3,62 +3,54 @@ import path from "path"
 
 import type { CategoryId } from "@/lib/competitor-data"
 import { isFullDashboardEnabled, resolveNonCodeCategoryDir } from "@/lib/dashboard-runtime"
+import {
+  getNonCodeCategoryConfig,
+  isNonCodeCategoryId,
+  type FileLocator,
+} from "@/lib/non-code-category-config"
 
 type CategorySource = {
   categoryId: CategoryId
   filePath: string
 }
 
-const SOURCE_PATTERNS = {
-  borescope: /^Borescope_Market_Analysis.*\.xlsx$/i,
-  thermal_imager: /^TI_Market_Analysis.*\.xlsx$/i,
-  night_vision: /^Night_Vision_Monoculars_top50.*\.xlsx$/i,
-} as const
-
 export async function resolveCategorySourceWorkbook(
   categoryId: CategoryId
 ): Promise<CategorySource | null> {
-  if (!isFullDashboardEnabled()) {
+  if (!isFullDashboardEnabled() || !isNonCodeCategoryId(categoryId)) {
     return null
   }
 
-  if (categoryId === "dmm") {
-    const filePath = resolveNonCodeCategoryDir("dmm", "outputs", "DMM_market_research_summary.xlsx")
-    if (!filePath) return null
-    return {
-      categoryId,
-      filePath,
-    }
-  }
-
-  if (categoryId === "borescope") {
-    const dir = resolveNonCodeCategoryDir("borescope", "outputs")
-    const file = dir ? await findLatestWorkbook(dir, SOURCE_PATTERNS.borescope) : null
-    return file ? { categoryId, filePath: file } : null
-  }
-
-  if (categoryId === "thermal_imager") {
-    const dir = resolveNonCodeCategoryDir("thermal_imager")
-    const file = dir ? await findLatestWorkbook(dir, SOURCE_PATTERNS.thermal_imager) : null
-    return file ? { categoryId, filePath: file } : null
-  }
-
-  if (categoryId === "night_vision") {
-    const dir = resolveNonCodeCategoryDir("night_vision", "outputs")
-    const file = dir ? await findLatestWorkbook(dir, SOURCE_PATTERNS.night_vision) : null
-    return file ? { categoryId, filePath: file } : null
-  }
-
-  return null
+  const config = getNonCodeCategoryConfig(categoryId)
+  if (!config?.sourceWorkbook) return null
+  const filePath = await resolveCategoryFile(categoryId, config.sourceWorkbook)
+  return filePath ? { categoryId, filePath } : null
 }
 
-async function findLatestWorkbook(dir: string, filePattern: RegExp) {
+async function resolveCategoryFile(categoryId: string, locator: FileLocator) {
+  if (!isNonCodeCategoryId(categoryId)) return null
+
+  if (locator.mode === "exact") {
+    return resolveNonCodeCategoryDir(categoryId, ...splitRelativePath(locator.relativePath))
+  }
+
+  const relativeDir = ("relativeDir" in locator ? locator.relativeDir : "") ?? ""
+  const dir = resolveNonCodeCategoryDir(categoryId, ...splitRelativePath(relativeDir))
+  if (!dir) return null
+  return findMatchedWorkbook(dir, locator.filePattern, locator.mode === "latest_match")
+}
+
+async function findMatchedWorkbook(dir: string, filePattern: RegExp, latestOnly: boolean) {
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
   const candidates = entries
     .filter((entry) => entry.isFile() && filePattern.test(entry.name))
     .map((entry) => path.join(dir, entry.name))
 
   if (!candidates.length) return null
+  if (!latestOnly) {
+    candidates.sort()
+    return candidates[0]
+  }
 
   const withStats = await Promise.all(
     candidates.map(async (candidate) => {
@@ -77,4 +69,11 @@ async function findLatestWorkbook(dir: string, filePattern: RegExp) {
 
   valid.sort((a, b) => b.mtimeMs - a.mtimeMs)
   return valid[0].file
+}
+
+function splitRelativePath(value: string) {
+  return value
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean)
 }

@@ -2,14 +2,18 @@ import { createHash } from "crypto"
 import { readdir, readFile, stat } from "fs/promises"
 import path from "path"
 
+import { queryDb } from "@/lib/db/client"
+import { listSourceArtifactRefs } from "@/lib/db/source-artifacts"
 import type { LlmTableName } from "@/lib/chatbot/llm-data-catalog"
 import { loadDashboardData, type ProductSummary } from "@/lib/competitor-data"
 import {
   isFullDashboardEnabled,
+  isPostgresDashboardSource,
   resolveCodeReaderDataDir,
   resolveNonCodeCategoryDir,
   resolveNonCodeDataRoot,
 } from "@/lib/dashboard-runtime"
+import { listNonCodeCategoryIds } from "@/lib/non-code-category-config"
 
 type Primitive = string | number | boolean | null
 export type LlmRow = Record<string, Primitive>
@@ -170,7 +174,11 @@ export async function loadLlmDataStore(): Promise<LlmDataStore> {
   }
 
   if (isFullDashboardEnabled()) {
-    await appendRawCsvRows(tables)
+    if (isPostgresDashboardSource()) {
+      await appendRawSnapshotRowsFromPostgres(tables)
+    } else {
+      await appendRawCsvRows(tables)
+    }
   }
 
   const store: LlmDataStore = {
@@ -267,8 +275,7 @@ function appendCodeReaderRows(
 }
 
 async function appendRawCsvRows(tables: LlmTableMap) {
-  const categories = ["dmm", "borescope", "thermal_imager", "night_vision"] as const
-  for (const categoryId of categories) {
+  for (const categoryId of listNonCodeCategoryIds()) {
     const baseDir = resolveNonCodeCategoryDir(categoryId, "raw_data")
     if (!baseDir) continue
     const files = await listCsvFiles(baseDir).catch(() => [])
@@ -326,6 +333,10 @@ async function listCsvFiles(baseDir: string): Promise<string[]> {
 }
 
 async function discoverSourceFiles() {
+  if (isPostgresDashboardSource()) {
+    const artifacts = await listSourceArtifactRefs()
+    return artifacts.map((item) => item.artifactPath)
+  }
   const targets = [resolveCodeReaderDataDir()]
   const nonCodeRoot = isFullDashboardEnabled() ? resolveNonCodeDataRoot() : null
   if (nonCodeRoot) {
@@ -363,6 +374,15 @@ async function listRelevantFiles(baseDir: string): Promise<string[]> {
 }
 
 async function computeFingerprint(files: string[]) {
+  if (isPostgresDashboardSource()) {
+    const artifacts = await listSourceArtifactRefs()
+    const hasher = createHash("sha1")
+    for (const artifact of artifacts) {
+      hasher.update(artifact.artifactPath)
+      hasher.update(artifact.updatedAt)
+    }
+    return hasher.digest("hex")
+  }
   const hasher = createHash("sha1")
   for (const file of files) {
     const stats = await stat(file).catch(() => null)
@@ -372,6 +392,65 @@ async function computeFingerprint(files: string[]) {
     hasher.update(String(stats.size))
   }
   return hasher.digest("hex")
+}
+
+async function appendRawSnapshotRowsFromPostgres(tables: LlmTableMap) {
+  const result = await queryDb<{
+    category_id: string
+    snapshot_date: string
+    asin: string | null
+    title: string | null
+    brand: string | null
+    price: number | null
+    units: number | null
+    revenue: number | null
+    review_count: number | null
+    rating: number | null
+    fulfillment: string | null
+    subcategory: string | null
+    url: string | null
+  }>(
+    `
+      SELECT
+        cs.category_id,
+        cs.snapshot_date::text,
+        sr.asin,
+        sr.title,
+        sr.brand,
+        sr.price,
+        sr.units,
+        sr.revenue,
+        sr.review_count,
+        sr.rating,
+        sr.fulfillment,
+        sr.subcategory,
+        sr.url
+      FROM snapshot_rows sr
+      JOIN category_snapshots cs ON cs.id = sr.snapshot_id
+      WHERE sr.row_source = 'raw_csv'
+      ORDER BY cs.category_id, cs.snapshot_date, sr.asin
+    `
+  )
+
+  for (const row of result.rows) {
+    if (!row.asin) continue
+    tables.raw_rows_csv.push({
+      category_id: row.category_id,
+      snapshot_date: row.snapshot_date,
+      source_file: `snapshot_rows:${row.category_id}:${row.snapshot_date}`,
+      asin: row.asin,
+      title: row.title ?? "",
+      brand: row.brand ?? "",
+      price: safeNumber(row.price),
+      asin_sales: safeNumber(row.units),
+      asin_revenue: safeNumber(row.revenue),
+      review_count: safeNumber(row.review_count),
+      rating: safeNumber(row.rating),
+      fulfillment: row.fulfillment ?? "",
+      subcategory: row.subcategory ?? "",
+      url: row.url ?? "",
+    })
+  }
 }
 
 function mergeSnapshotProducts(

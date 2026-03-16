@@ -1,6 +1,7 @@
 import { getClarification } from "@/lib/chatbot/clarifications"
 import { detectIntent, suggestedQuestionsForIntent } from "@/lib/chatbot/intents"
 import { buildCodeReaderBrainResponse } from "@/lib/chatbot/metrics-engine"
+import { queryDb } from "@/lib/db/client"
 import {
   buildCategoryIntentResponse,
   detectCapabilities,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/chatbot/category-normalizers"
 import type { ChatIntent, ChatResponse, EvidenceItem } from "@/lib/chatbot/types"
 import type { CategorySummary, SnapshotSummary } from "@/lib/competitor-data"
+import { isPostgresDashboardSource } from "@/lib/dashboard-runtime"
 
 const ALL_OWN_BRANDS = new Set(["innova", "blcktec"])
 const TRACKED_COMPETITORS = ["autel", "topdon", "ancel"]
@@ -738,6 +740,14 @@ async function loadNonCodeCategoryData(category: CategorySummary, snapshot: Snap
     return cached.value
   }
 
+  if (isPostgresDashboardSource()) {
+    const fromDb = await loadNonCodeCategoryDataFromDb(category.id, snapshot.date)
+    if (fromDb) {
+      categoryDataCache.set(key, { loadedAt: now, value: fromDb })
+      return fromDb
+    }
+  }
+
   const resolved = await resolveCategorySourceWorkbook(category.id)
   if (!resolved) {
     const fallback = normalizeSnapshotFallback(
@@ -762,6 +772,39 @@ async function loadNonCodeCategoryData(category: CategorySummary, snapshot: Snap
 
   categoryDataCache.set(key, { loadedAt: now, value: parsed })
   return parsed
+}
+
+async function loadNonCodeCategoryDataFromDb(categoryId: string, snapshotDate: string) {
+  const result = await queryDb<{ metadata: Record<string, unknown> | string | null }>(
+    `
+      SELECT metadata
+      FROM category_snapshots
+      WHERE category_id = $1 AND snapshot_date = $2
+      LIMIT 1
+    `,
+    [categoryId, snapshotDate]
+  )
+  const metadata = parseMetadata(result.rows[0]?.metadata)
+  const normalized = metadata.normalizedCategoryData
+  if (normalized && typeof normalized === "object" && !Array.isArray(normalized)) {
+    return normalized as NormalizedCategoryData
+  }
+  return null
+}
+
+function parseMetadata(value: Record<string, unknown> | string | null | undefined) {
+  if (!value) return {}
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as unknown
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {}
+    } catch {
+      return {}
+    }
+  }
+  return value
 }
 
 function changeRatio(current: number, previous: number | null) {

@@ -32,13 +32,6 @@ import {
 
 const CATEGORY_COLORS = ["#3b82f6", "#22c55e", "#8b5cf6", "#f97316"]
 
-const DMM_REPORT_ALLOWLIST: Record<Exclude<CategoryId, "code_reader_scanner">, string[]> = {
-  dmm: ["DMM_market_research_summary.xlsx"],
-  borescope: ["26-02-19 Borescope.xlsx", "26-01-14 Borescope.xlsx", "25-11-25 Borescope V4.xlsx"],
-  thermal_imager: ["26-01-14 Thermal Imager.xlsx", "25-11-25 Thermal Imager V4.xlsx"],
-  night_vision: ["Night_Vision_Monoculars_top50(20260115).xlsx"],
-}
-
 export function ReportsClient({ data, reports }: { data: DashboardData; reports: ReportFile[] }) {
   const {
     categories,
@@ -368,8 +361,5 @@ function getReportsForCategory(categoryId: CategoryId, reports: ReportFile[]) {
       .sort((a, b) => (b.month ?? "").localeCompare(a.month ?? ""))
   }
 
-  const allowlist = new Set(DMM_REPORT_ALLOWLIST[categoryId] ?? [])
-  return reports.filter(
-    (report) => report.source === "dmm" && allowlist.has(report.name)
-  )
+  return reports.filter((report) => report.source === categoryId)
 }

@@ -1,20 +1,21 @@
 import { readdir, readFile } from "fs/promises"
 import path from "path"
 
+import { queryDb } from "@/lib/db/client"
 import { loadCodeReaderScannerSnapshots } from "@/lib/code-reader-scanner-data"
 import {
+  isPostgresDashboardSource,
   getDashboardDeploymentMode,
   resolveCodeReaderDataDir,
   resolveNonCodeCategoryDir,
 } from "@/lib/dashboard-runtime"
+import {
+  listNonCodeCategoryConfigs,
+  type NonCodeCategoryId,
+} from "@/lib/non-code-category-config"
 import { formatSnapshotLabelMonthEnd, normalizeSnapshotDate } from "@/lib/snapshot-date"
 
-export type CategoryId =
-  | "dmm"
-  | "borescope"
-  | "thermal_imager"
-  | "night_vision"
-  | "code_reader_scanner"
+export type CategoryId = NonCodeCategoryId | "code_reader_scanner"
 
 export type ProductSummary = {
   asin: string
@@ -149,7 +150,7 @@ export type DashboardData = {
   generatedAt: string
 }
 
-type RawRecord = {
+export type RawRecord = {
   asin: string
   title: string
   brand: string
@@ -166,7 +167,7 @@ type RawRecord = {
 }
 
 type CsvCategoryConfig = {
-  id: Exclude<CategoryId, "code_reader_scanner">
+  id: NonCodeCategoryId
   label: string
   source: "csv"
 }
@@ -180,22 +181,11 @@ type WorkbookCategoryConfig = {
 type CategoryConfig = CsvCategoryConfig | WorkbookCategoryConfig
 
 const CATEGORY_CONFIG: CategoryConfig[] = [
-  { id: "dmm", label: "DMM / Automotive", source: "csv" },
-  {
-    id: "borescope",
-    label: "Borescope",
+  ...listNonCodeCategoryConfigs().map<CategoryConfig>((category) => ({
+    id: category.id,
+    label: category.label,
     source: "csv",
-  },
-  {
-    id: "thermal_imager",
-    label: "Thermal Imager",
-    source: "csv",
-  },
-  {
-    id: "night_vision",
-    label: "Night Vision",
-    source: "csv",
-  },
+  })),
   {
     id: "code_reader_scanner",
     label: "Code Reader & Scanner",
@@ -223,6 +213,12 @@ function monthKeyFromDate(dateValue: string) {
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {
+  return isPostgresDashboardSource()
+    ? loadDashboardDataFromPostgres()
+    : loadDashboardDataFromFiles()
+}
+
+export async function loadDashboardDataFromFiles(): Promise<DashboardData> {
   const deploymentMode = getDashboardDeploymentMode()
   const enabledCategories = CATEGORY_CONFIG.filter(
     (category) => deploymentMode === "full" || category.id === "code_reader_scanner"
@@ -248,19 +244,29 @@ export async function loadDashboardData(): Promise<DashboardData> {
   }
 }
 
-async function loadCsvCategorySnapshots(baseDir: string | null) {
+export async function loadCsvCategorySnapshots(baseDir: string | null) {
   if (!baseDir) return []
+  const snapshotsWithRecords = await loadCsvCategorySnapshotRecords(baseDir)
+  const snapshots = snapshotsWithRecords.map(({ date, records }) => buildSnapshotSummary(date, records))
+
+  return snapshots
+    .filter((snapshot) => snapshot.totals.asinCount > 0)
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
+
+export async function loadCsvCategorySnapshotRecords(baseDir: string | null) {
+  if (!baseDir) return [] as Array<{ date: string; records: RawRecord[] }>
   const files = await listCsvFiles(baseDir).catch(() => [])
   const grouped = groupFilesBySnapshot(files, baseDir)
   const snapshots = await Promise.all(
     Array.from(grouped.entries()).map(async ([date, dateFiles]) => {
       const records = await loadSnapshotRecords(dateFiles)
-      return buildSnapshotSummary(date, records)
+      return { date, records }
     })
   )
 
   return snapshots
-    .filter((snapshot) => snapshot.totals.asinCount > 0)
+    .filter((snapshot) => snapshot.records.length > 0)
     .sort((a, b) => a.date.localeCompare(b.date))
 }
 
@@ -373,6 +379,92 @@ async function loadSnapshotRecords(files: string[]): Promise<RawRecord[]> {
   }
 
   return Array.from(records.values())
+}
+
+export async function loadDashboardDataFromPostgres(): Promise<DashboardData> {
+  const deploymentMode = getDashboardDeploymentMode()
+  const enabledCategories = CATEGORY_CONFIG.filter(
+    (category) => deploymentMode === "full" || category.id === "code_reader_scanner"
+  )
+  const result = await queryDb<{
+    category_id: CategoryId
+    label: string
+    snapshot_date: string | Date
+  }>(
+    `
+      SELECT category_id, label, snapshot_date
+      FROM category_snapshots
+      WHERE category_id = ANY($1::text[])
+      ORDER BY category_id ASC, snapshot_date ASC
+    `,
+    [enabledCategories.map((category) => category.id)]
+  )
+  const categories = new Map<CategoryId, CategorySummary>()
+
+  for (const row of result.rows) {
+    const snapshotDate = coerceSnapshotDate(row.snapshot_date)
+    if (!snapshotDate) continue
+    const snapshot = await loadDashboardSnapshotFromPostgres(row.category_id, snapshotDate)
+    if (!snapshot) continue
+
+    const existing = categories.get(row.category_id)
+    if (existing) {
+      existing.snapshots.push(snapshot)
+      continue
+    }
+
+    categories.set(row.category_id, {
+      id: row.category_id,
+      label: row.label,
+      snapshots: [snapshot],
+    })
+  }
+
+  return {
+    categories: enabledCategories
+      .map((category) => categories.get(category.id))
+      .filter((category): category is CategorySummary => Boolean(category)),
+    generatedAt: new Date().toISOString(),
+  }
+}
+
+async function loadDashboardSnapshotFromPostgres(categoryId: CategoryId, snapshotDate: string) {
+  const result = await queryDb<{
+    snapshot_payload: SnapshotSummary | string
+  }>(
+    `
+      SELECT snapshot_payload
+      FROM category_snapshots
+      WHERE category_id = $1 AND snapshot_date = $2
+      LIMIT 1
+    `,
+    [categoryId, snapshotDate]
+  )
+  return parseSnapshotPayload(result.rows[0]?.snapshot_payload ?? null)
+}
+
+function parseSnapshotPayload(value: SnapshotSummary | string | null) {
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as SnapshotSummary
+    } catch {
+      return null
+    }
+  }
+  if (value && typeof value === "object") {
+    return value as SnapshotSummary
+  }
+  return null
+}
+
+function coerceSnapshotDate(value: string | Date) {
+  if (typeof value === "string") {
+    return normalizeSnapshotDate(value)
+  }
+  if (value instanceof Date) {
+    return normalizeSnapshotDate(value.toISOString().slice(0, 10))
+  }
+  return null
 }
 
 function buildSnapshotSummary(date: string, records: RawRecord[]): SnapshotSummary {

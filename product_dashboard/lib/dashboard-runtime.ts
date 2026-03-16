@@ -1,15 +1,13 @@
 import fs from "fs"
 import path from "path"
 
-type DeploymentMode = "code_reader_only" | "full"
-type NonCodeCategoryId = "dmm" | "borescope" | "thermal_imager" | "night_vision"
+import {
+  getNonCodeCategoryConfig,
+  type NonCodeCategoryId,
+} from "@/lib/non-code-category-config"
 
-const NON_CODE_CATEGORY_DIRS: Record<NonCodeCategoryId, string> = {
-  dmm: "DMM",
-  borescope: "Borescope",
-  thermal_imager: "Thermal Imager",
-  night_vision: "Night Vision Monoculars",
-}
+type DeploymentMode = "code_reader_only" | "full"
+export type DashboardDataSource = "file" | "postgres"
 
 export function getDashboardDeploymentMode(): DeploymentMode {
   const configured = (process.env.DASHBOARD_DEPLOYMENT_MODE ?? "").trim().toLowerCase()
@@ -23,6 +21,22 @@ export function getDashboardDeploymentMode(): DeploymentMode {
 
 export function isFullDashboardEnabled() {
   return getDashboardDeploymentMode() === "full"
+}
+
+export function getDashboardDataSource(): DashboardDataSource {
+  const configured = (process.env.DASHBOARD_DATA_SOURCE ?? "").trim().toLowerCase()
+  if (configured === "postgres" || configured === "file") {
+    return configured
+  }
+  return "file"
+}
+
+export function isPostgresDashboardSource() {
+  return getDashboardDataSource() === "postgres"
+}
+
+export function getDashboardRevalidateSecret() {
+  return (process.env.DASHBOARD_REVALIDATE_SECRET ?? "").trim()
 }
 
 export function resolveAppRoot() {
@@ -47,5 +61,7 @@ export function resolveNonCodeDataRoot() {
 export function resolveNonCodeCategoryDir(categoryId: NonCodeCategoryId, ...segments: string[]) {
   const root = resolveNonCodeDataRoot()
   if (!root) return null
-  return path.join(root, NON_CODE_CATEGORY_DIRS[categoryId], ...segments)
+  const config = getNonCodeCategoryConfig(categoryId)
+  if (!config) return null
+  return path.join(root, config.folderName, ...segments)
 }

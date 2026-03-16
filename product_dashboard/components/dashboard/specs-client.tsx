@@ -37,7 +37,6 @@ import {
 } from "@/components/ui/select"
 import type {
   DashboardData,
-  ProductSummary,
   TypeBreakdownMetric,
 } from "@/lib/competitor-data"
 import {
@@ -45,10 +44,9 @@ import {
   deriveProductsWithDimensions,
   deriveTrendSeriesByValue,
   filterProductsByDimensionValue,
+  getTargetCategoryPreset,
   getDimensionOptions,
-  isTargetTypesCategory,
   type TargetCategoryId,
-  type ProductWithDimensions,
 } from "@/lib/types-market-insights"
 import type { CategoryTypeSummary } from "@/lib/type-summaries"
 import { cn } from "@/lib/utils"
@@ -155,8 +153,10 @@ export function SpecsClient({
     </PageHeader>
   )
 
-  if (isTargetTypesCategory(selectedCategory?.id) && activeSnapshot) {
-    const targetCategoryId: TargetCategoryId = selectedCategory.id
+  const targetCategoryPreset = getTargetCategoryPreset(selectedCategory?.id)
+
+  if (targetCategoryPreset && activeSnapshot) {
+    const targetCategoryId: TargetCategoryId = targetCategoryPreset
     const dimensionOptions = getDimensionOptions(targetCategoryId)
     const resolvedDimension =
       dimensionOptions.find((item) => item.key === selectedDimension)?.key ??

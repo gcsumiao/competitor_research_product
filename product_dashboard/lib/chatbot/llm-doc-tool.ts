@@ -2,7 +2,9 @@ import { readFile } from "fs/promises"
 import path from "path"
 import * as XLSX from "xlsx"
 
+import { getSourceArtifactByPath } from "@/lib/db/source-artifacts"
 import type { LlmDataStore } from "@/lib/chatbot/llm-data-store"
+import { isPostgresDashboardSource } from "@/lib/dashboard-runtime"
 
 export type DocExcerptResult = {
   ok: boolean
@@ -22,9 +24,12 @@ export async function getSourceExcerptTool(
   }
 
   try {
+    const artifact = isPostgresDashboardSource()
+      ? await getSourceArtifactByPath(target)
+      : null
     const lower = target.toLowerCase()
     if (lower.endsWith(".csv")) {
-      const raw = await readFile(target, "utf8")
+      const raw = artifact ? artifact.content.toString("utf8") : await readFile(target, "utf8")
       const lines = raw.split(/\r?\n/).filter(Boolean)
       const preview = lines.slice(0, 16).join("\n")
       return {
@@ -35,7 +40,9 @@ export async function getSourceExcerptTool(
     }
 
     if (lower.endsWith(".xlsx")) {
-      const workbook = XLSX.readFile(target, { cellDates: false })
+      const workbook = artifact
+        ? XLSX.read(artifact.content, { type: "buffer", cellDates: false })
+        : XLSX.readFile(target, { cellDates: false })
       const sheetName =
         section && workbook.SheetNames.includes(section)
           ? section
@@ -60,7 +67,7 @@ export async function getSourceExcerptTool(
       }
     }
 
-    const text = await readFile(target, "utf8")
+    const text = artifact ? artifact.content.toString("utf8") : await readFile(target, "utf8")
     return {
       ok: true,
       sourceFile: target,

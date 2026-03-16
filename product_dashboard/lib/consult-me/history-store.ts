@@ -12,6 +12,15 @@ import type {
   ResearchTaskStatus,
   ResearchType,
 } from "@/lib/consult-me/types"
+import {
+  deleteConsultMeHistoryByCompanyInDb,
+  deleteConsultMeHistoryByTaskInDb,
+  hideSeedTaskInDb,
+  loadConsultMeHistoryRecordsFromDb,
+  upsertConsultMeHistoryRecordInDb,
+} from "@/lib/db/consult-me"
+import { hasDatabaseConnection } from "@/lib/db/client"
+import { isPostgresDashboardSource } from "@/lib/dashboard-runtime"
 
 const HISTORY_FILE = path.resolve(process.cwd(), "data", "consult-me-history.json")
 const HISTORY_VERSION = 2
@@ -67,6 +76,23 @@ export async function upsertConsultMeHistoryRecord(patch: HistoryUpsertPatch) {
     records.push(next)
   }
 
+  if (shouldUseDatabaseHistoryStore()) {
+    await upsertConsultMeHistoryRecordInDb({
+      taskId: next.taskId,
+      companyKey: next.companyKey,
+      companyLabel: next.companyLabel,
+      researchType: next.researchType,
+      researchSubject: next.researchSubject,
+      status: next.status,
+      hasReport: next.hasReport,
+      deliverables: next.deliverables,
+      createdAt: next.createdAt,
+      updatedAt: next.updatedAt,
+      completedAt: next.completedAt,
+    })
+    return next
+  }
+
   await writeHistoryState({ records, hiddenSeedTaskIds })
   return next
 }
@@ -106,6 +132,20 @@ export async function listConsultMeHistory(): Promise<ConsultMeHistoryResponse> 
 export async function deleteConsultMeHistoryByCompany(companyKey: string) {
   const normalized = normalizeCompanyKey(companyKey)
   if (!normalized) return { deletedCount: 0 }
+  if (shouldUseDatabaseHistoryStore()) {
+    const { records } = await loadConsultMeHistoryRecordsFromDb()
+    const deletedCount = records.filter((record) => normalizeCompanyKey(record.companyKey) === normalized).length
+    const seedReports = await listSeedReports()
+    let hiddenSeedCount = 0
+    for (const seed of seedReports) {
+      if (normalizeCompanyKey(seed.companyKey) !== normalized) continue
+      await hideSeedTaskInDb(seed.taskId)
+      hiddenSeedCount += 1
+    }
+    await deleteConsultMeHistoryByCompanyInDb(normalized)
+    return { deletedCount: deletedCount + hiddenSeedCount }
+  }
+
   const { records, hiddenSeedTaskIds } = await readHistoryState()
   const seedReports = await listSeedReports()
   const filtered = records.filter((record) => normalizeCompanyKey(record.companyKey) !== normalized)
@@ -132,6 +172,20 @@ export async function deleteConsultMeHistoryByCompany(companyKey: string) {
 export async function deleteConsultMeHistoryByTask(taskId: string) {
   const normalized = taskId.trim()
   if (!normalized) return { deletedCount: 0 }
+  if (shouldUseDatabaseHistoryStore()) {
+    const normalizedLower = normalized.toLowerCase()
+    if (normalizedLower.startsWith("seed:")) {
+      await hideSeedTaskInDb(normalizedLower)
+      return { deletedCount: 1 }
+    }
+    const { records } = await loadConsultMeHistoryRecordsFromDb()
+    const deletedCount = records.some((record) => record.taskId === normalized) ? 1 : 0
+    if (deletedCount) {
+      await deleteConsultMeHistoryByTaskInDb(normalized)
+    }
+    return { deletedCount }
+  }
+
   const { records, hiddenSeedTaskIds } = await readHistoryState()
   const normalizedLower = normalized.toLowerCase()
   if (normalizedLower.startsWith("seed:")) {
@@ -224,6 +278,9 @@ function sanitizeDeliverables(deliverables: DeliverableFile[]) {
 }
 
 async function readHistoryState() {
+  if (shouldUseDatabaseHistoryStore()) {
+    return loadConsultMeHistoryRecordsFromDb()
+  }
   try {
     const content = await readFile(HISTORY_FILE, "utf8")
     const parsed = JSON.parse(content) as HistoryFileShape
@@ -248,6 +305,7 @@ async function writeHistoryState(state: {
   records: ConsultMeHistoryRecord[]
   hiddenSeedTaskIds: string[]
 }) {
+  if (shouldUseDatabaseHistoryStore()) return
   const dir = path.dirname(HISTORY_FILE)
   await mkdir(dir, { recursive: true })
   const temp = `${HISTORY_FILE}.tmp`
@@ -260,6 +318,10 @@ async function writeHistoryState(state: {
   }
   await writeFile(temp, JSON.stringify(payload, null, 2), "utf8")
   await rename(temp, HISTORY_FILE)
+}
+
+function shouldUseDatabaseHistoryStore() {
+  return isPostgresDashboardSource() && hasDatabaseConnection()
 }
 
 function normalizeCompanyKey(value: string) {

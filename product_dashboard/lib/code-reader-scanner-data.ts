@@ -130,38 +130,10 @@ export async function loadCodeReaderScannerSnapshots(baseDir: string): Promise<S
   for (const month of monthDirs) {
     const monthDir = path.join(baseDir, month)
     const manifest = await readManifest(path.join(monthDir, "manifest.json"))
-    const issues: DataQualityIssue[] = []
-
     const reportPath = await resolvePreferredFile(monthDir, [
       "report.xlsx",
       asRelativeFileName(manifest?.reportFileName),
     ])
-
-    if (!reportPath) {
-      issues.push({
-        code: "missing_report",
-        severity: "error",
-        message: `Missing report workbook for month ${month}`,
-      })
-      continue
-    }
-
-    let parsedReport: ParsedReport
-    try {
-      parsedReport = await parseReportWorkbook(reportPath, issues)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown parse error"
-      console.error(
-        `[code_reader_scanner] Skipping month ${month}. Failed to parse ${reportPath}: ${message}`
-      )
-      issues.push({
-        code: "report_parse_failed",
-        severity: "error",
-        message,
-      })
-      continue
-    }
-
     const analysisPath = await resolvePreferredFile(monthDir, [
       "analysis.xlsx",
       asRelativeFileName(manifest?.analysisFileName),
@@ -170,26 +142,70 @@ export async function loadCodeReaderScannerSnapshots(baseDir: string): Promise<S
       "summary.xlsx",
       asRelativeFileName(manifest?.summaryFileName),
     ])
-
-    let typeBreakdowns: ParsedTypeBreakdowns | undefined
-    if (analysisPath) {
-      typeBreakdowns = await parseTypeWorkbook(analysisPath, "analysis", issues)
-    } else if (summaryPath) {
-      typeBreakdowns = await parseTypeWorkbook(summaryPath, "summary", issues)
-    } else {
-      issues.push({
-        code: "missing_type_source",
-        severity: "warning",
-        message: `Month ${month} is missing both analysis.xlsx and summary.xlsx`,
-      })
+    const snapshot = await loadCodeReaderScannerSnapshotFromFiles({
+      month,
+      reportPath,
+      analysisPath,
+      summaryPath,
+      manifest,
+    })
+    if (snapshot) {
+      snapshots.push(snapshot)
     }
-
-    const snapshotDate = resolveSnapshotDate(month, manifest?.snapshotDate)
-    const snapshot = buildSnapshot(snapshotDate, parsedReport, typeBreakdowns, issues)
-    snapshots.push(snapshot)
   }
 
   return snapshots.sort((a, b) => a.date.localeCompare(b.date))
+}
+
+export async function loadCodeReaderScannerSnapshotFromFiles(params: {
+  month: string
+  reportPath: string | null
+  analysisPath?: string | null
+  summaryPath?: string | null
+  manifest?: ManifestFile | null
+}) {
+  const issues: DataQualityIssue[] = []
+
+  if (!params.reportPath) {
+    issues.push({
+      code: "missing_report",
+      severity: "error",
+      message: `Missing report workbook for month ${params.month}`,
+    })
+    return null
+  }
+
+  let parsedReport: ParsedReport
+  try {
+    parsedReport = await parseReportWorkbook(params.reportPath, issues)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown parse error"
+    console.error(
+      `[code_reader_scanner] Skipping month ${params.month}. Failed to parse ${params.reportPath}: ${message}`
+    )
+    issues.push({
+      code: "report_parse_failed",
+      severity: "error",
+      message,
+    })
+    return null
+  }
+
+  let typeBreakdowns: ParsedTypeBreakdowns | undefined
+  if (params.analysisPath) {
+    typeBreakdowns = await parseTypeWorkbook(params.analysisPath, "analysis", issues)
+  } else if (params.summaryPath) {
+    typeBreakdowns = await parseTypeWorkbook(params.summaryPath, "summary", issues)
+  } else {
+    issues.push({
+      code: "missing_type_source",
+      severity: "warning",
+      message: `Month ${params.month} is missing both analysis.xlsx and summary.xlsx`,
+    })
+  }
+
+  const snapshotDate = resolveSnapshotDate(params.month, params.manifest?.snapshotDate)
+  return buildSnapshot(snapshotDate, parsedReport, typeBreakdowns, issues)
 }
 
 async function parseReportWorkbook(reportPath: string, issues: DataQualityIssue[]): Promise<ParsedReport> {

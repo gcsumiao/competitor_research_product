@@ -23,6 +23,9 @@ out/
 # Large upstream raw data (keep local; deploy should use product_dashboard/data/** instead)
 Amazon_Monthly_Competitor_Report copy/
 DMM_h10/
+NewProductCategory/
+_archive/
+*.bak_before_sync_*
 
 # OS/editor
 .vscode/

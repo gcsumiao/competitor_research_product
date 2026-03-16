@@ -16,6 +16,16 @@
     "lint:template": "pnpm -C dashboard_templatev0 lint",
     "archive:code-reader": "pnpm -C product_dashboard archive:code-reader",
     "backfill:code-reader-history": "pnpm -C product_dashboard backfill:code-reader-history",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm -C product_dashboard db:migrate",
+    "db:backfill": "pnpm -C product_dashboard db:backfill",
+    "db:ingest:code-reader": "pnpm -C product_dashboard db:ingest:code-reader",
+    "db:ingest:non-code": "pnpm -C product_dashboard db:ingest:non-code",
+    "reports:generate:non-code": "pnpm -C product_dashboard reports:generate:non-code",
+    "db:verify:parity": "pnpm -C product_dashboard db:verify:parity",
+    "deploy:check-env": "pnpm -C product_dashboard deploy:check-env",
+    "deploy:smoke": "pnpm -C product_dashboard deploy:smoke",
     "prelaunch:code-reader": "cd \"Amazon_Monthly_Competitor_Report copy\" && .venv/bin/python script/run_prelaunch_dashboard_pipeline.py"
   }
 }

@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: competitor-dashboard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: competitor_dashboard
+      POSTGRES_USER: dashboard
+      POSTGRES_PASSWORD: dashboard
+    ports:
+      - "55432:5432"
+    volumes:
+      - competitor_dashboard_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dashboard -d competitor_dashboard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  competitor_dashboard_pgdata:
