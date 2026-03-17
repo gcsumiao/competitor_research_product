@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Calendar, Shield, TrendingUp, Users } from "lucide-react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { PageHeader } from "@/components/dashboard/page-header"
@@ -10,6 +11,7 @@ import { CustomerOrders } from "@/components/dashboard/customer-orders"
 import { TopProducts } from "@/components/dashboard/top-products"
 import { SalesMap } from "@/components/dashboard/sales-map"
 import { AllBrandsRankChart } from "@/components/dashboard/all-brands-rank-chart"
+import { TrendLineCard } from "@/components/dashboard/trend-line-card"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
 import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -33,6 +35,11 @@ import {
   pointChange,
   truncateLabel,
 } from "@/lib/dashboard-format"
+import {
+  buildBrandRolling12Trend,
+  getBrandRolling12GrandTotals,
+  normalizeBrandKey,
+} from "@/lib/code-reader-brand-rolling12"
 
 const FIXED_BRAND_COLORS: Record<string, string> = {
   autel: "#3b82f6",
@@ -85,6 +92,9 @@ function colorForBrand(brand: string) {
 type BrandSortMode = "revenue" | "units"
 
 export function CompetitorsClient({ data }: { data: DashboardData }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const {
     categories,
     selectedCategory,
@@ -99,7 +109,6 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
   const previousSnapshot = activeIndex > 0 ? snapshots[activeIndex - 1] : undefined
   const isCodeReader = selectedCategory?.id === "code_reader_scanner"
 
-  const [selectedBrand, setSelectedBrand] = useState("")
   const [brandScope, setBrandScope] = useState("all_asins")
   const [brandSortMode, setBrandSortMode] = useState<BrandSortMode>("revenue")
 
@@ -129,15 +138,36 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
   const topShareBrand = shareRows[0]
 
   const brandListings = activeSnapshot?.brandListings ?? []
-  const resolvedSelectedBrand = brandListings.find((listing) => listing.brand === selectedBrand)
-    ? selectedBrand
-    : (brandListings[0]?.brand ?? "")
+  const paramBrand = searchParams.get("brand") ?? ""
+  const resolvedSelectedBrand =
+    brandListings.find((listing) => normalizeBrandKey(listing.brand) === normalizeBrandKey(paramBrand))?.brand ??
+    brandListings[0]?.brand ??
+    ""
 
   const selectedBrandListing =
     brandListings.find((listing) => listing.brand === resolvedSelectedBrand) ?? brandListings[0]
+  const setSelectedBrand = (brand: string) => {
+    const params = new URLSearchParams(searchParams)
+    params.set("brand", brand)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
+
+  useEffect(() => {
+    if (!resolvedSelectedBrand) return
+    if (normalizeBrandKey(paramBrand) === normalizeBrandKey(resolvedSelectedBrand)) return
+
+    const params = new URLSearchParams(searchParams)
+    params.set("brand", resolvedSelectedBrand)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }, [paramBrand, pathname, resolvedSelectedBrand, router, searchParams])
 
   const featuredBrandProducts = (selectedBrandListing?.products ?? []).slice(0, 4)
   const listingAnnotation = buildBrandListingAnnotation(activeSnapshot, resolvedSelectedBrand)
+  const rolling12GrandTotals = getBrandRolling12GrandTotals(activeSnapshot, resolvedSelectedBrand)
+  const previousRolling12GrandTotals = getBrandRolling12GrandTotals(previousSnapshot, resolvedSelectedBrand)
+  const rolling12Trend = buildBrandRolling12Trend(snapshots, resolvedSelectedBrand).filter(
+    (row) => row.revenueGrandTotal > 0 || row.unitsGrandTotal > 0
+  )
 
   const top3Share = activeSnapshot?.totals.top3Share ?? 0
   const top5Share = brandTotals.slice(0, 5).reduce((sum, brand) => sum + brand.share, 0)
@@ -181,8 +211,25 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
   const currentUnitsRank = findRank(activeSnapshot, "units", resolvedSelectedBrand)
   const previousUnitsRank = findRank(previousSnapshot, "units", resolvedSelectedBrand)
 
+  const rolling12RevenueTrend = rolling12Trend.map((row) => ({
+    label: row.label,
+    value: row.revenueGrandTotal,
+  }))
+  const rolling12UnitsTrend = rolling12Trend.map((row) => ({
+    label: row.label,
+    value: row.unitsGrandTotal,
+  }))
+
   const revenueRankChange = rankMovement(currentRevenueRank, previousRevenueRank)
   const unitsRankChange = rankMovement(currentUnitsRank, previousUnitsRank)
+  const rolling12RevenueChange = percentChange(
+    rolling12GrandTotals?.revenueGrandTotal ?? 0,
+    previousRolling12GrandTotals?.revenueGrandTotal ?? 0
+  )
+  const rolling12UnitsChange = percentChange(
+    rolling12GrandTotals?.unitsGrandTotal ?? 0,
+    previousRolling12GrandTotals?.unitsGrandTotal ?? 0
+  )
   const maxRevenueRank = Math.max(
     ...revenueRankTrend.map((entry) => entry.value),
     currentRevenueRank ?? 0,
@@ -284,6 +331,65 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
           />
         ))}
       </div>
+
+      {isCodeReader ? (
+        <>
+          <Card className="bg-card border border-border mb-6">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-medium">
+                {resolvedSelectedBrand ? `${resolvedSelectedBrand} Rolling 12 Grand Total` : "Rolling 12 Grand Total"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-xl border border-border p-4">
+                  <p className="text-xs text-muted-foreground">Grand Total Revenue</p>
+                  <p className="mt-2 text-3xl font-semibold">
+                    {formatCurrency(rolling12GrandTotals?.revenueGrandTotal ?? 0, 0)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Current month {formatCurrencyCompact(rolling12GrandTotals?.revenueMonthly ?? 0)} | {formatChangeLabel(rolling12RevenueChange)} vs previous snapshot
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border p-4">
+                  <p className="text-xs text-muted-foreground">Grand Total Units</p>
+                  <p className="mt-2 text-3xl font-semibold">
+                    {formatInteger(rolling12GrandTotals?.unitsGrandTotal ?? 0)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Current month {formatInteger(rolling12GrandTotals?.unitsMonthly ?? 0)} | {formatChangeLabel(rolling12UnitsChange)} vs previous snapshot
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            <TrendLineCard
+              title="Rolling 12 Grand Total Revenue"
+              subtitle={selectedBrandListing ? `${selectedBrandListing.brand} revenue trend across snapshots` : "Selected brand revenue trend"}
+              totalLabel="Current grand total revenue"
+              totalValue={formatCurrency(rolling12GrandTotals?.revenueGrandTotal ?? 0, 0)}
+              changeLabel={formatChangeLabel(rolling12RevenueChange)}
+              changeValueLabel="vs previous snapshot"
+              data={rolling12RevenueTrend}
+              color="#3b82f6"
+              formatter={(value) => formatCurrency(value, 0)}
+            />
+            <TrendLineCard
+              title="Rolling 12 Grand Total Units"
+              subtitle={selectedBrandListing ? `${selectedBrandListing.brand} units trend across snapshots` : "Selected brand units trend"}
+              totalLabel="Current grand total units"
+              totalValue={formatInteger(rolling12GrandTotals?.unitsGrandTotal ?? 0)}
+              changeLabel={formatChangeLabel(rolling12UnitsChange)}
+              changeValueLabel="vs previous snapshot"
+              data={rolling12UnitsTrend}
+              color="#10b981"
+              formatter={(value) => value.toLocaleString()}
+            />
+          </div>
+        </>
+      ) : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <div className="lg:col-span-2">

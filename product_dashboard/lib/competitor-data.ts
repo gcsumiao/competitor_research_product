@@ -14,6 +14,7 @@ import {
   type NonCodeCategoryId,
 } from "@/lib/non-code-category-config"
 import { formatSnapshotLabelMonthEnd, normalizeSnapshotDate } from "@/lib/snapshot-date"
+import type { TypeSummarySection } from "@/lib/type-summaries"
 
 export type CategoryId = NonCodeCategoryId | "code_reader_scanner"
 
@@ -114,6 +115,11 @@ export type TypeBreakdownSummary = {
   source: "analysis" | "summary" | "fallback"
 }
 
+export type SnapshotMetadata = Record<string, unknown> & {
+  typeSummarySections?: TypeSummarySection[]
+  typeSummaryFileName?: string
+}
+
 export type SnapshotSummary = {
   date: string
   label: string
@@ -137,6 +143,7 @@ export type SnapshotSummary = {
   rolling12?: Rolling12Summary
   typeBreakdowns?: TypeBreakdownSummary
   qualityIssues?: DataQualityIssue[]
+  metadata?: SnapshotMetadata
 }
 
 export type CategorySummary = {
@@ -390,9 +397,11 @@ export async function loadDashboardDataFromPostgres(): Promise<DashboardData> {
     category_id: CategoryId
     label: string
     snapshot_date: string | Date
+    snapshot_payload: SnapshotSummary | string
+    metadata: SnapshotMetadata | string | null
   }>(
     `
-      SELECT category_id, label, snapshot_date
+      SELECT category_id, label, snapshot_date, snapshot_payload, metadata
       FROM category_snapshots
       WHERE category_id = ANY($1::text[])
       ORDER BY category_id ASC, snapshot_date ASC
@@ -404,8 +413,13 @@ export async function loadDashboardDataFromPostgres(): Promise<DashboardData> {
   for (const row of result.rows) {
     const snapshotDate = coerceSnapshotDate(row.snapshot_date)
     if (!snapshotDate) continue
-    const snapshot = await loadDashboardSnapshotFromPostgres(row.category_id, snapshotDate)
+    const snapshot = parseSnapshotPayload(row.snapshot_payload)
     if (!snapshot) continue
+    snapshot.date = snapshotDate
+    const metadata = parseSnapshotMetadata(row.metadata)
+    if (metadata) {
+      snapshot.metadata = metadata
+    }
 
     const existing = categories.get(row.category_id)
     if (existing) {
@@ -428,21 +442,6 @@ export async function loadDashboardDataFromPostgres(): Promise<DashboardData> {
   }
 }
 
-async function loadDashboardSnapshotFromPostgres(categoryId: CategoryId, snapshotDate: string) {
-  const result = await queryDb<{
-    snapshot_payload: SnapshotSummary | string
-  }>(
-    `
-      SELECT snapshot_payload
-      FROM category_snapshots
-      WHERE category_id = $1 AND snapshot_date = $2
-      LIMIT 1
-    `,
-    [categoryId, snapshotDate]
-  )
-  return parseSnapshotPayload(result.rows[0]?.snapshot_payload ?? null)
-}
-
 function parseSnapshotPayload(value: SnapshotSummary | string | null) {
   if (typeof value === "string") {
     try {
@@ -455,6 +454,21 @@ function parseSnapshotPayload(value: SnapshotSummary | string | null) {
     return value as SnapshotSummary
   }
   return null
+}
+
+function parseSnapshotMetadata(value: SnapshotMetadata | string | null) {
+  if (!value) return null
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as unknown
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as SnapshotMetadata)
+        : null
+    } catch {
+      return null
+    }
+  }
+  return value
 }
 
 function coerceSnapshotDate(value: string | Date) {

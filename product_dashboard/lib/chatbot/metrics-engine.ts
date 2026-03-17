@@ -4,6 +4,7 @@ import { resolveEntities } from "@/lib/chatbot/entity-resolver"
 import { routeIntent, type AnalyzerId } from "@/lib/chatbot/intent-router"
 import { parseQuery, type ParsedQuery } from "@/lib/chatbot/query-parser"
 import { buildSynthesisSummary } from "@/lib/chatbot/synthesis-engine"
+import { getBrandRolling12GrandTotals } from "@/lib/code-reader-brand-rolling12"
 import type { TimeResolution } from "@/lib/chatbot/time-resolver"
 import type {
   AnalysisTraceStep,
@@ -458,6 +459,15 @@ function runAnalyzer(
     const revenueRank = singleBrand ? rankForBrandByMetric(mart.snapshot, singleBrand.brand, "revenue") : null
     const unitsRank = singleBrand ? rankForBrandByMetric(mart.snapshot, singleBrand.brand, "units") : null
     const brandArchetype = singleBrandKey ? brandArchetypes.get(singleBrandKey) : undefined
+    const rolling12Current = singleBrand
+      ? getBrandRolling12GrandTotals(mart.snapshot, singleBrand.brand)
+      : null
+    const rolling12Previous = singleBrand
+      ? getBrandRolling12GrandTotals(mart.previous, singleBrand.brand)
+      : null
+    const requestedRolling12 =
+      /\b(rolling 12|rolling12|12 month|12-month|grand total)\b/.test(params.parsed.normalized) ||
+      params.parsed.plan.historicalWindow === "12m"
 
     const deltaUnits = currentUnits - prevUnits
     const unitEffect = deltaUnits * prevAsp
@@ -472,8 +482,14 @@ function runAnalyzer(
           : "balanced price and volume strategy"
 
     return {
-      answer: `${labelForScope(params.scope)} delivered ${formatCurrency(currentRevenue)} monthly revenue and ${formatNumber(currentUnits)} units (${formatPercent(ratio(currentRevenue, prevRevenue))} revenue MoM).`,
+      answer:
+        requestedRolling12 && singleBrand && rolling12Current
+          ? `${singleBrand.brand} Rolling 12 grand total is ${formatCurrency(rolling12Current.revenueGrandTotal)} revenue and ${formatNumber(rolling12Current.unitsGrandTotal)} units.`
+          : `${labelForScope(params.scope)} delivered ${formatCurrency(currentRevenue)} monthly revenue and ${formatNumber(currentUnits)} units (${formatPercent(ratio(currentRevenue, prevRevenue))} revenue MoM).`,
       bullets: [
+        singleBrand && rolling12Current
+          ? `Rolling 12 grand total: ${formatCurrency(rolling12Current.revenueGrandTotal)} revenue and ${formatNumber(rolling12Current.unitsGrandTotal)} units (${formatPercent(ratio(rolling12Current.revenueGrandTotal, rolling12Previous?.revenueGrandTotal ?? 0))} revenue change vs previous snapshot).`
+          : `Rolling 12 grand total is unavailable for this scope.`,
         singleBrand
           ? `${singleBrand.brand} rank is #${revenueRank ?? "n/a"} by revenue and #${unitsRank ?? "n/a"} by units.`
           : `Current scope includes ${currentRows.length} brands in this snapshot.`,
@@ -491,14 +507,27 @@ function runAnalyzer(
         { label: "Units", value: formatNumber(currentUnits) },
         { label: "Avg Price", value: formatCurrency(currentAsp) },
         { label: "Share", value: formatPercent(currentShare) },
+        ...(singleBrand && rolling12Current
+          ? [
+              { label: "Rolling 12 Revenue", value: formatCurrency(rolling12Current.revenueGrandTotal) },
+              { label: "Rolling 12 Units", value: formatNumber(rolling12Current.unitsGrandTotal) },
+            ]
+          : []),
       ],
       confidence: currentRows.length ? 0.88 : 0.62,
       assumptions: ["Brand-health scope follows explicit brand > quick-action brand > own brands > market."],
-      citations: [citation("Brand totals", "snapshot.brandTotals", mart.snapshot.date)],
+      citations: [
+        citation("Brand totals", "snapshot.brandTotals", mart.snapshot.date),
+        ...(singleBrand && rolling12Current
+          ? [citation("Rolling 12 brand totals", "snapshot.rolling12", mart.snapshot.date)]
+          : []),
+      ],
       suggestedQuestions: [
+        singleBrand
+          ? `How has ${singleBrand.brand}'s Rolling 12 grand total changed over recent months?`
+          : "What are the Rolling 12 grand total revenue and units for this brand?",
         "What are competitors doing this month?",
         "What is our biggest risk right now?",
-        "Which own product has the strongest momentum?",
       ],
       warnings: [],
     }
@@ -1157,13 +1186,25 @@ function analyzeBrandComparison(params: AnalyzerParams): AnalyzerOutput {
   const aspGap = left.asp - right.asp
   const revenueGap = left.revenue - right.revenue
   const unitsGap = left.units - right.units
+  const leftRolling12 = getBrandRolling12GrandTotals(mart.snapshot, left.brand)
+  const rightRolling12 = getBrandRolling12GrandTotals(mart.snapshot, right.brand)
+  const rolling12Requested =
+    /\b(rolling 12|rolling12|12 month|12-month|grand total)\b/.test(params.parsed.normalized) ||
+    params.parsed.plan.historicalWindow === "12m"
 
   return {
     answer:
-      revenueGap >= 0
-        ? `${left.brand} is ahead of ${right.brand} by ${formatCurrency(revenueGap)} monthly revenue.`
-        : `${right.brand} is ahead of ${left.brand} by ${formatCurrency(Math.abs(revenueGap))} monthly revenue.`,
+      rolling12Requested && leftRolling12 && rightRolling12
+        ? leftRolling12.revenueGrandTotal >= rightRolling12.revenueGrandTotal
+          ? `${left.brand} is ahead of ${right.brand} on Rolling 12 grand total revenue by ${formatCurrency(leftRolling12.revenueGrandTotal - rightRolling12.revenueGrandTotal)}.`
+          : `${right.brand} is ahead of ${left.brand} on Rolling 12 grand total revenue by ${formatCurrency(rightRolling12.revenueGrandTotal - leftRolling12.revenueGrandTotal)}.`
+        : revenueGap >= 0
+          ? `${left.brand} is ahead of ${right.brand} by ${formatCurrency(revenueGap)} monthly revenue.`
+          : `${right.brand} is ahead of ${left.brand} by ${formatCurrency(Math.abs(revenueGap))} monthly revenue.`,
     bullets: [
+      leftRolling12 && rightRolling12
+        ? `Rolling 12 totals: ${left.brand} ${formatCurrency(leftRolling12.revenueGrandTotal)} / ${formatNumber(leftRolling12.unitsGrandTotal)} units vs ${right.brand} ${formatCurrency(rightRolling12.revenueGrandTotal)} / ${formatNumber(rightRolling12.unitsGrandTotal)} units.`
+        : "Rolling 12 grand totals are unavailable for one or both brands.",
       `${left.brand}: rank #${leftRank ?? "n/a"}, ${formatCurrency(left.revenue)} revenue, ${formatNumber(left.units)} units, ASP ${formatCurrency(left.asp)}.`,
       `${right.brand}: rank #${rightRank ?? "n/a"}, ${formatCurrency(right.revenue)} revenue, ${formatNumber(right.units)} units, ASP ${formatCurrency(right.asp)}.`,
       `Gap summary: units ${formatSignedNumber(unitsGap)}, ASP ${formatSignedCurrencyRaw(aspGap)}.`,
@@ -1174,14 +1215,25 @@ function analyzeBrandComparison(params: AnalyzerParams): AnalyzerOutput {
       { label: "Brand A", value: left.brand },
       { label: "Brand B", value: right.brand },
       { label: "Revenue Gap", value: formatSignedCurrencyRaw(revenueGap) },
+      ...(leftRolling12 && rightRolling12
+        ? [
+            { label: `${left.brand} Rolling 12`, value: formatCurrency(leftRolling12.revenueGrandTotal) },
+            { label: `${right.brand} Rolling 12`, value: formatCurrency(rightRolling12.revenueGrandTotal) },
+          ]
+        : []),
     ],
     confidence: 0.87,
     assumptions: ["Brand comparison uses current-month brand totals and revenue-rank ordering."],
-    citations: [citation("Brand comparison", "snapshot.brandTotals", mart.snapshot.date)],
+    citations: [
+      citation("Brand comparison", "snapshot.brandTotals", mart.snapshot.date),
+      ...(leftRolling12 && rightRolling12
+        ? [citation("Rolling 12 brand totals", "snapshot.rolling12", mart.snapshot.date)]
+        : []),
+    ],
     suggestedQuestions: [
       "Which brand is closing the gap fastest?",
       "Who is the fastest rank mover this month?",
-      "What price tier is growing fastest?",
+      "What are the Rolling 12 grand total revenue and units for this brand?",
     ],
     warnings: [],
   }

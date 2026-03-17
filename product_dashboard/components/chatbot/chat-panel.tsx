@@ -13,6 +13,7 @@ type ChatPanelProps = {
   inputValue: string
   isLoading: boolean
   messages: ChatPanelMessage[]
+  quickActions?: string[]
   onClose: () => void
   onInputChange: (value: string) => void
   onSubmit: () => void
@@ -24,6 +25,7 @@ export function ChatPanel({
   inputValue,
   isLoading,
   messages,
+  quickActions,
   onClose,
   onInputChange,
   onSubmit,
@@ -53,7 +55,7 @@ export function ChatPanel({
 
       <div ref={scrollRef} className="max-h-[62vh] space-y-3 overflow-y-auto px-3 py-3">
         {messages.length <= 1 ? (
-          <QuickActions disabled={isLoading} onSelect={onQuickAction} />
+          <QuickActions disabled={isLoading} actions={quickActions} onSelect={onQuickAction} />
         ) : null}
 
         {messages.map((message) => (

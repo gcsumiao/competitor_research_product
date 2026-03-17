@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 
 type QuickActionsProps = {
   disabled?: boolean
+  actions?: string[]
   onSelect: (prompt: string) => void
 }
 
@@ -14,10 +15,10 @@ const ACTIONS = [
   "Ask your own question",
 ]
 
-export function QuickActions({ disabled = false, onSelect }: QuickActionsProps) {
+export function QuickActions({ disabled = false, actions = ACTIONS, onSelect }: QuickActionsProps) {
   return (
     <div className="grid grid-cols-1 gap-2">
-      {ACTIONS.map((prompt) => (
+      {actions.map((prompt) => (
         <Button
           key={prompt}
           type="button"

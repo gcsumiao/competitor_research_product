@@ -100,6 +100,12 @@ export function parseQuery(
 function forceIntentFromPattern(
   normalized: string
 ): { intent: ChatIntent; confidence: number } | null {
+  if (/\b(rolling 12|rolling12|12 month|12-month|grand total)\b/.test(normalized)) {
+    if (/\b(compare|vs|versus)\b/.test(normalized)) {
+      return { intent: "brand_comparison", confidence: 0.93 }
+    }
+    return { intent: "brand_health", confidence: 0.94 }
+  }
   if (
     /\b(price tier|price tiers|pricing tier|pricing tiers)\b/.test(normalized) &&
     /\b(fastest|grow|growth|rising|increase)\b/.test(normalized)

@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type {
+  CategoryId,
   DashboardData,
   TypeBreakdownMetric,
 } from "@/lib/competitor-data"
@@ -44,10 +45,10 @@ import {
   deriveProductsWithDimensions,
   deriveTrendSeriesByValue,
   filterProductsByDimensionValue,
-  getTargetCategoryPreset,
   getDimensionOptions,
-  type TargetCategoryId,
+  validateDimensionRowsAgainstWorkbook,
 } from "@/lib/types-market-insights"
+import type { NonCodeCategoryId } from "@/lib/non-code-category-config"
 import type { CategoryTypeSummary } from "@/lib/type-summaries"
 import { cn } from "@/lib/utils"
 import { formatSnapshotDateFull, formatSnapshotLabelMonthEnd } from "@/lib/snapshot-date"
@@ -101,7 +102,10 @@ export function SpecsClient({
   const previousSnapshot = activeIndex > 0 ? snapshots[activeIndex - 1] : undefined
 
   const summaryForCategory = selectedCategory ? summaries[selectedCategory.id] : null
-  const summaryLabel = summaryForCategory?.fileName ? ` | Source ${summaryForCategory.fileName}` : ""
+  const activeSummary = selectedCategory
+    ? resolveSnapshotTypeSummary(selectedCategory.id, activeSnapshot, summaryForCategory, true)
+    : null
+  const summaryLabel = activeSummary?.fileName ? ` | Source ${activeSummary.fileName}` : ""
   const headerDescription = activeSnapshot
     ? `Snapshot ${formatSnapshotDateFull(activeSnapshot.date)}${summaryLabel}`
     : "No snapshot data available"
@@ -153,11 +157,21 @@ export function SpecsClient({
     </PageHeader>
   )
 
-  const targetCategoryPreset = getTargetCategoryPreset(selectedCategory?.id)
-
-  if (targetCategoryPreset && activeSnapshot) {
-    const targetCategoryId: TargetCategoryId = targetCategoryPreset
-    const dimensionOptions = getDimensionOptions(targetCategoryId)
+  if (selectedCategory && selectedCategory.id !== "code_reader_scanner" && activeSnapshot) {
+    const nonCodeCategoryId = selectedCategory.id as NonCodeCategoryId
+    const previousSummary = resolveSnapshotTypeSummary(
+      nonCodeCategoryId,
+      previousSnapshot,
+      summaryForCategory,
+      false
+    )
+    const summariesByDate = new Map(
+      snapshots.map((snapshot) => [
+        snapshot.date,
+        resolveSnapshotTypeSummary(nonCodeCategoryId, snapshot, summaryForCategory, false),
+      ])
+    )
+    const dimensionOptions = getDimensionOptions(nonCodeCategoryId, activeSummary)
     const resolvedDimension =
       dimensionOptions.find((item) => item.key === selectedDimension)?.key ??
       dimensionOptions[0]?.key ??
@@ -165,16 +179,16 @@ export function SpecsClient({
     const resolvedDimensionLabel =
       dimensionOptions.find((item) => item.key === resolvedDimension)?.label ?? "Type"
 
-    const { rows: activeRows } = deriveDimensionRowsWithFallback({
-      categoryId: targetCategoryId,
+    const { rows: activeRows, source: activeRowSource } = deriveDimensionRowsWithFallback({
+      categoryId: nonCodeCategoryId,
       snapshot: activeSnapshot,
-      summary: summaryForCategory,
+      summary: activeSummary,
       dimensionKey: resolvedDimension,
     })
     const { rows: previousRows } = deriveDimensionRowsWithFallback({
-      categoryId: targetCategoryId,
+      categoryId: nonCodeCategoryId,
       snapshot: previousSnapshot,
-      summary: summaryForCategory,
+      summary: previousSummary,
       dimensionKey: resolvedDimension,
     })
 
@@ -191,14 +205,16 @@ export function SpecsClient({
 
     const currentRow = activeRows.find((row) => row.valueKey === resolvedValue)
     const previousRow = previousRows.find((row) => row.valueKey === resolvedValue)
-
     const filteredProducts = filterProductsByDimensionValue(
       activeSnapshot.topProducts ?? [],
-      targetCategoryId,
+      nonCodeCategoryId,
       resolvedDimension,
       resolvedValue
     )
-    const fallbackProducts = deriveProductsWithDimensions(activeSnapshot.topProducts ?? [], targetCategoryId)
+    const fallbackProducts = deriveProductsWithDimensions(
+      activeSnapshot.topProducts ?? [],
+      nonCodeCategoryId
+    )
       .sort((a, b) => b.product.revenue - a.product.revenue)
       .slice(0, 12)
     const selectedProducts = filteredProducts.length ? filteredProducts : fallbackProducts
@@ -220,14 +236,16 @@ export function SpecsClient({
 
     const revenueTrend = deriveTrendSeriesByValue({
       snapshots,
-      categoryId: targetCategoryId,
+      summariesByDate,
+      categoryId: nonCodeCategoryId,
       dimensionKey: resolvedDimension,
       valueKey: resolvedValue,
       metric: "revenue",
     })
     const unitsTrend = deriveTrendSeriesByValue({
       snapshots,
-      categoryId: targetCategoryId,
+      summariesByDate,
+      categoryId: nonCodeCategoryId,
       dimensionKey: resolvedDimension,
       valueKey: resolvedValue,
       metric: "units",
@@ -240,19 +258,26 @@ export function SpecsClient({
 
     const topRevenueRow = [...activeRows].sort((a, b) => b.revenue - a.revenue)[0]
     const topUnitsRow = [...activeRows].sort((a, b) => b.units - a.units)[0]
-
-    const targetCards = buildTargetMetricCards({
+    const metricCards = buildTargetMetricCards({
       currentRow,
       previousRow,
       rows: activeRows,
     })
+    const validation = validateDimensionRowsAgainstWorkbook({
+      summary: activeSummary,
+      renderedRows: activeRows,
+      dimensionKey: resolvedDimension,
+      source: activeRowSource,
+    })
+    const showValidationCard =
+      nonCodeCategoryId === "borescope" || nonCodeCategoryId === "thermal_imager"
 
     return (
       <>
         {header}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {targetCards.map((metric) => (
+          {metricCards.map((metric) => (
             <MetricCard
               key={metric.title}
               title={metric.title}
@@ -312,6 +337,15 @@ export function SpecsClient({
           </CardContent>
         </Card>
 
+        {showValidationCard ? (
+          <ValidationChecklistCard
+            title={`${selectedCategory.label} workbook validation`}
+            snapshotLabel={formatSnapshotDateFull(activeSnapshot.date)}
+            dimensionLabel={resolvedDimensionLabel}
+            result={validation}
+          />
+        ) : null}
+
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
           <SalesMap
             title="Revenue Share"
@@ -340,9 +374,7 @@ export function SpecsClient({
 
         <Card className="bg-card border border-border mb-6">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium">
-              {resolvedDimensionLabel} Matrix | Top 50 Summary
-            </CardTitle>
+            <CardTitle className="text-base font-medium">{resolvedDimensionLabel} Matrix</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 mb-4">
@@ -358,6 +390,15 @@ export function SpecsClient({
                 <p className="text-sm font-medium">{topUnitsRow?.label ?? "n/a"}</p>
                 <p className="text-xs text-muted-foreground">
                   {formatNumberCompact(topUnitsRow?.units ?? 0)} | {formatPercent(topUnitsRow?.unitsShare ?? 0, 0)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Displayed Value</p>
+                <p className="text-sm font-medium">{resolvedValueLabel}</p>
+                <p className="text-xs text-muted-foreground">
+                  {currentRow
+                    ? `${formatCurrencyCompact(currentRow.revenue)} revenue | ${formatNumberCompact(currentRow.units)} units`
+                    : "No active row selected"}
                 </p>
               </div>
             </div>
@@ -421,7 +462,7 @@ export function SpecsClient({
         <Card className="bg-card border border-border mb-6">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium">
-              Pricing & Specs | {resolvedDimensionLabel} = {resolvedValueLabel}
+              Product Details | {resolvedDimensionLabel} = {resolvedValueLabel}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -456,9 +497,7 @@ export function SpecsClient({
                       <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(product.revenue)}</td>
                       <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(product.units)}</td>
                       <td className="py-3 px-2 text-xs text-right">{product.rating.toFixed(1)}</td>
-                      <td className="py-3 px-2 text-xs">
-                        {formatKeySpecs(dimensions, targetCategoryId)}
-                      </td>
+                      <td className="py-3 px-2 text-xs">{formatKeySpecs(dimensions, nonCodeCategoryId)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -796,52 +835,6 @@ export function SpecsClient({
         </div>
       )}
 
-      {summaryForCategory?.sections?.length ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-          {summaryForCategory.sections.map((section) => (
-            <Card key={section.title} className="bg-card border border-border">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-medium">{section.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border">
-                        {section.columns.map((column, index) => (
-                          <th
-                            key={`${section.title}-${index}`}
-                            className="text-left py-3 px-2 text-xs font-medium text-muted-foreground"
-                          >
-                            {column || "Metric"}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {section.rows.map((row, rowIndex) => (
-                        <tr
-                          key={`${section.title}-row-${rowIndex}`}
-                          className="border-b border-border last:border-0"
-                        >
-                          {section.columns.map((_, colIndex) => (
-                            <td
-                              key={`${section.title}-cell-${rowIndex}-${colIndex}`}
-                              className="py-3 px-2 text-xs"
-                            >
-                              {row[colIndex] ?? ""}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : null}
     </>
   )
 }
@@ -907,18 +900,98 @@ function DualMetricTrendCard({
   )
 }
 
+function ValidationChecklistCard({
+  title,
+  snapshotLabel,
+  dimensionLabel,
+  result,
+}: {
+  title: string
+  snapshotLabel: string
+  dimensionLabel: string
+  result: ReturnType<typeof validateDimensionRowsAgainstWorkbook>
+}) {
+  return (
+    <Card className="bg-card border border-border mb-6">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base font-medium">{title}</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Snapshot {snapshotLabel} | Dimension {dimensionLabel}
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {result.checks.map((check) => (
+            <div key={check.key} className="rounded-lg border border-border p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">{check.label}</p>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                    check.status === "pass"
+                      ? "bg-emerald-500/15 text-emerald-600"
+                      : check.status === "fail"
+                        ? "bg-rose-500/15 text-rose-600"
+                        : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {check.status === "pass"
+                    ? "Passed"
+                    : check.status === "fail"
+                      ? "Failed"
+                      : "Not available"}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">{check.detail}</p>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function resolveSnapshotTypeSummary(
+  categoryId: CategoryId,
+  snapshot: DashboardData["categories"][number]["snapshots"][number] | undefined,
+  fallbackSummary: CategoryTypeSummary | null,
+  allowFallback: boolean
+) {
+  const metadata = snapshot?.metadata
+  const sections = Array.isArray(metadata?.typeSummarySections)
+    ? (metadata.typeSummarySections as CategoryTypeSummary["sections"])
+    : []
+  const fileName =
+    typeof metadata?.typeSummaryFileName === "string"
+      ? metadata.typeSummaryFileName
+      : fallbackSummary?.fileName ?? ""
+
+  if (sections.length || fileName) {
+    return {
+      categoryId,
+      fileName,
+      sections,
+    } as CategoryTypeSummary
+  }
+
+  return allowFallback ? fallbackSummary : null
+}
+
 function formatKeySpecs(
   dimensions: Record<string, string>,
-  categoryId: TargetCategoryId
+  categoryId: NonCodeCategoryId
 ) {
   if (categoryId === "borescope") {
     return `${dimensions.type ?? "-"} | ${dimensions.two_four_way ?? "-"} | ${dimensions.display ?? "-"} | ${
       dimensions.lens_diameter ?? "-"
     }`
   }
-  return `${dimensions.type ?? "-"} | ${dimensions.display ?? "-"} | ${dimensions.basic_resolution ?? "-"} | ${
-    dimensions.wifi ?? "-"
-  }`
+  if (categoryId === "thermal_imager") {
+    return `${dimensions.type ?? "-"} | ${dimensions.display ?? "-"} | ${dimensions.basic_resolution ?? "-"} | ${
+      dimensions.wifi ?? "-"
+    }`
+  }
+  return dimensions.type ?? "-"
 }
 
 function buildTargetMetricCards(params: {

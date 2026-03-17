@@ -1,4 +1,5 @@
 import { closeDatabasePools } from "../lib/db/client.ts"
+import { validateBrandRolling12Expectations } from "../lib/code-reader-brand-rolling12.ts"
 import {
   type CategorySummary,
   type DashboardData,
@@ -18,6 +19,19 @@ type Mismatch = {
   message: string
 }
 
+const CODE_READER_GRAND_TOTAL_EXPECTATIONS = [
+  {
+    brand: "Innova",
+    revenueGrandTotal: 14_541_709,
+    unitsGrandTotal: 86_642,
+  },
+  {
+    brand: "Autel",
+    revenueGrandTotal: 64_035_702,
+    unitsGrandTotal: 217_875,
+  },
+] as const
+
 async function main() {
   process.env.DASHBOARD_DEPLOYMENT_MODE ||= "full"
 
@@ -35,6 +49,8 @@ async function main() {
   compareDashboard(fileData, postgresData, mismatches)
   compareReports(fileReports, postgresReports, mismatches)
   compareTypeSummaries(fileTypeSummaries, postgresTypeSummaries, mismatches)
+  validateCodeReaderGrandTotals("file", fileData, mismatches)
+  validateCodeReaderGrandTotals("postgres", postgresData, mismatches)
 
   if (mismatches.length > 0) {
     console.error(`Parity check failed with ${mismatches.length} mismatches.`)
@@ -171,6 +187,42 @@ function compareTypeSummaries(
       postgresSummary.sections.map((section) => `${section.title}:${section.rows.length}`),
       mismatches
     )
+  }
+}
+
+function validateCodeReaderGrandTotals(
+  scope: "file" | "postgres",
+  data: DashboardData,
+  mismatches: Mismatch[]
+) {
+  const category = data.categories.find((item) => item.id === "code_reader_scanner")
+  const snapshot = category?.snapshots.find((item) => item.date === "2026-02-28")
+  if (!snapshot) {
+    mismatches.push({
+      scope: `codeReaderGrandTotals.${scope}`,
+      message: "Snapshot 2026-02-28 is missing for code reader.",
+    })
+    return
+  }
+
+  const results = validateBrandRolling12Expectations(
+    snapshot,
+    CODE_READER_GRAND_TOTAL_EXPECTATIONS.map((item) => ({ ...item }))
+  )
+
+  for (const result of results) {
+    if (!result.revenuePassed) {
+      mismatches.push({
+        scope: `codeReaderGrandTotals.${scope}.${result.brand}`,
+        message: `Revenue grand total mismatch: expected=${result.expectedRevenueGrandTotal} actual=${result.actualRevenueGrandTotal ?? "missing"}`,
+      })
+    }
+    if (!result.unitsPassed) {
+      mismatches.push({
+        scope: `codeReaderGrandTotals.${scope}.${result.brand}`,
+        message: `Units grand total mismatch: expected=${result.expectedUnitsGrandTotal} actual=${result.actualUnitsGrandTotal ?? "missing"}`,
+      })
+    }
   }
 }
 

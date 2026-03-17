@@ -13,6 +13,8 @@ import { normalizeSnapshotDate } from "@/lib/snapshot-date"
 const ASK_OWN_QUESTION = "Ask your own question"
 const SELF_ASSESSMENT_ACTION = "How did we do this month?"
 const BRAND_OPTIONS = ["Innova", "BLCKTEC"]
+const BRAND_ROLLING12_ACTION = "What are the Rolling 12 grand total revenue and units for this brand?"
+const BRAND_ROLLING12_TREND_ACTION = "How has this brand’s Rolling 12 grand total changed over recent months?"
 
 function buildGreetingMessage(): ChatPanelMessage {
   return {
@@ -29,6 +31,25 @@ export function DashboardChatbot() {
 
   const categoryId = searchParams.get("category") ?? "code_reader_scanner"
   const snapshotDate = normalizeSnapshotDate(searchParams.get("snapshot") ?? "")
+  const selectedBrand = searchParams.get("brand")?.trim() ?? ""
+  const isBrandsPage = pathname.endsWith("/customers")
+  const quickActions = useMemo(() => {
+    if (categoryId === "code_reader_scanner" && isBrandsPage && selectedBrand) {
+      return [
+        BRAND_ROLLING12_ACTION,
+        BRAND_ROLLING12_TREND_ACTION,
+        "What are competitors doing?",
+        ASK_OWN_QUESTION,
+      ]
+    }
+
+    return [
+      SELF_ASSESSMENT_ACTION,
+      "What are competitors doing?",
+      "What should I be worried about?",
+      ASK_OWN_QUESTION,
+    ]
+  }, [categoryId, isBrandsPage, selectedBrand])
 
   const storageKey = useMemo(
     () => `dashboard-chat:${categoryId}:${snapshotDate || "unspecified"}`,
@@ -139,6 +160,10 @@ export function DashboardChatbot() {
       }
     }
 
+    if (!targetBrand && categoryId === "code_reader_scanner" && selectedBrand) {
+      targetBrand = selectedBrand
+    }
+
     appendMessage({
       id: createMessageId(),
       role: "user",
@@ -209,6 +234,7 @@ export function DashboardChatbot() {
         inputValue={inputValue}
         isLoading={isLoading}
         messages={messages}
+        quickActions={quickActions}
         onClose={() => setOpen(false)}
         onInputChange={setInputValue}
         onSubmit={() => void sendMessage()}

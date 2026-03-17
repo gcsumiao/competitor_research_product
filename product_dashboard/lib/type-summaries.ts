@@ -84,12 +84,11 @@ export async function loadTypeSummariesFromFiles(): Promise<Record<CategoryId, C
       if (!filtered.length) continue
 
       const [columns, ...dataRows] = filtered
-      const trimmedRows = dataRows.slice(0, 12)
 
       sections.push({
         title: trimmedName,
         columns,
-        rows: trimmedRows,
+        rows: dataRows,
       })
     }
 
