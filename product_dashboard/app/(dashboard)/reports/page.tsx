@@ -1,13 +1,21 @@
 import { Suspense } from "react"
 
 import { ReportsClient } from "@/components/dashboard/reports-client"
-import { loadDashboardData } from "@/lib/competitor-data"
+import { loadReportsDashboardData } from "@/lib/competitor-data"
+import { prepareDashboardPageRequest, type DashboardPageSearchParams } from "@/lib/dashboard-request"
 import { loadReportFiles } from "@/lib/report-files"
 
-export const revalidate = 3600
-
-export default async function ReportsPage() {
-  const [data, reports] = await Promise.all([loadDashboardData(), loadReportFiles()])
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<DashboardPageSearchParams>
+}) {
+  await prepareDashboardPageRequest({
+    pathname: "/reports",
+    searchParams,
+    forceCodeReaderCategory: true,
+  })
+  const [data, reports] = await Promise.all([loadReportsDashboardData(), loadReportFiles()])
 
   return (
     <Suspense fallback={null}>

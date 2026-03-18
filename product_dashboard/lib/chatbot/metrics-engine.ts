@@ -469,6 +469,29 @@ function runAnalyzer(
       /\b(rolling 12|rolling12|12 month|12-month|grand total)\b/.test(params.parsed.normalized) ||
       params.parsed.plan.historicalWindow === "12m"
 
+    if (requestedRolling12 && !singleBrand) {
+      const rolling12Brands = listRolling12Brands(mart.snapshot)
+      return {
+        answer: rolling12Brands.length
+          ? "Select a brand to view its Rolling 12 month grand total revenue and units."
+          : "Rolling 12 brand totals are unavailable for the selected snapshot.",
+        bullets: rolling12Brands.length
+          ? [
+              `I found ${rolling12Brands.length} brands in the current Rolling 12 table.`,
+              "Choose any brand below and I will return its Rolling 12 month grand total revenue and units.",
+            ]
+          : ["The current snapshot does not include Rolling 12 brand totals."],
+        evidence: baseEvidence(mart.snapshot),
+        confidence: rolling12Brands.length ? 0.92 : 0.58,
+        assumptions: ["Rolling 12 grand total answers require a single brand selection."],
+        citations: rolling12Brands.length
+          ? [citation("Rolling 12 brand totals", "snapshot.rolling12", mart.snapshot.date)]
+          : [],
+        suggestedQuestions: rolling12Brands,
+        warnings: [],
+      }
+    }
+
     const deltaUnits = currentUnits - prevUnits
     const unitEffect = deltaUnits * prevAsp
     const priceEffect = currentUnits * (currentAsp - prevAsp)
@@ -670,6 +693,25 @@ function runAnalyzer(
     mart,
     "I can analyze product competitors, product trends, market shifts, risks, and opportunities. Tell me a product ASIN or brand to go deeper."
   )
+}
+
+function listRolling12Brands(snapshot: SnapshotSummary) {
+  const ordered = [
+    ...(snapshot.rolling12?.revenue?.brands ?? []).map((row) => row.brand),
+    ...(snapshot.rolling12?.units?.brands ?? []).map((row) => row.brand),
+  ]
+
+  const seen = new Set<string>()
+  const brands: string[] = []
+  for (const brand of ordered) {
+    const trimmed = brand.trim()
+    if (!trimmed) continue
+    const key = normalize(trimmed)
+    if (seen.has(key)) continue
+    seen.add(key)
+    brands.push(trimmed)
+  }
+  return brands
 }
 
 function analyzeFastestGrowth(

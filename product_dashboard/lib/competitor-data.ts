@@ -154,8 +154,16 @@ export type CategorySummary = {
 
 export type DashboardData = {
   categories: CategorySummary[]
-  generatedAt: string
 }
+
+export type DashboardPageScope =
+  | "overview"
+  | "brands"
+  | "sales"
+  | "specs"
+  | "reports"
+  | "surveys"
+  | "consult_me"
 
 export type RawRecord = {
   asin: string
@@ -225,6 +233,34 @@ export async function loadDashboardData(): Promise<DashboardData> {
     : loadDashboardDataFromFiles()
 }
 
+export async function loadOverviewDashboardData() {
+  return pruneDashboardDataForPage(await loadDashboardData(), "overview")
+}
+
+export async function loadBrandsDashboardData() {
+  return pruneDashboardDataForPage(await loadDashboardData(), "brands")
+}
+
+export async function loadSalesDashboardData() {
+  return pruneDashboardDataForPage(await loadDashboardData(), "sales")
+}
+
+export async function loadTypesDashboardData() {
+  return pruneDashboardDataForPage(await loadDashboardData(), "specs")
+}
+
+export async function loadReportsDashboardData() {
+  return pruneDashboardDataForPage(await loadDashboardData(), "reports")
+}
+
+export async function loadSurveysDashboardData() {
+  return pruneDashboardDataForPage(await loadDashboardData(), "surveys")
+}
+
+export async function loadConsultMeDashboardData() {
+  return pruneDashboardDataForPage(await loadDashboardData(), "consult_me")
+}
+
 export async function loadDashboardDataFromFiles(): Promise<DashboardData> {
   const deploymentMode = getDashboardDeploymentMode()
   const enabledCategories = CATEGORY_CONFIG.filter(
@@ -247,7 +283,6 @@ export async function loadDashboardDataFromFiles(): Promise<DashboardData> {
 
   return {
     categories,
-    generatedAt: new Date().toISOString(),
   }
 }
 
@@ -438,8 +473,91 @@ export async function loadDashboardDataFromPostgres(): Promise<DashboardData> {
     categories: enabledCategories
       .map((category) => categories.get(category.id))
       .filter((category): category is CategorySummary => Boolean(category)),
-    generatedAt: new Date().toISOString(),
   }
+}
+
+function pruneDashboardDataForPage(data: DashboardData, scope: DashboardPageScope): DashboardData {
+  if (scope === "consult_me") {
+    const codeReaderCategory = data.categories.find((category) => category.id === "code_reader_scanner")
+    if (!codeReaderCategory) {
+      return { categories: [] }
+    }
+    const latestSnapshot = codeReaderCategory.snapshots[codeReaderCategory.snapshots.length - 1]
+    return {
+      categories: [
+        {
+          id: codeReaderCategory.id,
+          label: codeReaderCategory.label,
+          snapshots: latestSnapshot
+            ? [pruneSnapshotForPage(latestSnapshot, scope)]
+            : [],
+        },
+      ],
+    }
+  }
+
+  return {
+    categories: data.categories.map((category) => ({
+      id: category.id,
+      label: category.label,
+      snapshots: category.snapshots.map((snapshot) => pruneSnapshotForPage(snapshot, scope)),
+    })),
+  }
+}
+
+function pruneSnapshotForPage(
+  snapshot: SnapshotSummary,
+  scope: DashboardPageScope
+): SnapshotSummary {
+  const pruned: SnapshotSummary = {
+    date: snapshot.date,
+    label: snapshot.label,
+    totals: snapshot.totals,
+    topProducts: [],
+    brandTotals: [],
+    brandListings: [],
+    priceTiers: [],
+  }
+
+  switch (scope) {
+    case "overview":
+      pruned.topProducts = snapshot.topProducts
+      pruned.top50ByUnits = snapshot.top50ByUnits
+      pruned.brandTotals = snapshot.brandTotals
+      pruned.priceTiers = snapshot.priceTiers
+      pruned.rolling12 = snapshot.rolling12
+      pruned.typeBreakdowns = snapshot.typeBreakdowns
+      pruned.qualityIssues = snapshot.qualityIssues
+      break
+    case "brands":
+      pruned.brandTotals = snapshot.brandTotals
+      pruned.brandListings = snapshot.brandListings
+      pruned.rolling12 = snapshot.rolling12
+      pruned.typeBreakdowns = snapshot.typeBreakdowns
+      break
+    case "sales":
+      pruned.topProducts = snapshot.topProducts
+      pruned.top50ByUnits = snapshot.top50ByUnits
+      pruned.qualityIssues = snapshot.qualityIssues
+      break
+    case "specs":
+      pruned.topProducts = snapshot.topProducts
+      pruned.typeBreakdowns = snapshot.typeBreakdowns
+      pruned.metadata = snapshot.metadata
+      break
+    case "reports":
+      pruned.topProducts = snapshot.topProducts
+      break
+    case "surveys":
+      pruned.topProducts = snapshot.topProducts
+      break
+    case "consult_me":
+      pruned.brandTotals = snapshot.brandTotals
+      pruned.rolling12 = snapshot.rolling12
+      break
+  }
+
+  return pruned
 }
 
 function parseSnapshotPayload(value: SnapshotSummary | string | null) {

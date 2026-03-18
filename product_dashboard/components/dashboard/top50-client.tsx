@@ -31,9 +31,8 @@ import {
   formatCurrency,
   formatCurrencyCompact,
   formatNumberCompact,
-  formatPercent,
   formatSigned,
-  median,
+  formatPercent,
   percentChange,
   truncateLabel,
 } from "@/lib/dashboard-format"
@@ -100,13 +99,13 @@ export function Top50Client({ data }: { data: DashboardData }) {
       icon: ListOrdered,
     },
     {
-      title: "Median Reviews",
-      value: formatNumberCompact(activeTotals.medianReviews),
+      title: "Average Ratings",
+      value: formatAverageRating(activeTotals.averageRating),
       change: previousSnapshot
-        ? formatSigned(activeTotals.medianReviews - previousTotals.medianReviews, 0)
+        ? formatSigned(activeTotals.averageRating - previousTotals.averageRating, 2)
         : "n/a",
-      changeSuffix: previousSnapshot ? "reviews" : "",
-      isPositiveOutcome: activeTotals.medianReviews >= previousTotals.medianReviews,
+      changeSuffix: previousSnapshot ? "pts" : "",
+      isPositiveOutcome: activeTotals.averageRating >= previousTotals.averageRating,
       icon: ListOrdered,
     },
   ]
@@ -303,7 +302,17 @@ function summarizeTop50(products: SnapshotSummary["topProducts"], snapshot?: Sna
   const avgPrice = products.length
     ? products.reduce((sum, item) => sum + item.price, 0) / products.length
     : 0
-  const medianReviews = median(products.map((item) => item.reviewCount))
+  const validRatings = products
+    .map((item) => item.rating)
+    .filter((rating) => Number.isFinite(rating) && rating > 0)
+  const averageRating = validRatings.length
+    ? validRatings.reduce((sum, rating) => sum + rating, 0) / validRatings.length
+    : 0
   const share = snapshot?.totals.revenue ? revenue / snapshot.totals.revenue : 0
-  return { revenue, units, avgPrice, medianReviews, share }
+  return { revenue, units, avgPrice, averageRating, share }
+}
+
+function formatAverageRating(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "n/a"
+  return value.toFixed(2)
 }

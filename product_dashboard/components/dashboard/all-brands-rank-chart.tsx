@@ -15,6 +15,7 @@ type MonthRankMaps = {
   label: string
   byRank: Map<number, string>
   byBrand: Map<string, number>
+  grandTotalByBrand: Map<string, number>
 }
 
 const FIXED_BRAND_COLORS: Record<string, string> = {
@@ -111,11 +112,13 @@ function buildMonthRankMaps(snapshot: SnapshotSummary, metric: RankMetric): Mont
 
   const byRank = new Map<number, string>()
   const byBrand = new Map<string, number>()
+  const grandTotalByBrand = new Map<string, number>()
 
   for (const row of source) {
     if (!row.brand || !Number.isFinite(row.rank) || row.rank <= 0) continue
     byRank.set(row.rank, row.brand)
     byBrand.set(normalizeBrand(row.brand), row.rank)
+    grandTotalByBrand.set(normalizeBrand(row.brand), row.grandTotal)
   }
 
   return {
@@ -123,6 +126,7 @@ function buildMonthRankMaps(snapshot: SnapshotSummary, metric: RankMetric): Mont
     label: formatSnapshotLabelMonthEnd(snapshot.date),
     byRank,
     byBrand,
+    grandTotalByBrand,
   }
 }
 
@@ -158,7 +162,7 @@ export function AllBrandsRankChart({
 
   const latestIndex = months.length - 1
   const previousIndex = latestIndex - 1
-  const gridColumns = `100px repeat(${months.length}, minmax(130px, 1fr))`
+  const gridColumns = `100px repeat(${months.length}, minmax(130px, 1fr)) minmax(150px, 1fr)`
 
   if (!months.length) return null
 
@@ -217,6 +221,9 @@ export function AllBrandsRankChart({
                   {month.label}
                 </div>
               ))}
+              <div className="px-2 py-2 text-center text-xs font-medium text-muted-foreground">
+                Grand Total
+              </div>
             </div>
 
             <div className="space-y-1 pt-1">
@@ -294,6 +301,29 @@ export function AllBrandsRankChart({
                         </div>
                       )
                     })}
+
+                    <div className="px-2 py-2 min-h-[40px] flex items-center justify-center">
+                      {(() => {
+                        const latestMonth = months[latestIndex]
+                        const latestBrand = latestMonth?.byRank.get(rank)
+                        if (!latestBrand) return null
+                        const grandTotal = latestMonth.grandTotalByBrand.get(normalizeBrand(latestBrand))
+                        if (typeof grandTotal !== "number" || grandTotal <= 0) return null
+                        return (
+                          <span className="text-xs font-semibold text-foreground">
+                            {metric === "revenue"
+                              ? new Intl.NumberFormat("en-US", {
+                                  style: "currency",
+                                  currency: "USD",
+                                  maximumFractionDigits: 0,
+                                }).format(grandTotal)
+                              : new Intl.NumberFormat("en-US", {
+                                  maximumFractionDigits: 0,
+                                }).format(grandTotal)}
+                          </span>
+                        )
+                      })()}
+                    </div>
                   </div>
                 )
               })}

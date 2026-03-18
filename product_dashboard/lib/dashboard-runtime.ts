@@ -39,6 +39,10 @@ export function getDashboardRevalidateSecret() {
   return (process.env.DASHBOARD_REVALIDATE_SECRET ?? "").trim()
 }
 
+export function getLegacyCodeReaderRedirectBaseUrl() {
+  return (process.env.LEGACY_CODE_READER_REDIRECT_BASE_URL ?? "").trim()
+}
+
 export function resolveAppRoot() {
   const cwd = process.cwd()
   return path.basename(cwd) === "product_dashboard" ? cwd : path.resolve(cwd, "product_dashboard")

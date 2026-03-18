@@ -13,8 +13,8 @@ import { normalizeSnapshotDate } from "@/lib/snapshot-date"
 const ASK_OWN_QUESTION = "Ask your own question"
 const SELF_ASSESSMENT_ACTION = "How did we do this month?"
 const BRAND_OPTIONS = ["Innova", "BLCKTEC"]
-const BRAND_ROLLING12_ACTION = "What are the Rolling 12 grand total revenue and units for this brand?"
-const BRAND_ROLLING12_TREND_ACTION = "How has this brand’s Rolling 12 grand total changed over recent months?"
+const BRAND_ROLLING12_ACTION = "What are the Rolling 12 month grand total revenue and units?"
+type PendingSelectionMode = "self_assessment" | "rolling12_brand" | null
 
 function buildGreetingMessage(): ChatPanelMessage {
   return {
@@ -32,13 +32,13 @@ export function DashboardChatbot() {
   const categoryId = searchParams.get("category") ?? "code_reader_scanner"
   const snapshotDate = normalizeSnapshotDate(searchParams.get("snapshot") ?? "")
   const selectedBrand = searchParams.get("brand")?.trim() ?? ""
-  const isBrandsPage = pathname.endsWith("/customers")
   const quickActions = useMemo(() => {
-    if (categoryId === "code_reader_scanner" && isBrandsPage && selectedBrand) {
+    if (categoryId === "code_reader_scanner") {
       return [
-        BRAND_ROLLING12_ACTION,
-        BRAND_ROLLING12_TREND_ACTION,
+        SELF_ASSESSMENT_ACTION,
         "What are competitors doing?",
+        "What should I be worried about?",
+        BRAND_ROLLING12_ACTION,
         ASK_OWN_QUESTION,
       ]
     }
@@ -49,7 +49,7 @@ export function DashboardChatbot() {
       "What should I be worried about?",
       ASK_OWN_QUESTION,
     ]
-  }, [categoryId, isBrandsPage, selectedBrand])
+  }, [categoryId])
 
   const storageKey = useMemo(
     () => `dashboard-chat:${categoryId}:${snapshotDate || "unspecified"}`,
@@ -60,23 +60,23 @@ export function DashboardChatbot() {
   const [isLoading, setIsLoading] = useState(false)
   const [inputValue, setInputValue] = useState("")
   const [messages, setMessages] = useState<ChatPanelMessage[]>([buildGreetingMessage()])
-  const [pendingBrandSelection, setPendingBrandSelection] = useState(false)
+  const [pendingSelectionMode, setPendingSelectionMode] = useState<PendingSelectionMode>(null)
 
   useEffect(() => {
     const raw = window.sessionStorage.getItem(storageKey)
     if (!raw) {
       setMessages([buildGreetingMessage()])
-      setPendingBrandSelection(false)
+      setPendingSelectionMode(null)
       return
     }
 
     try {
       const parsed = JSON.parse(raw) as ChatPanelMessage[]
       setMessages(Array.isArray(parsed) && parsed.length > 0 ? parsed : [buildGreetingMessage()])
-      setPendingBrandSelection(false)
+      setPendingSelectionMode(null)
     } catch {
       setMessages([buildGreetingMessage()])
-      setPendingBrandSelection(false)
+      setPendingSelectionMode(null)
     }
   }, [storageKey])
 
@@ -97,7 +97,7 @@ export function DashboardChatbot() {
     if (text === ASK_OWN_QUESTION) {
       setOpen(true)
       setInputValue("")
-      setPendingBrandSelection(false)
+      setPendingSelectionMode(null)
       appendMessage({
         id: createMessageId(),
         role: "assistant",
@@ -109,7 +109,7 @@ export function DashboardChatbot() {
     if (text === SELF_ASSESSMENT_ACTION && categoryId === "code_reader_scanner") {
       setOpen(true)
       setInputValue("")
-      setPendingBrandSelection(true)
+      setPendingSelectionMode("self_assessment")
       appendMessage({
         id: createMessageId(),
         role: "user",
@@ -135,12 +135,12 @@ export function DashboardChatbot() {
     let effectiveMessage = text
     let targetBrand: string | undefined
 
-    if (pendingBrandSelection) {
+    if (pendingSelectionMode === "self_assessment") {
       const normalized = text.toLowerCase()
       if (normalized === "innova" || normalized === "blcktec") {
         targetBrand = normalized
         effectiveMessage = `How did ${text} do this month?`
-        setPendingBrandSelection(false)
+        setPendingSelectionMode(null)
       } else {
         appendMessage({
           id: createMessageId(),
@@ -158,9 +158,19 @@ export function DashboardChatbot() {
         })
         return
       }
+    } else if (pendingSelectionMode === "rolling12_brand") {
+      targetBrand = text
+      effectiveMessage = BRAND_ROLLING12_ACTION
+      setPendingSelectionMode(null)
     }
 
-    if (!targetBrand && categoryId === "code_reader_scanner" && selectedBrand) {
+    const shouldInheritSelectedBrand =
+      categoryId === "code_reader_scanner" &&
+      Boolean(selectedBrand) &&
+      text !== BRAND_ROLLING12_ACTION &&
+      pendingSelectionMode !== "rolling12_brand"
+
+    if (!targetBrand && shouldInheritSelectedBrand) {
       targetBrand = selectedBrand
     }
 
@@ -210,6 +220,9 @@ export function DashboardChatbot() {
       }
 
       const payload = (await response.json()) as ChatResponse
+      if (text === BRAND_ROLLING12_ACTION && !targetBrand && payload.suggestedQuestions.length > 0) {
+        setPendingSelectionMode("rolling12_brand")
+      }
       appendMessage({
         id: createMessageId(),
         role: "assistant",

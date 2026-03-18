@@ -1,6 +1,16 @@
 "use client"
 
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { useId } from "react"
+import {
+  Area,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -19,6 +29,8 @@ export function TrendLineCard({
   data,
   color,
   formatter,
+  axisFormatter,
+  compactSummary = false,
 }: {
   title: string
   subtitle: string
@@ -29,8 +41,12 @@ export function TrendLineCard({
   data: TrendLineDatum[]
   color: string
   formatter?: (value: number) => string
+  axisFormatter?: (value: number) => string
+  compactSummary?: boolean
 }) {
+  const chartId = useId().replace(/:/g, "")
   const formatValue = formatter ?? ((value: number) => value.toLocaleString())
+  const formatAxisValue = axisFormatter ?? formatValue
 
   return (
     <Card className="bg-card border-border h-full">
@@ -41,19 +57,44 @@ export function TrendLineCard({
       <CardContent>
         <div className="mb-4">
           <p className="text-xs text-muted-foreground">{totalLabel}</p>
-          <p className="text-3xl font-semibold">{totalValue}</p>
-          <div className="flex items-center gap-2 mt-1">
+          <p className={compactSummary ? "mt-1 text-base font-semibold" : "text-3xl font-semibold"}>
+            {totalValue}
+          </p>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span className="text-xs bg-[var(--color-accent)]/30 text-foreground px-2 py-0.5 rounded-full">
               {changeLabel}
             </span>
             <span className="text-xs text-muted-foreground">{changeValueLabel}</span>
           </div>
         </div>
-        <div className="h-[140px]">
+        <div className="h-[172px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data}>
-              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#737373" }} />
-              <YAxis hide />
+            <ComposedChart data={data} margin={{ top: 8, right: 4, left: -8, bottom: 0 }}>
+              <defs>
+                <linearGradient id={`trend-fill-${chartId}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.24} />
+                  <stop offset="65%" stopColor={color} stopOpacity={0.08} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0.01} />
+                </linearGradient>
+                <filter id={`trend-shadow-${chartId}`} x="-20%" y="-20%" width="140%" height="160%">
+                  <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor={color} floodOpacity="0.22" />
+                </filter>
+              </defs>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(120,120,120,0.18)" />
+              <XAxis
+                dataKey="label"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 10, fill: "#737373" }}
+                dy={6}
+              />
+              <YAxis
+                width={60}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 10, fill: "#737373" }}
+                tickFormatter={formatAxisValue}
+              />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "#1a1a1a",
@@ -66,8 +107,25 @@ export function TrendLineCard({
                 itemStyle={{ color: "#fff" }}
                 formatter={(value: number) => [formatValue(value), title]}
               />
-              <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2.5} dot={false} />
-            </LineChart>
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="none"
+                fill={`url(#trend-fill-${chartId})`}
+                fillOpacity={1}
+                filter={`url(#trend-shadow-${chartId})`}
+                tooltipType="none"
+              />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke={color}
+                strokeWidth={3.25}
+                dot={{ r: 2.5, fill: color, strokeWidth: 0 }}
+                activeDot={{ r: 4, fill: color, stroke: "#fff", strokeWidth: 1.5 }}
+                filter={`url(#trend-shadow-${chartId})`}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       </CardContent>

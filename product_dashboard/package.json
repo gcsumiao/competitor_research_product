@@ -18,7 +18,9 @@
     "db:backfill": "node -r dotenv/config --import tsx scripts/db-backfill.mts dotenv_config_path=.env.local",
     "db:ingest:code-reader": "node -r dotenv/config --import tsx scripts/db-ingest-code-reader.mts dotenv_config_path=.env.local",
     "db:ingest:non-code": "node -r dotenv/config --import tsx scripts/db-ingest-non-code.mts dotenv_config_path=.env.local",
+    "db:repair:code-reader-adjusted": "node -r dotenv/config --import tsx scripts/repair-code-reader-adjusted-history.mts dotenv_config_path=.env.local",
     "db:verify:parity": "node -r dotenv/config --import tsx scripts/verify-dashboard-parity.mts dotenv_config_path=.env.local",
+    "db:verify:code-reader-adjusted": "node -r dotenv/config --import tsx scripts/verify-code-reader-adjusted-rolling12.mts dotenv_config_path=.env.local",
     "deploy:check-env": "node -r dotenv/config --import tsx scripts/check-deployment-env.mts dotenv_config_path=.env.local",
     "deploy:smoke": "node -r dotenv/config --import tsx scripts/smoke-dashboard-deployment.mts dotenv_config_path=.env.local"
   },

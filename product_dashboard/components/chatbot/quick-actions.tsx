@@ -12,6 +12,7 @@ const ACTIONS = [
   "How did we do this month?",
   "What are competitors doing?",
   "What should I be worried about?",
+  "What are the Rolling 12 month grand total revenue and units?",
   "Ask your own question",
 ]
 

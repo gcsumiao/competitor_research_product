@@ -1,7 +1,7 @@
 {
   "month": "202602",
   "snapshotDate": "2026-02-01",
-  "sourceMode": "raw_unformatted",
-  "reportFileName": "Amazon Competitor Report.xlsx",
-  "summaryFileName": "summary.xlsx"
+  "sourceMode": "historical_adjusted_report",
+  "reportFileName": "26-03-04 Amazon Competitor Report February Innova Adjusted.xlsx",
+  "analysisFileName": "26-03-04 Amazon Competitor Analysis February.xlsx"
 }

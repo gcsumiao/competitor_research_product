@@ -1,17 +1,7 @@
-import { revalidatePath, revalidateTag } from "next/cache"
+import { revalidateTag } from "next/cache"
 import { NextResponse } from "next/server"
 
 import { getDashboardRevalidateSecret } from "@/lib/dashboard-runtime"
-
-const DASHBOARD_PATHS = [
-  "/",
-  "/sales",
-  "/customers",
-  "/orders",
-  "/reports",
-  "/specs",
-  "/consult-me",
-]
 
 export async function POST(request: Request) {
   const url = new URL(request.url)
@@ -24,8 +14,5 @@ export async function POST(request: Request) {
   }
 
   revalidateTag(tag, "max")
-  for (const dashboardPath of DASHBOARD_PATHS) {
-    revalidatePath(dashboardPath)
-  }
-  return NextResponse.json({ ok: true, tag })
+  return NextResponse.json({ ok: true, tag, pagePathsInvalidated: 0 })
 }

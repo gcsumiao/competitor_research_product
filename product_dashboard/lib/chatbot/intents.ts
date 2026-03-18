@@ -252,6 +252,7 @@ const SUGGESTED_QUESTIONS: Record<ChatIntent, string[]> = {
   brand_health: [
     "How did Innova do this month?",
     "How did BLCKTEC do this month?",
+    "What are the Rolling 12 month grand total revenue and units?",
   ],
   market_shift: [
     "Which competitors moved share the most this month?",
@@ -346,6 +347,7 @@ const SUGGESTED_QUESTIONS: Record<ChatIntent, string[]> = {
     "How did we do in Jan 2026?",
     "What are competitors doing?",
     "What should I be worried about?",
+    "What are the Rolling 12 month grand total revenue and units?",
   ],
 }
 

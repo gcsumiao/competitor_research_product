@@ -1,0 +1,193 @@
+import { closeDatabasePools } from "../lib/db/client.ts"
+import { getBrandRolling12GrandTotals } from "../lib/code-reader-brand-rolling12.ts"
+import {
+  type DashboardData,
+  type SnapshotSummary,
+  loadDashboardDataFromFiles,
+  loadDashboardDataFromPostgres,
+} from "../lib/competitor-data.ts"
+import { loadCodeReaderScannerSnapshotFromFiles } from "../lib/code-reader-scanner-data.ts"
+import { resolveCodeReaderAdjustedHistoryPaths } from "./_code-reader-adjusted-history.mts"
+
+type Mismatch = {
+  scope: string
+  message: string
+}
+
+const EXPLICIT_EXPECTATIONS = [
+  { date: "2026-02-28", brand: "Autel", revenueGrandTotal: 64_035_702, unitsGrandTotal: 217_875 },
+  { date: "2026-02-28", brand: "Innova", revenueGrandTotal: 14_541_709, unitsGrandTotal: 86_642 },
+  { date: "2026-01-31", brand: "Autel", revenueGrandTotal: 63_903_579, unitsGrandTotal: 211_566 },
+  { date: "2025-12-31", brand: "Autel", revenueGrandTotal: 63_768_937, unitsGrandTotal: 211_716 },
+] as const
+
+async function main() {
+  process.env.DASHBOARD_DEPLOYMENT_MODE ||= "full"
+
+  const [fileData, postgresData] = await Promise.all([
+    loadDashboardDataFromFiles(),
+    loadDashboardDataFromPostgres(),
+  ])
+
+  const fileSnapshots = getCodeReaderSnapshotMap(fileData)
+  const postgresSnapshots = getCodeReaderSnapshotMap(postgresData)
+  const mismatches: Mismatch[] = []
+
+  for (const entry of resolveCodeReaderAdjustedHistoryPaths()) {
+    const directSnapshot = await loadCodeReaderScannerSnapshotFromFiles({
+      month: entry.month,
+      reportPath: entry.reportPath,
+      analysisPath: entry.analysisPath,
+      summaryPath: null,
+    })
+
+    if (!directSnapshot) {
+      mismatches.push({
+        scope: `adjusted.${entry.month}`,
+        message: "Failed to parse adjusted report workbook.",
+      })
+      continue
+    }
+
+    const fileSnapshot = fileSnapshots.get(directSnapshot.date)
+    const postgresSnapshot = postgresSnapshots.get(directSnapshot.date)
+    if (!fileSnapshot) {
+      mismatches.push({
+        scope: `adjusted.${directSnapshot.date}.file`,
+        message: "Snapshot missing from local file-backed dashboard data.",
+      })
+      continue
+    }
+    if (!postgresSnapshot) {
+      mismatches.push({
+        scope: `adjusted.${directSnapshot.date}.postgres`,
+        message: "Snapshot missing from local postgres-backed dashboard data.",
+      })
+      continue
+    }
+
+    compareAllRolling12Brands(`adjusted.${directSnapshot.date}.file`, directSnapshot, fileSnapshot, mismatches)
+    compareAllRolling12Brands(`adjusted.${directSnapshot.date}.postgres`, directSnapshot, postgresSnapshot, mismatches)
+  }
+
+  for (const expectation of EXPLICIT_EXPECTATIONS) {
+    validateExplicitExpectation(`explicit.file.${expectation.date}.${expectation.brand}`, fileSnapshots.get(expectation.date), expectation, mismatches)
+    validateExplicitExpectation(`explicit.postgres.${expectation.date}.${expectation.brand}`, postgresSnapshots.get(expectation.date), expectation, mismatches)
+  }
+
+  if (mismatches.length > 0) {
+    console.error(`Adjusted Rolling 12 verification failed with ${mismatches.length} mismatches.`)
+    for (const mismatch of mismatches.slice(0, 100)) {
+      console.error(`[${mismatch.scope}] ${mismatch.message}`)
+    }
+    process.exitCode = 1
+    return
+  }
+
+  console.log("Adjusted Rolling 12 verification passed for all mapped historical months.")
+}
+
+function getCodeReaderSnapshotMap(data: DashboardData) {
+  const category = data.categories.find((item) => item.id === "code_reader_scanner")
+  return new Map((category?.snapshots ?? []).map((snapshot) => [snapshot.date, snapshot]))
+}
+
+function compareAllRolling12Brands(
+  scope: string,
+  expectedSnapshot: SnapshotSummary,
+  actualSnapshot: SnapshotSummary,
+  mismatches: Mismatch[]
+) {
+  const brands = listRolling12Brands(expectedSnapshot)
+  for (const brand of brands) {
+    const expected = getBrandRolling12GrandTotals(expectedSnapshot, brand)
+    const actual = getBrandRolling12GrandTotals(actualSnapshot, brand)
+    if (!expected) continue
+    if (!actual) {
+      mismatches.push({
+        scope,
+        message: `Missing brand ${brand} in dashboard rolling 12 totals.`,
+      })
+      continue
+    }
+    if (Math.round(actual.revenueGrandTotal) !== Math.round(expected.revenueGrandTotal)) {
+      mismatches.push({
+        scope,
+        message: `${brand} revenue grand total mismatch: expected=${Math.round(expected.revenueGrandTotal)} actual=${Math.round(actual.revenueGrandTotal)}`,
+      })
+    }
+    if (Math.round(actual.unitsGrandTotal) !== Math.round(expected.unitsGrandTotal)) {
+      mismatches.push({
+        scope,
+        message: `${brand} units grand total mismatch: expected=${Math.round(expected.unitsGrandTotal)} actual=${Math.round(actual.unitsGrandTotal)}`,
+      })
+    }
+  }
+}
+
+function validateExplicitExpectation(
+  scope: string,
+  snapshot: SnapshotSummary | undefined,
+  expectation: (typeof EXPLICIT_EXPECTATIONS)[number],
+  mismatches: Mismatch[]
+) {
+  if (!snapshot) {
+    mismatches.push({
+      scope,
+      message: "Snapshot missing.",
+    })
+    return
+  }
+
+  const totals = getBrandRolling12GrandTotals(snapshot, expectation.brand)
+  if (!totals) {
+    mismatches.push({
+      scope,
+      message: "Brand missing from rolling 12 totals.",
+    })
+    return
+  }
+
+  if (Math.round(totals.revenueGrandTotal) !== expectation.revenueGrandTotal) {
+    mismatches.push({
+      scope,
+      message: `Revenue mismatch: expected=${expectation.revenueGrandTotal} actual=${Math.round(totals.revenueGrandTotal)}`,
+    })
+  }
+  if (Math.round(totals.unitsGrandTotal) !== expectation.unitsGrandTotal) {
+    mismatches.push({
+      scope,
+      message: `Units mismatch: expected=${expectation.unitsGrandTotal} actual=${Math.round(totals.unitsGrandTotal)}`,
+    })
+  }
+}
+
+function listRolling12Brands(snapshot: SnapshotSummary) {
+  const brands = [
+    ...(snapshot.rolling12?.revenue?.brands ?? []).map((row) => row.brand),
+    ...(snapshot.rolling12?.units?.brands ?? []).map((row) => row.brand),
+  ]
+  const seen = new Set<string>()
+  const ordered: string[] = []
+  for (const brand of brands) {
+    const key = brand.trim().toLowerCase()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    ordered.push(brand)
+  }
+  return ordered
+}
+
+main()
+  .catch((error) => {
+    console.error(error)
+    process.exitCode = 1
+  })
+  .finally(async () => {
+    try {
+      await closeDatabasePools()
+    } catch (error) {
+      console.error("Failed to close database pools after adjusted verification:", error)
+      process.exitCode = 1
+    }
+  })

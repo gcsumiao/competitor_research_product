@@ -30,6 +30,7 @@ type CliArgs = {
   writeFileCopy?: boolean
   revalidateUrl?: string
   revalidateSecret?: string
+  skipRevalidate?: boolean
 }
 
 const __filename = fileURLToPath(import.meta.url)
@@ -101,11 +102,13 @@ export async function ingestNonCodeSnapshots(args: CliArgs) {
   }
 
   await ingestNonCodeArtifacts()
-  await triggerRevalidate({
-    baseUrl: args.revalidateUrl,
-    secret: args.revalidateSecret,
-    tags: [DASHBOARD_DATA_TAG, REPORT_FILES_TAG, TYPE_SUMMARIES_TAG],
-  })
+  if (!args.skipRevalidate) {
+    await triggerRevalidate({
+      baseUrl: args.revalidateUrl,
+      secret: args.revalidateSecret,
+      tags: [DASHBOARD_DATA_TAG, REPORT_FILES_TAG, TYPE_SUMMARIES_TAG],
+    })
+  }
 }
 
 async function ingestNonCodeArtifacts() {
@@ -174,6 +177,7 @@ function parseArgs(argv: string[]): CliArgs {
     if (value === "--write-file-copy") args.writeFileCopy = true
     if (value === "--revalidate-url") args.revalidateUrl = argv[index + 1]
     if (value === "--revalidate-secret") args.revalidateSecret = argv[index + 1]
+    if (value === "--skip-revalidate") args.skipRevalidate = true
   }
   args.revalidateUrl ||= process.env.DASHBOARD_REVALIDATE_URL
   args.revalidateSecret ||= process.env.DASHBOARD_REVALIDATE_SECRET

@@ -46,7 +46,6 @@ import {
   deriveTrendSeriesByValue,
   filterProductsByDimensionValue,
   getDimensionOptions,
-  validateDimensionRowsAgainstWorkbook,
 } from "@/lib/types-market-insights"
 import type { NonCodeCategoryId } from "@/lib/non-code-category-config"
 import type { CategoryTypeSummary } from "@/lib/type-summaries"
@@ -179,7 +178,7 @@ export function SpecsClient({
     const resolvedDimensionLabel =
       dimensionOptions.find((item) => item.key === resolvedDimension)?.label ?? "Type"
 
-    const { rows: activeRows, source: activeRowSource } = deriveDimensionRowsWithFallback({
+    const { rows: activeRows } = deriveDimensionRowsWithFallback({
       categoryId: nonCodeCategoryId,
       snapshot: activeSnapshot,
       summary: activeSummary,
@@ -263,15 +262,6 @@ export function SpecsClient({
       previousRow,
       rows: activeRows,
     })
-    const validation = validateDimensionRowsAgainstWorkbook({
-      summary: activeSummary,
-      renderedRows: activeRows,
-      dimensionKey: resolvedDimension,
-      source: activeRowSource,
-    })
-    const showValidationCard =
-      nonCodeCategoryId === "borescope" || nonCodeCategoryId === "thermal_imager"
-
     return (
       <>
         {header}
@@ -336,15 +326,6 @@ export function SpecsClient({
             </div>
           </CardContent>
         </Card>
-
-        {showValidationCard ? (
-          <ValidationChecklistCard
-            title={`${selectedCategory.label} workbook validation`}
-            snapshotLabel={formatSnapshotDateFull(activeSnapshot.date)}
-            dimensionLabel={resolvedDimensionLabel}
-            result={validation}
-          />
-        ) : null}
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
           <SalesMap
@@ -894,57 +875,6 @@ function DualMetricTrendCard({
               <Line yAxisId="right" type="monotone" dataKey="revenue" name="Revenue/Mo" stroke="#3b82f6" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function ValidationChecklistCard({
-  title,
-  snapshotLabel,
-  dimensionLabel,
-  result,
-}: {
-  title: string
-  snapshotLabel: string
-  dimensionLabel: string
-  result: ReturnType<typeof validateDimensionRowsAgainstWorkbook>
-}) {
-  return (
-    <Card className="bg-card border border-border mb-6">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-medium">{title}</CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Snapshot {snapshotLabel} | Dimension {dimensionLabel}
-        </p>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {result.checks.map((check) => (
-            <div key={check.key} className="rounded-lg border border-border p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">{check.label}</p>
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-[11px] font-medium",
-                    check.status === "pass"
-                      ? "bg-emerald-500/15 text-emerald-600"
-                      : check.status === "fail"
-                        ? "bg-rose-500/15 text-rose-600"
-                        : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {check.status === "pass"
-                    ? "Passed"
-                    : check.status === "fail"
-                      ? "Failed"
-                      : "Not available"}
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">{check.detail}</p>
-            </div>
-          ))}
         </div>
       </CardContent>
     </Card>

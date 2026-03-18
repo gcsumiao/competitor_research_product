@@ -1,13 +1,21 @@
 import { Suspense } from "react"
 
 import { SpecsClient } from "@/components/dashboard/specs-client"
-import { loadDashboardData } from "@/lib/competitor-data"
+import { loadTypesDashboardData } from "@/lib/competitor-data"
+import { prepareDashboardPageRequest, type DashboardPageSearchParams } from "@/lib/dashboard-request"
 import { loadTypeSummaries } from "@/lib/type-summaries"
 
-export const revalidate = 3600
-
-export default async function SpecsPage() {
-  const [data, summaries] = await Promise.all([loadDashboardData(), loadTypeSummaries()])
+export default async function SpecsPage({
+  searchParams,
+}: {
+  searchParams: Promise<DashboardPageSearchParams>
+}) {
+  await prepareDashboardPageRequest({
+    pathname: "/specs",
+    searchParams,
+    forceCodeReaderCategory: true,
+  })
+  const [data, summaries] = await Promise.all([loadTypesDashboardData(), loadTypeSummaries()])
 
   return (
     <Suspense fallback={null}>

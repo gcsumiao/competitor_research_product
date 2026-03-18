@@ -31,6 +31,7 @@ type CliArgs = {
   writeFileArchive: boolean
   revalidateUrl?: string
   revalidateSecret?: string
+  skipRevalidate?: boolean
 }
 
 const __filename = fileURLToPath(import.meta.url)
@@ -143,25 +144,29 @@ export async function ingestCodeReaderSnapshots(args: CliArgs) {
     console.log(`Ingested code-reader snapshot ${month}`)
   }
 
-  await triggerRevalidate({
-    baseUrl: args.revalidateUrl,
-    secret: args.revalidateSecret,
-    tags: [DASHBOARD_DATA_TAG, REPORT_FILES_TAG, TYPE_SUMMARIES_TAG],
-  })
+  if (!args.skipRevalidate) {
+    await triggerRevalidate({
+      baseUrl: args.revalidateUrl,
+      secret: args.revalidateSecret,
+      tags: [DASHBOARD_DATA_TAG, REPORT_FILES_TAG, TYPE_SUMMARIES_TAG],
+    })
+  }
 }
 
 async function ingestExplicitCodeReaderMonth(args: CliArgs) {
   const month = args.month!
+  const effectiveReportPath = args.formattedReportPath ?? args.reportPath ?? null
+  const effectiveReportFileName = effectiveReportPath ? path.basename(effectiveReportPath) : undefined
   const snapshot = await loadCodeReaderScannerSnapshotFromFiles({
     month,
-    reportPath: args.reportPath ?? null,
+    reportPath: effectiveReportPath,
     analysisPath: args.formattedAnalysisPath ?? args.analysisPath ?? null,
     summaryPath: args.summaryPath ?? null,
     manifest: {
       month,
       snapshotDate: `${month.slice(0, 4)}-${month.slice(4, 6)}-01`,
       sourceMode: args.sourceMode ?? "raw_unformatted",
-      reportFileName: args.formattedReportPath ? path.basename(args.formattedReportPath) : args.reportPath ? path.basename(args.reportPath) : undefined,
+      reportFileName: effectiveReportFileName,
       analysisFileName: args.formattedAnalysisPath ? path.basename(args.formattedAnalysisPath) : args.analysisPath ? path.basename(args.analysisPath) : undefined,
       summaryFileName: args.summaryPath ? path.basename(args.summaryPath) : undefined,
     },
@@ -174,7 +179,10 @@ async function ingestExplicitCodeReaderMonth(args: CliArgs) {
 
   const archiveDir = path.join(args.archiveDir, month)
   if (args.writeFileArchive) {
-    await ensureCopiedFile(args.reportPath!, path.join(archiveDir, "report.xlsx"))
+    if (!effectiveReportPath) {
+      throw new Error(`Missing report workbook for month ${month}.`)
+    }
+    await ensureCopiedFile(effectiveReportPath, path.join(archiveDir, "report.xlsx"))
     if (args.summaryPath) {
       await ensureCopiedFile(args.summaryPath, path.join(archiveDir, "summary.xlsx"))
     }
@@ -188,7 +196,7 @@ async function ingestExplicitCodeReaderMonth(args: CliArgs) {
       month,
       snapshotDate: snapshot.date,
       sourceMode: args.sourceMode ?? "raw_unformatted",
-      reportFileName: args.formattedReportPath ? path.basename(args.formattedReportPath) : path.basename(args.reportPath!),
+      reportFileName: effectiveReportFileName,
       analysisFileName: args.formattedAnalysisPath
         ? path.basename(args.formattedAnalysisPath)
         : args.analysisPath
@@ -200,7 +208,7 @@ async function ingestExplicitCodeReaderMonth(args: CliArgs) {
 
   const artifacts = [
     await buildArtifactFromFile({
-      filePath: args.reportPath!,
+      filePath: effectiveReportPath ?? args.reportPath!,
       artifactPath: `${month}/report.xlsx`,
       categoryId: "code_reader_scanner",
       monthKey: month,
@@ -209,7 +217,7 @@ async function ingestExplicitCodeReaderMonth(args: CliArgs) {
       metadata: {
         reportVisible: true,
         categoryLabel: "Code Reader & Scanner",
-        displayName: args.formattedReportPath ? path.basename(args.formattedReportPath) : path.basename(args.reportPath!),
+        displayName: effectiveReportFileName ?? path.basename(args.reportPath!),
       },
     }),
   ]
@@ -257,7 +265,7 @@ async function ingestExplicitCodeReaderMonth(args: CliArgs) {
     sourceMode: args.sourceMode ?? "raw_unformatted",
     snapshotPayload: snapshot,
     metadata: {
-      reportFileName: args.formattedReportPath ? path.basename(args.formattedReportPath) : path.basename(args.reportPath!),
+      reportFileName: effectiveReportFileName ?? path.basename(args.reportPath!),
       analysisFileName: args.formattedAnalysisPath
         ? path.basename(args.formattedAnalysisPath)
         : args.analysisPath
@@ -271,11 +279,13 @@ async function ingestExplicitCodeReaderMonth(args: CliArgs) {
 
   console.log(`Ingested code-reader month ${month}`)
 
-  await triggerRevalidate({
-    baseUrl: args.revalidateUrl,
-    secret: args.revalidateSecret,
-    tags: [DASHBOARD_DATA_TAG, REPORT_FILES_TAG, TYPE_SUMMARIES_TAG],
-  })
+  if (!args.skipRevalidate) {
+    await triggerRevalidate({
+      baseUrl: args.revalidateUrl,
+      secret: args.revalidateSecret,
+      tags: [DASHBOARD_DATA_TAG, REPORT_FILES_TAG, TYPE_SUMMARIES_TAG],
+    })
+  }
 }
 
 async function resolveOptionalFile(dir: string, names: string[]) {
@@ -319,6 +329,7 @@ function parseArgs(argv: string[]): CliArgs {
     if (value === "--revalidate-url") args.revalidateUrl = argv[index + 1]
     if (value === "--revalidate-secret") args.revalidateSecret = argv[index + 1]
     if (value === "--write-file-archive") args.writeFileArchive = true
+    if (value === "--skip-revalidate") args.skipRevalidate = true
   }
 
   args.revalidateUrl ||= process.env.DASHBOARD_REVALIDATE_URL

@@ -1,12 +1,19 @@
 import { Suspense } from "react"
 
 import { ConsultMeClient } from "@/components/dashboard/consult-me-client"
-import { loadDashboardData } from "@/lib/competitor-data"
+import { loadConsultMeDashboardData } from "@/lib/competitor-data"
+import { prepareDashboardPageRequest, type DashboardPageSearchParams } from "@/lib/dashboard-request"
 
-export const revalidate = 3600
-
-export default async function ConsultMePage() {
-  const data = await loadDashboardData()
+export default async function ConsultMePage({
+  searchParams,
+}: {
+  searchParams: Promise<DashboardPageSearchParams>
+}) {
+  await prepareDashboardPageRequest({
+    pathname: "/consult-me",
+    searchParams,
+  })
+  const data = await loadConsultMeDashboardData()
 
   return (
     <Suspense fallback={null}>

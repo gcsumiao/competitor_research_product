@@ -20,7 +20,7 @@ const CODE_READER_QUESTIONS: CategoryQuestionMap = {
     "How did Innova/BLCKTEC perform this month vs last month?",
     "How did Innova/BLCKTEC perform in Jan 2026?",
     "What is our revenue, units, and share trend over the last 6-12 months?",
-    "What are the Rolling 12 grand total revenue and units for this brand?",
+    "What are the Rolling 12 month grand total revenue and units?",
     "How has this brand’s Rolling 12 grand total changed over recent months?",
     "Which of our products grew the most and which declined?",
   ],

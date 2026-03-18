@@ -1,12 +1,20 @@
 import { Suspense } from "react"
 
 import { SurveysClient } from "@/components/dashboard/surveys-client"
-import { loadDashboardData } from "@/lib/competitor-data"
+import { loadSurveysDashboardData } from "@/lib/competitor-data"
+import { prepareDashboardPageRequest, type DashboardPageSearchParams } from "@/lib/dashboard-request"
 
-export const revalidate = 3600
-
-export default async function OrdersPage() {
-  const data = await loadDashboardData()
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<DashboardPageSearchParams>
+}) {
+  await prepareDashboardPageRequest({
+    pathname: "/orders",
+    searchParams,
+    forceCodeReaderCategory: true,
+  })
+  const data = await loadSurveysDashboardData()
 
   return (
     <Suspense fallback={null}>

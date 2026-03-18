@@ -259,9 +259,14 @@ function round(value: number) {
 
 main()
   .catch((error) => {
-    console.error(error instanceof Error ? error.message : error)
+    console.error(error)
     process.exitCode = 1
   })
   .finally(async () => {
-    await closeDatabasePools()
+    try {
+      await closeDatabasePools()
+    } catch (error) {
+      console.error("Failed to close database pools after parity verification:", error)
+      process.exitCode = 1
+    }
   })

@@ -113,6 +113,7 @@ export async function POST(request: Request) {
           "How did we do this month?",
           "What are competitors doing?",
           "What should I be worried about?",
+          "What are the Rolling 12 month grand total revenue and units?",
         ],
         warnings: ["The chat service encountered an unexpected parsing error."],
       } satisfies ChatResponse,
