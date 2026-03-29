@@ -217,16 +217,37 @@ async function findMatchedWorkbook(dir: string, filePattern: RegExp, latestOnly:
         ? {
             file: candidate,
             mtimeMs: fileStat.mtimeMs,
+            recencyKey: extractWorkbookRecencyKey(path.basename(candidate)),
           }
         : null
     })
   )
 
-  const valid = withStats.filter((item): item is { file: string; mtimeMs: number } => Boolean(item))
+  const valid = withStats.filter(
+    (item): item is { file: string; mtimeMs: number; recencyKey: number } => Boolean(item)
+  )
   if (!valid.length) return null
 
-  valid.sort((a, b) => b.mtimeMs - a.mtimeMs)
+  valid.sort((a, b) => {
+    const recencyDiff = b.recencyKey - a.recencyKey
+    if (recencyDiff !== 0) return recencyDiff
+    const modifiedDiff = b.mtimeMs - a.mtimeMs
+    if (modifiedDiff !== 0) return modifiedDiff
+    return path.basename(b.file).localeCompare(path.basename(a.file), "en", { numeric: true })
+  })
   return valid[0].file
+}
+
+function extractWorkbookRecencyKey(fileName: string) {
+  const compactMatch = fileName.match(/(20\d{6})/)
+  if (compactMatch) return Number(compactMatch[1])
+
+  const shortMatch = fileName.match(/(\d{2})-(\d{2})-(\d{2})/)
+  if (shortMatch) {
+    return Number(`20${shortMatch[1]}${shortMatch[2]}${shortMatch[3]}`)
+  }
+
+  return 0
 }
 
 function splitRelativePath(value: string) {
