@@ -119,8 +119,13 @@ async function generateCategoryReports(params: {
     topByUnits,
   })
 
-  const analysisPath = path.join(outputsDir, `${analysisFileBase(config.label)}_${params.month}.xlsx`)
-  const formattedPath = path.join(outputsDir, `${formatRunDateLabel(runDate)} ${config.label}.xlsx`)
+  const { analysisPath, formattedPath } = resolveOutputPaths({
+    categoryId: params.categoryId,
+    label: config.label,
+    month: params.month,
+    runDate,
+    outputsDir,
+  })
 
   XLSX.writeFile(workbook, analysisPath, { compression: true })
   XLSX.writeFile(workbook, formattedPath, { compression: true })
@@ -526,6 +531,30 @@ function inferColumnWidths(rows: Array<Array<string | number>>) {
 
 function analysisFileBase(label: string) {
   return `${label.replace(/[^\w]+/g, "_").replace(/^_+|_+$/g, "")}_Market_Analysis`
+}
+
+function resolveOutputPaths(input: {
+  categoryId: NonCodeCategoryId
+  label: string
+  month: string
+  runDate: string
+  outputsDir: string
+}) {
+  const analysisPath = path.join(input.outputsDir, `${analysisFileBase(input.label)}_${input.month}.xlsx`)
+  if (input.categoryId === "night_vision") {
+    return {
+      analysisPath,
+      formattedPath: path.join(
+        input.outputsDir,
+        `Night_Vision_Monoculars_top50(${input.runDate.replace(/-/g, "")}).xlsx`
+      ),
+    }
+  }
+
+  return {
+    analysisPath,
+    formattedPath: path.join(input.outputsDir, `${formatRunDateLabel(input.runDate)} ${input.label}.xlsx`),
+  }
 }
 
 function formatRunDateLabel(runDate: string) {

@@ -409,7 +409,7 @@ async function loadSnapshotRecords(files: string[]): Promise<RawRecord[]> {
       }
 
       // Enforce category-wide ceiling for non-code-reader snapshots.
-      if (record.price > NON_CODE_READER_PRICE_CEILING) {
+      if (record.price >= NON_CODE_READER_PRICE_CEILING) {
         continue
       }
 
