@@ -4,6 +4,11 @@ import {
   type NonCodeCategoryId,
   type TargetDimensionPreset,
 } from "@/lib/non-code-category-config"
+import {
+  inferThermalPhoneAdaptedLabel,
+  inferThermalTypeLabel,
+  THERMAL_PHONE_ADAPTED_TYPE_LABEL,
+} from "@/lib/thermal-imager-classification"
 import type { CategoryTypeSummary } from "@/lib/type-summaries"
 
 export type TargetCategoryId = TargetDimensionPreset
@@ -73,6 +78,7 @@ const BORESCOPE_DIMENSIONS: DimensionOption[] = [
 
 const THERMAL_DIMENSIONS: DimensionOption[] = [
   { key: "type", label: "Type" },
+  { key: "phone_adapted", label: "Phone adapted" },
   { key: "basic_resolution", label: "Basic Resolution" },
   { key: "super_resolution", label: "Super Resolution" },
   { key: "laser", label: "Laser" },
@@ -82,7 +88,7 @@ const THERMAL_DIMENSIONS: DimensionOption[] = [
 ]
 
 const THERMAL_TYPE_SEQUENCE = [
-  "Dongle",
+  THERMAL_PHONE_ADAPTED_TYPE_LABEL,
   "Handheld",
   "Landscape",
   "Pocket size",
@@ -132,6 +138,22 @@ export function deriveDimensionRowsWithFallback(params: {
   summary: CategoryTypeSummary | null
   dimensionKey: string
 }): { rows: DerivedDimensionRow[]; source: DimensionSource } {
+  if (getTargetCategoryPreset(params.categoryId) === "thermal_imager") {
+    const snapshotRows = deriveSnapshotRowsForDimension(
+      params.snapshot,
+      params.categoryId,
+      params.dimensionKey
+    )
+    const normalizedSnapshotRows =
+      params.dimensionKey === "type"
+        ? normalizeThermalTypeRows(snapshotRows)
+        : snapshotRows
+
+    if (hasUsableSnapshotRows(normalizedSnapshotRows)) {
+      return { rows: normalizedSnapshotRows, source: "snapshot" }
+    }
+  }
+
   const workbookRows = deriveDimensionRowsFromWorkbookSummary(
     params.summary,
     params.dimensionKey
@@ -497,7 +519,8 @@ function inferProductDimensions(
 
   if (preset === "thermal_imager") {
     return {
-      type: inferThermalType(title),
+      type: inferThermalTypeLabel({ asin: product.asin, title: product.title }),
+      phone_adapted: inferThermalPhoneAdaptedLabel({ asin: product.asin, title: product.title }),
       basic_resolution: inferResolution(title, BASIC_RESOLUTION_REGEX),
       super_resolution: inferResolution(title, SUPER_RESOLUTION_REGEX),
       laser: inferThermalLaser(title),
@@ -662,15 +685,6 @@ function inferCableLength(title: string) {
     }
   }
   return "Unknown"
-}
-
-function inferThermalType(title: string) {
-  if (/\bdongle\b/i.test(title)) return "Dongle"
-  if (/\bhandheld\b/i.test(title)) return "Handheld"
-  if (/\bwireless\b/i.test(title)) return "Wireless"
-  if (/\bpocket\b/i.test(title)) return "Pocket size"
-  if (/\blandscape\b/i.test(title)) return "Landscape"
-  return "-"
 }
 
 function inferResolution(title: string, regex: RegExp) {
@@ -909,6 +923,7 @@ function mapDimensionLabelToKey(label: string) {
   if (normalized.includes("cable length")) return "cable_length"
   if (normalized.includes("basic resolution")) return "basic_resolution"
   if (normalized.includes("super resolution")) return "super_resolution"
+  if (normalized.includes("phone adapted")) return "phone_adapted"
   if (normalized === "laser" || normalized.includes("laser ")) return "laser"
   if (normalized === "wi-fi" || normalized === "wifi" || normalized.includes("wi-fi")) return "wifi"
   if (normalized.includes("visual camera")) return "visual_camera"
@@ -917,7 +932,13 @@ function mapDimensionLabelToKey(label: string) {
 
 function canonicalThermalTypeLabel(label: string) {
   const normalized = normalizeText(label)
-  if (normalized.includes("dongle")) return "Dongle"
+  if (
+    normalized.includes("dongle") ||
+    normalized.includes("phone adapted") ||
+    (normalized.includes("usb") && normalized.includes("thermal"))
+  ) {
+    return THERMAL_PHONE_ADAPTED_TYPE_LABEL
+  }
   if (normalized.includes("handheld")) return "Handheld"
   if (normalized.includes("landscape")) return "Landscape"
   if (normalized.includes("pocket")) return "Pocket size"

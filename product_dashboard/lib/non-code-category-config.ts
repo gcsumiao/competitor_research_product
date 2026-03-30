@@ -48,9 +48,9 @@ const BORESCOPE_QUESTIONS = {
 
 const THERMAL_QUESTIONS = {
   market_size: ["How large is the thermal imager market this month?"],
-  product_type_mix: ["How is revenue split across dongle vs handheld thermal tools?"],
+  product_type_mix: ["How is revenue split across phone-adapted vs non-phone thermal imagers?"],
   feature_analysis: [
-    "What premium do features like laser, Wi-Fi, or visual camera add in thermal imagers?",
+    "What premium do features like phone connectivity, laser, Wi-Fi, or visual camera add in thermal imagers?",
     "How does super-resolution availability affect price and revenue share?",
   ],
   brand_comparison: ["Compare TOPDON vs FLIR on share, price, and ratings."],

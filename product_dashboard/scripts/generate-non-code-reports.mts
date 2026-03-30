@@ -9,6 +9,10 @@ import {
   type RawRecord,
 } from "../lib/competitor-data.ts"
 import {
+  inferThermalPhoneAdaptedLabel,
+  inferThermalTypeLabel,
+} from "../lib/thermal-imager-classification.ts"
+import {
   getNonCodeCategoryConfig,
   isNonCodeCategoryId,
   listNonCodeCategoryIds,
@@ -40,6 +44,11 @@ type Section = {
   rows: SummaryRow[]
 }
 
+type BrandDetailTab = {
+  sheetName: string
+  brandName: string
+}
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const appRoot = path.resolve(__dirname, "..")
@@ -67,6 +76,37 @@ const SMOKE_MACHINE_FEATURE_HEADERS = [
   "Is Includes Smoke Fluid",
   "Is Pressure Gauge",
 ] as const
+
+const THERMAL_DIMENSION_HEADERS = [
+  "Phone adapted",
+  "Basic Resolution",
+  "Super Resolution",
+  "Laser",
+  "Wi-Fi",
+  "Visual Camera",
+  "Display",
+  "Subcategory",
+  "Size Tier",
+] as const
+
+const BRAND_DETAIL_HEADERS = [
+  "ASIN",
+  "Title",
+  "Brand",
+  "Type",
+  "Price",
+  "Monthly Rev",
+  "Monthly Units",
+  "Avg Rating",
+  "# of Reviews",
+  "Link",
+  "Subcategory",
+  "Size Tier",
+] as const
+
+const BASIC_RESOLUTION_REGEX = /\b(80x60|96x96|120x90|128x96|160x120|256x192|320x240)\b/i
+const SUPER_RESOLUTION_REGEX =
+  /\b(160x120|192x192|240x180|240x240|320x240|480x360|512x384)\b/i
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
@@ -124,6 +164,7 @@ async function generateCategoryReports(params: {
     label: config.label,
     month: params.month,
     runDate,
+    categoryDir,
     outputsDir,
   })
 
@@ -185,6 +226,14 @@ function buildWorkbook(params: {
   appendJsonSheet(workbook, "All ASINs", allRows)
   appendAoaSheet(workbook, "Metadata", metadataRows)
 
+  for (const brandTab of resolveBrandDetailTabs(params.categoryId, params.month)) {
+    const brandRows = allRows
+      .filter((row) => normalizeBrandName(String(row.Brand ?? "")) === normalizeBrandName(brandTab.brandName))
+      .sort((left, right) => Number(right["Monthly Rev"]) - Number(left["Monthly Rev"]))
+
+    appendJsonSheet(workbook, brandTab.sheetName, brandRows, [...BRAND_DETAIL_HEADERS])
+  }
+
   return workbook
 }
 
@@ -198,6 +247,16 @@ function appendAoaSheet(workbook: XLSX.WorkBook, sheetName: string, rows: Array<
   const sheet = XLSX.utils.aoa_to_sheet(rows)
   sheet["!cols"] = inferColumnWidths(rows)
   XLSX.utils.book_append_sheet(workbook, sheet, sheetName)
+}
+
+function resolveBrandDetailTabs(categoryId: NonCodeCategoryId, month: string): BrandDetailTab[] {
+  if (categoryId === "night_vision" && month === "202603") {
+    return [
+      { sheetName: "Topdon", brandName: "TOPDON" },
+      { sheetName: "Guide Sensmart", brandName: "Guide Sensmart" },
+    ]
+  }
+  return []
 }
 
 function buildBrandSummary(records: EnrichedRecord[]) {
@@ -265,6 +324,9 @@ function orderedExtraColumns(categoryId: NonCodeCategoryId, values: Record<strin
   if (categoryId === "borescope") {
     return orderedColumns(values, BORESCOPE_DIMENSION_HEADERS)
   }
+  if (categoryId === "thermal_imager") {
+    return orderedColumns(values, THERMAL_DIMENSION_HEADERS)
+  }
   if (categoryId === "smoke_machine") {
     return orderedColumns(values, SMOKE_MACHINE_FEATURE_HEADERS)
   }
@@ -291,6 +353,19 @@ function buildTop50SummarySections(categoryId: NonCodeCategoryId, records: Enric
       buildSummarySection("Lens diameter", records, (record) => record.extraColumns["Lens Diameter"] ?? "Unknown"),
       buildSummarySection("Lens count", records, (record) => record.extraColumns["Lens Count"] ?? "Unknown"),
       buildSummarySection("Cable length", records, (record) => record.extraColumns["Cable Length"] ?? "Unknown"),
+    ].filter((section) => section.rows.length > 0)
+  }
+
+  if (categoryId === "thermal_imager") {
+    return [
+      buildSummarySection("Type", records, (record) => record.typeLabel),
+      buildSummarySection("Phone adapted", records, (record) => record.extraColumns["Phone adapted"] ?? "Unknown"),
+      buildSummarySection("Basic Resolution", records, (record) => record.extraColumns["Basic Resolution"] ?? "-"),
+      buildSummarySection("Super Resolution", records, (record) => record.extraColumns["Super Resolution"] ?? "-"),
+      buildSummarySection("Laser", records, (record) => record.extraColumns["Laser"] ?? "No"),
+      buildSummarySection("Wi-Fi", records, (record) => record.extraColumns["Wi-Fi"] ?? "No"),
+      buildSummarySection("Visual Camera", records, (record) => record.extraColumns["Visual Camera"] ?? "No"),
+      buildSummarySection("Display", records, (record) => record.extraColumns.Display ?? "Unknown"),
     ].filter((section) => section.rows.length > 0)
   }
 
@@ -408,6 +483,25 @@ function enrichRecord(categoryId: NonCodeCategoryId, record: RawRecord): Enriche
     }
   }
 
+  if (categoryId === "thermal_imager") {
+    const thermal = inferThermalDimensions(record)
+    return {
+      ...record,
+      typeLabel: thermal.Type,
+      extraColumns: {
+        "Phone adapted": thermal["Phone adapted"],
+        "Basic Resolution": thermal["Basic Resolution"],
+        "Super Resolution": thermal["Super Resolution"],
+        Laser: thermal.Laser,
+        "Wi-Fi": thermal["Wi-Fi"],
+        "Visual Camera": thermal["Visual Camera"],
+        Display: thermal.Display,
+        Subcategory: record.subcategory ?? "",
+        "Size Tier": record.sizeTier ?? "",
+      },
+    }
+  }
+
   return {
     ...record,
     typeLabel: record.subcategory ?? record.sizeTier ?? "Unknown",
@@ -427,6 +521,20 @@ function inferBorescopeDimensions(title: string) {
     "Lens Diameter": inferLensDiameter(normalized),
     "Lens Count": inferLensCount(normalized),
     "Cable Length": inferCableLength(normalized),
+  }
+}
+
+function inferThermalDimensions(record: RawRecord) {
+  const normalized = `${record.title ?? ""}`.toLowerCase()
+  return {
+    Type: inferThermalTypeLabel({ asin: record.asin, title: record.title }),
+    "Phone adapted": inferThermalPhoneAdaptedLabel({ asin: record.asin, title: record.title }),
+    "Basic Resolution": inferResolution(normalized, BASIC_RESOLUTION_REGEX),
+    "Super Resolution": inferResolution(normalized, SUPER_RESOLUTION_REGEX),
+    Laser: inferThermalLaser(normalized),
+    "Wi-Fi": inferThermalWifi(normalized),
+    "Visual Camera": inferThermalVisualCamera(normalized),
+    Display: inferDisplay(normalized),
   }
 }
 
@@ -471,11 +579,34 @@ function inferBorescopeArticulation(title: string) {
   return "2-way"
 }
 
+function inferResolution(title: string, regex: RegExp) {
+  const match = title.match(regex)
+  return match?.[1] ?? "-"
+}
+
 function inferDisplay(title: string) {
   const match = title.match(/(\d+(?:\.\d+)?)\s*(?:["″”]|-?\s*inch\b|in\b)/i)
   if (match) return `${Number(match[1]).toFixed(1)}"`
   if (/\b(android|iphone|ios|smartphone|app|wi-?fi|wireless)\b/i.test(title)) return "App"
   return "Unknown"
+}
+
+function inferThermalLaser(title: string) {
+  if (/\blaser\b/i.test(title)) return "Yes"
+  return "No"
+}
+
+function inferThermalWifi(title: string) {
+  if (/\b(bt|bluetooth)\b/i.test(title)) return "BT"
+  if (/\b(wi-?fi|wireless)\b/i.test(title)) return "Yes"
+  return "No"
+}
+
+function inferThermalVisualCamera(title: string) {
+  const mp = title.match(/\b(0\.3|1|2|5|8)\s*mp\b/i)
+  if (mp) return `${mp[1]}MP`
+  if (/\bwithout visual|no visual\b/i.test(title)) return "No"
+  return "No"
 }
 
 function inferLensDiameter(title: string) {
@@ -529,6 +660,10 @@ function inferColumnWidths(rows: Array<Array<string | number>>) {
   return widths.map((width) => ({ wch: width }))
 }
 
+function normalizeBrandName(value: string) {
+  return value.trim().toLowerCase()
+}
+
 function analysisFileBase(label: string) {
   return `${label.replace(/[^\w]+/g, "_").replace(/^_+|_+$/g, "")}_Market_Analysis`
 }
@@ -538,8 +673,29 @@ function resolveOutputPaths(input: {
   label: string
   month: string
   runDate: string
+  categoryDir: string
   outputsDir: string
 }) {
+  if (input.categoryId === "thermal_imager") {
+    if (input.month === "202511") {
+      return {
+        analysisPath: path.join(input.categoryDir, "TI_Market_Analysis.xlsx"),
+        formattedPath: path.join(input.categoryDir, "25-11-25 Thermal Imager V4.xlsx"),
+      }
+    }
+    if (input.month === "202512") {
+      return {
+        analysisPath: path.join(input.categoryDir, "TI_Market_Analysis_260113.xlsx"),
+        formattedPath: path.join(input.categoryDir, "26-01-14 Thermal Imager.xlsx"),
+      }
+    }
+
+    return {
+      analysisPath: path.join(input.categoryDir, `TI_Market_Analysis_${input.month}.xlsx`),
+      formattedPath: path.join(input.categoryDir, `${formatRunDateLabel(input.runDate)} ${input.label}.xlsx`),
+    }
+  }
+
   const analysisPath = path.join(input.outputsDir, `${analysisFileBase(input.label)}_${input.month}.xlsx`)
   if (input.categoryId === "night_vision") {
     return {
