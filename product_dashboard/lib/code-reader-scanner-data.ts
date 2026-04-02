@@ -336,10 +336,12 @@ function parseRollingSection(rows: string[][], headerIndex: number): ParsedRolli
 
     const values = monthColumns.map((columnIndex) => parseNumber(getCell(row, columnIndex)))
     const monthly = values[values.length - 1] ?? 0
+    const computedGrandTotal = values.reduce((sum, value) => sum + value, 0)
+    const grandTotalCell = grandTotalCol >= 0 ? getCell(row, grandTotalCol).trim() : ""
     const grandTotal =
-      grandTotalCol >= 0
-        ? parseNumber(getCell(row, grandTotalCol))
-        : values.reduce((sum, value) => sum + value, 0)
+      grandTotalCell && grandTotalCell.toLowerCase() !== "n/a"
+        ? parseNumber(grandTotalCell)
+        : computedGrandTotal
 
     const parsedRow: RollingRow = {
       brand,

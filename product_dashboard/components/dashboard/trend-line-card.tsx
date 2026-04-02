@@ -17,6 +17,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 type TrendLineDatum = {
   label: string
   value: number
+  tooltipRows?: Array<{
+    label: string
+    value: string
+  }>
 }
 
 export function TrendLineCard({
@@ -47,6 +51,36 @@ export function TrendLineCard({
   const chartId = useId().replace(/:/g, "")
   const formatValue = formatter ?? ((value: number) => value.toLocaleString())
   const formatAxisValue = axisFormatter ?? formatValue
+  const renderTooltip = (props: any) => {
+    const { active, label, payload } = props as {
+      active?: boolean
+      label?: string
+      payload?: Array<{ payload?: TrendLineDatum }>
+    }
+    if (!active || !payload?.length) return null
+
+    const datum = payload[0]?.payload
+    if (!datum) return null
+
+    const tooltipRows =
+      datum.tooltipRows?.length
+        ? datum.tooltipRows
+        : [{ label: title, value: formatValue(datum.value) }]
+
+    return (
+      <div className="rounded-lg border border-white/10 bg-[#1a1a1a] px-3 py-2 text-xs text-white shadow-lg">
+        <p className="mb-2 font-medium text-white">{label ?? datum.label}</p>
+        <div className="space-y-1">
+          {tooltipRows.map((row) => (
+            <div key={`${datum.label}-${row.label}`} className="flex items-center justify-between gap-3">
+              <span className="text-white/70">{row.label}</span>
+              <span className="font-medium text-white">{row.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <Card className="bg-card border-border h-full">
@@ -96,16 +130,7 @@ export function TrendLineCard({
                 tickFormatter={formatAxisValue}
               />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: "#1a1a1a",
-                  border: "none",
-                  borderRadius: "8px",
-                  color: "#fff",
-                  fontSize: "12px",
-                }}
-                labelStyle={{ color: "#fff" }}
-                itemStyle={{ color: "#fff" }}
-                formatter={(value: number) => [formatValue(value), title]}
+                content={renderTooltip}
               />
               <Area
                 type="monotone"

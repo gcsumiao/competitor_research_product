@@ -177,7 +177,11 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
   const rolling12GrandTotals = getBrandRolling12GrandTotals(activeSnapshot, resolvedSelectedBrand)
   const previousRolling12GrandTotals = getBrandRolling12GrandTotals(previousSnapshot, resolvedSelectedBrand)
   const rolling12Trend = buildBrandRolling12Trend(snapshots, resolvedSelectedBrand).filter(
-    (row) => row.revenueGrandTotal > 0 || row.unitsGrandTotal > 0
+    (row) =>
+      row.revenueMonthly > 0 ||
+      row.revenueGrandTotal > 0 ||
+      row.unitsMonthly > 0 ||
+      row.unitsGrandTotal > 0
   )
 
   const top3Share = activeSnapshot?.totals.top3Share ?? 0
@@ -224,11 +228,19 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
 
   const rolling12RevenueTrend = rolling12Trend.map((row) => ({
     label: row.label,
-    value: row.revenueGrandTotal,
+    value: row.revenueMonthly,
+    tooltipRows: [
+      { label: "Monthly revenue", value: formatCurrency(row.revenueMonthly, 2) },
+      { label: "Rolling 12 grand total", value: formatCurrency(row.revenueGrandTotal, 2) },
+    ],
   }))
   const rolling12UnitsTrend = rolling12Trend.map((row) => ({
     label: row.label,
-    value: row.unitsGrandTotal,
+    value: row.unitsMonthly,
+    tooltipRows: [
+      { label: "Monthly units", value: formatIntegerTooltip(row.unitsMonthly) },
+      { label: "Rolling 12 grand total", value: formatIntegerTooltip(row.unitsGrandTotal) },
+    ],
   }))
 
   const revenueRankChange = rankMovement(currentRevenueRank, previousRevenueRank)
@@ -240,6 +252,14 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
   const rolling12UnitsChange = percentChange(
     rolling12GrandTotals?.unitsGrandTotal ?? 0,
     previousRolling12GrandTotals?.unitsGrandTotal ?? 0
+  )
+  const rolling12RevenueMonthlyChange = percentChange(
+    rolling12GrandTotals?.revenueMonthly ?? 0,
+    previousRolling12GrandTotals?.revenueMonthly ?? 0
+  )
+  const rolling12UnitsMonthlyChange = percentChange(
+    rolling12GrandTotals?.unitsMonthly ?? 0,
+    previousRolling12GrandTotals?.unitsMonthly ?? 0
   )
   const maxRevenueRank = Math.max(
     ...revenueRankTrend.map((entry) => entry.value),
@@ -378,14 +398,16 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
         ) : null}
       </div>
 
-      <div className="mb-6">
-        <AllBrandsRankChart
-          snapshots={snapshots}
-          selectedSnapshotDate={activeSnapshot?.date}
-          title="Rolling 12mon Rank (Top20)"
-          maxRank={20}
-        />
-      </div>
+      {isCodeReader ? (
+        <div className="mb-6">
+          <AllBrandsRankChart
+            snapshots={snapshots}
+            selectedSnapshotDate={activeSnapshot?.date}
+            title="Rolling 12mon Rank (Top20)"
+            maxRank={20}
+          />
+        </div>
+      ) : null}
 
       {isCodeReader ? (
         <>
@@ -465,28 +487,28 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <TrendLineCard
-                  title="Rolling 12 Grand Total Revenue"
-                  subtitle={selectedBrandListing ? `${selectedBrandListing.brand} revenue trend across snapshots` : "Selected brand revenue trend"}
-                  totalLabel="Current grand total revenue"
-                  totalValue={formatCurrency(rolling12GrandTotals?.revenueGrandTotal ?? 0, 0)}
-                  changeLabel={formatChangeLabel(rolling12RevenueChange)}
+                  title="Rolling 12 months Revenue Trend"
+                  subtitle={selectedBrandListing ? `${selectedBrandListing.brand} monthly revenue across snapshots` : "Selected brand monthly revenue trend"}
+                  totalLabel="Current monthly revenue"
+                  totalValue={formatCurrency(rolling12GrandTotals?.revenueMonthly ?? 0, 0)}
+                  changeLabel={formatChangeLabel(rolling12RevenueMonthlyChange)}
                   changeValueLabel="vs previous snapshot"
                   data={rolling12RevenueTrend}
                   color="#3b82f6"
-                  formatter={(value) => formatCurrency(value, 0)}
+                  formatter={(value) => formatCurrency(value, 2)}
                   axisFormatter={(value) => formatCurrencyCompact(value)}
                   compactSummary
                 />
                 <TrendLineCard
-                  title="Rolling 12 Grand Total Units"
-                  subtitle={selectedBrandListing ? `${selectedBrandListing.brand} units trend across snapshots` : "Selected brand units trend"}
-                  totalLabel="Current grand total units"
-                  totalValue={formatInteger(rolling12GrandTotals?.unitsGrandTotal ?? 0)}
-                  changeLabel={formatChangeLabel(rolling12UnitsChange)}
+                  title="Rolling 12 months Units Trend"
+                  subtitle={selectedBrandListing ? `${selectedBrandListing.brand} monthly units across snapshots` : "Selected brand monthly units trend"}
+                  totalLabel="Current monthly units"
+                  totalValue={formatInteger(rolling12GrandTotals?.unitsMonthly ?? 0)}
+                  changeLabel={formatChangeLabel(rolling12UnitsMonthlyChange)}
                   changeValueLabel="vs previous snapshot"
                   data={rolling12UnitsTrend}
                   color="#10b981"
-                  formatter={(value) => value.toLocaleString()}
+                  formatter={(value) => formatIntegerTooltip(value)}
                   axisFormatter={(value) => formatNumberCompact(value)}
                   compactSummary
                 />
@@ -621,34 +643,6 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
         </>
       ) : (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            <CustomerOrders
-              title="Rolling 12mon Revenue Rank"
-              subtitle={selectedBrandListing ? `${selectedBrandListing.brand} rank movement` : "Selected brand rank movement"}
-              totalLabel="Current rank"
-              totalValue={currentRevenueRank ? `#${currentRevenueRank}` : "n/a"}
-              changeLabel={revenueRankChange === null ? "n/a" : `${formatSigned(revenueRankChange, 0)} rank`}
-              changeValueLabel="vs previous snapshot"
-              data={revenueRankTrend}
-              isRankChart
-              yMin={1}
-              yMax={rankYMax}
-            />
-
-            <CustomerOrders
-              title="Rolling 12mon Units Rank"
-              subtitle={selectedBrandListing ? `${selectedBrandListing.brand} rank movement` : "Selected brand rank movement"}
-              totalLabel="Current rank"
-              totalValue={currentUnitsRank ? `#${currentUnitsRank}` : "n/a"}
-              changeLabel={unitsRankChange === null ? "n/a" : `${formatSigned(unitsRankChange, 0)} rank`}
-              changeValueLabel="vs previous snapshot"
-              data={unitsRankTrend}
-              isRankChart
-              yMin={1}
-              yMax={rankYMax}
-            />
-          </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-4 mb-6">
             <Card className="bg-card border border-border">
               <CardHeader className="pb-2">
@@ -883,6 +877,13 @@ function formatCurrencyPrecise(value: number | undefined) {
 
 function formatInteger(value: number | undefined) {
   if (typeof value !== "number" || value <= 0) return "n/a"
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+function formatIntegerTooltip(value: number | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "n/a"
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 0,
   }).format(value)

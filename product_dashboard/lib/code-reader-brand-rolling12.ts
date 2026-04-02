@@ -14,7 +14,9 @@ export type BrandRolling12GrandTotals = {
 export type BrandRolling12TrendPoint = {
   date: string
   label: string
+  revenueMonthly: number
   revenueGrandTotal: number
+  unitsMonthly: number
   unitsGrandTotal: number
 }
 
@@ -62,7 +64,9 @@ export function buildBrandRolling12Trend(
     return {
       date: snapshot.date,
       label: formatSnapshotLabelMonthEnd(snapshot.date),
+      revenueMonthly: totals?.revenueMonthly ?? 0,
       revenueGrandTotal: totals?.revenueGrandTotal ?? 0,
+      unitsMonthly: totals?.unitsMonthly ?? 0,
       unitsGrandTotal: totals?.unitsGrandTotal ?? 0,
     }
   })
