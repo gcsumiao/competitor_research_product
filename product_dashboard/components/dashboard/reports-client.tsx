@@ -325,7 +325,7 @@ function buildCategoryTotals(products: ProductSummary[]) {
   const totals = new Map<string, { revenue: number; units: number }>()
 
   for (const product of products) {
-    const label = product.subcategory?.trim() || "Unspecified"
+    const label = product.toolType?.trim() || product.subcategory?.trim() || "Unspecified"
     const current = totals.get(label) ?? { revenue: 0, units: 0 }
     current.revenue += product.revenue
     current.units += product.units

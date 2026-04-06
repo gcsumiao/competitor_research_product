@@ -72,6 +72,19 @@ const SMOKE_MACHINE_QUESTIONS = {
   competitive_gaps: ["Where are the strongest smoke machine whitespace opportunities right now?"],
 }
 
+const JUMP_STARTERS_QUESTIONS = {
+  market_size: ["How large is the jump starters market this month?"],
+  product_type_mix: [
+    "How is revenue split across jump starters, jump starter + inflator models, heavy-duty starters, and accessories?",
+  ],
+  feature_analysis: [
+    "What price premium do jump starter + inflator products command versus standard jump starters?",
+    "How much revenue share comes from accessory and adapter products versus standalone jump starter devices?",
+  ],
+  brand_comparison: ["Compare NOCO, GOOLOO, and WOLFBOX on share, pricing, and type mix."],
+  competitive_gaps: ["Where are the best whitespace opportunities across portable, heavy-duty, and combo jump starter products?"],
+}
+
 export const NON_CODE_CATEGORY_CONFIGS = [
   {
     id: "dmm",
@@ -210,6 +223,37 @@ export const NON_CODE_CATEGORY_CONFIGS = [
       },
     ],
     starterQuestions: SMOKE_MACHINE_QUESTIONS,
+    specsMode: "generic",
+  },
+  {
+    id: "jump_starters",
+    label: "Jump Starters",
+    folderName: "JumpStarters",
+    sourceWorkbook: {
+      mode: "latest_match",
+      relativeDir: "outputs",
+      filePattern: /^Jump_Starters_Market_Analysis.*\.xlsx$/i,
+    },
+    typeSummarySources: [
+      {
+        mode: "latest_match",
+        relativeDir: "outputs",
+        filePattern: /^\d{2}-\d{2}-\d{2} .*Jump Starters.*\.xlsx$/i,
+      },
+      {
+        mode: "latest_match",
+        relativeDir: "outputs",
+        filePattern: /^Jump_Starters_Market_Analysis.*\.xlsx$/i,
+      },
+    ],
+    visibleReports: [
+      {
+        mode: "all_matches",
+        relativeDir: "outputs",
+        filePattern: /^\d{2}-\d{2}-\d{2} .*Jump Starters.*\.xlsx$/i,
+      },
+    ],
+    starterQuestions: JUMP_STARTERS_QUESTIONS,
     specsMode: "generic",
   },
 ] as const satisfies readonly NonCodeCategoryConfig[]

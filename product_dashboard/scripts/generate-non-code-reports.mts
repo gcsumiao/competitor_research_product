@@ -13,6 +13,11 @@ import {
   inferThermalTypeLabel,
 } from "../lib/thermal-imager-classification.ts"
 import {
+  averagePriceForCategory,
+  classifyJumpStarterProduct,
+  JUMP_STARTERS_ACCESSORY_TYPE_LABEL,
+} from "../lib/jump-starters-classification.ts"
+import {
   getNonCodeCategoryConfig,
   isNonCodeCategoryId,
   listNonCodeCategoryIds,
@@ -77,6 +82,16 @@ const SMOKE_MACHINE_FEATURE_HEADERS = [
   "Is Pressure Gauge",
 ] as const
 
+const JUMP_STARTERS_FEATURE_HEADERS = [
+  "Has Inflator",
+  "Voltage Class",
+  "Has Power Station",
+  "Is Accessory",
+  "Accessory Type",
+  "Subcategory",
+  "Size Tier",
+] as const
+
 const THERMAL_DIMENSION_HEADERS = [
   "Phone adapted",
   "Basic Resolution",
@@ -134,7 +149,7 @@ async function generateCategoryReports(params: {
   const rawDataDir = path.join(categoryDir, "raw_data")
   const outputsDir = path.join(categoryDir, "outputs")
   const monthKey = `${params.month.slice(0, 4)}-${params.month.slice(4, 6)}`
-  const snapshots = await loadCsvCategorySnapshotRecords(rawDataDir)
+  const snapshots = await loadCsvCategorySnapshotRecords(rawDataDir, params.categoryId)
   const snapshot = snapshots.find((item) => item.date.startsWith(monthKey))
   if (!snapshot) {
     throw new Error(`No snapshot records found for ${params.categoryId} month ${params.month} in ${rawDataDir}`)
@@ -191,7 +206,7 @@ function buildWorkbook(params: {
   const topRevenueRows = buildTopSheetRows(params.categoryId, params.topByRevenue)
   const topUnitsRows = buildTopSheetRows(params.categoryId, params.topByUnits)
   const summarySections = buildTop50SummarySections(params.categoryId, params.topByRevenue)
-  const priceTierRows = buildPriceTierRows(params.records)
+  const priceTierRows = buildPriceTierRows(params.categoryId, params.records)
   const metadataRows = [
     ["Category", params.label],
     ["Category ID", params.categoryId],
@@ -330,6 +345,9 @@ function orderedExtraColumns(categoryId: NonCodeCategoryId, values: Record<strin
   if (categoryId === "smoke_machine") {
     return orderedColumns(values, SMOKE_MACHINE_FEATURE_HEADERS)
   }
+  if (categoryId === "jump_starters") {
+    return orderedColumns(values, JUMP_STARTERS_FEATURE_HEADERS)
+  }
   return values
 }
 
@@ -369,6 +387,30 @@ function buildTop50SummarySections(categoryId: NonCodeCategoryId, records: Enric
     ].filter((section) => section.rows.length > 0)
   }
 
+  if (categoryId === "jump_starters") {
+    return [
+      buildSummarySection(
+        "Type",
+        records,
+        (record) => record.typeLabel,
+        (record, label) => record.excludeFromAvgPrice !== true || label === JUMP_STARTERS_ACCESSORY_TYPE_LABEL
+      ),
+      buildSummarySection("Has Inflator", records, (record) => record.extraColumns["Has Inflator"] ?? "Unknown"),
+      buildSummarySection("Voltage Class", records, (record) => record.extraColumns["Voltage Class"] ?? "Unknown"),
+      buildSummarySection(
+        "Has Power Station",
+        records,
+        (record) => record.extraColumns["Has Power Station"] ?? "Unknown"
+      ),
+      buildSummarySection(
+        "Accessory Type",
+        records,
+        (record) => record.extraColumns["Accessory Type"] ?? "Unknown",
+        (record, label) => record.excludeFromAvgPrice !== true || label !== "Not accessory"
+      ),
+    ].filter((section) => section.rows.length > 0)
+  }
+
   return [buildSummarySection("Type", records, (record) => record.typeLabel)].filter(
     (section) => section.rows.length > 0
   )
@@ -377,7 +419,8 @@ function buildTop50SummarySections(categoryId: NonCodeCategoryId, records: Enric
 function buildSummarySection(
   title: string,
   records: EnrichedRecord[],
-  getLabel: (record: EnrichedRecord) => string
+  getLabel: (record: EnrichedRecord) => string,
+  includePrice: (record: EnrichedRecord, label: string) => boolean = (record) => record.excludeFromAvgPrice !== true
 ): Section {
   const buckets = new Map<string, { revenue: number; units: number; priceSum: number; priceCount: number }>()
 
@@ -386,7 +429,7 @@ function buildSummarySection(
     const bucket = buckets.get(label) ?? { revenue: 0, units: 0, priceSum: 0, priceCount: 0 }
     bucket.revenue += record.asinRevenue
     bucket.units += record.asinSales
-    if (record.price > 0) {
+    if (record.price > 0 && includePrice(record, label)) {
       bucket.priceSum += record.price
       bucket.priceCount += 1
     }
@@ -431,7 +474,7 @@ function buildSummarySheetMatrix(sections: Section[]) {
   return rows
 }
 
-function buildPriceTierRows(records: EnrichedRecord[]) {
+function buildPriceTierRows(categoryId: NonCodeCategoryId, records: EnrichedRecord[]) {
   const totalRevenue = records.reduce((sum, record) => sum + record.asinRevenue, 0)
   const totalUnits = records.reduce((sum, record) => sum + record.asinSales, 0)
 
@@ -439,14 +482,13 @@ function buildPriceTierRows(records: EnrichedRecord[]) {
     const matched = records.filter((record) => record.price >= tier.min && record.price < tier.max)
     const revenue = matched.reduce((sum, record) => sum + record.asinRevenue, 0)
     const units = matched.reduce((sum, record) => sum + record.asinSales, 0)
-    const avgPrice = matched.filter((record) => record.price > 0)
     return {
       "Price Tier": tier.label,
       "Total Revenue": round2(revenue),
       "Total Sales": round2(units),
       "Rev Share %": totalRevenue > 0 ? round4(revenue / totalRevenue) : 0,
       "Unit Share %": totalUnits > 0 ? round4(units / totalUnits) : 0,
-      "Avg Price": avgPrice.length ? round2(avgPrice.reduce((sum, record) => sum + record.price, 0) / avgPrice.length) : 0,
+      "Avg Price": round2(averagePriceForCategory(categoryId, matched)),
     }
   })
 }
@@ -496,6 +538,23 @@ function enrichRecord(categoryId: NonCodeCategoryId, record: RawRecord): Enriche
         "Wi-Fi": thermal["Wi-Fi"],
         "Visual Camera": thermal["Visual Camera"],
         Display: thermal.Display,
+        Subcategory: record.subcategory ?? "",
+        "Size Tier": record.sizeTier ?? "",
+      },
+    }
+  }
+
+  if (categoryId === "jump_starters") {
+    const jumpStarter = classifyJumpStarterProduct(record)
+    return {
+      ...record,
+      typeLabel: jumpStarter.typeLabel,
+      extraColumns: {
+        "Has Inflator": jumpStarter.isAccessory ? "N/A" : yesNo(jumpStarter.hasInflator),
+        "Voltage Class": jumpStarter.voltageClass,
+        "Has Power Station": jumpStarter.isAccessory ? "N/A" : yesNo(jumpStarter.hasPowerStation),
+        "Is Accessory": yesNo(jumpStarter.isAccessory),
+        "Accessory Type": jumpStarter.accessoryType,
         Subcategory: record.subcategory ?? "",
         "Size Tier": record.sizeTier ?? "",
       },

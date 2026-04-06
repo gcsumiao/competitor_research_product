@@ -150,7 +150,7 @@ export function normalizeSnapshotFallback(
       asin: row.asin,
       title: row.title,
       brand: row.brand,
-      type: row.subcategory || row.sizeTier || "Unknown",
+      type: row.toolType || row.subcategory || row.sizeTier || "Unknown",
       price: row.price || 0,
       revenue: row.revenue || 0,
       units: row.units || 0,

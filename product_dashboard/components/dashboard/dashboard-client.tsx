@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { DashboardData, SnapshotSummary, TypeBreakdownMetric } from "@/lib/competitor-data"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
+import { averagePriceForCategory } from "@/lib/jump-starters-classification"
 import { cn } from "@/lib/utils"
 import {
   formatSnapshotDateFull,
@@ -129,7 +130,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     selectedTimeRangeLabel
   )
   const entryInsights = !isCodeReader
-    ? buildDashboardEntryInsights(activeSnapshot, previousSnapshot)
+    ? buildDashboardEntryInsights(activeSnapshot, previousSnapshot, selectedCategory?.id)
     : undefined
 
   const rollingMarketSeries = useMemo(
@@ -966,7 +967,8 @@ function formatSnapshotRangeLabel(snapshotDate: string) {
 
 function buildDashboardEntryInsights(
   current: SnapshotSummary | undefined,
-  previous: SnapshotSummary | undefined
+  previous: SnapshotSummary | undefined,
+  categoryId?: string
 ): DashboardEntryInsights {
   if (!current) {
     return {
@@ -980,7 +982,7 @@ function buildDashboardEntryInsights(
   const pricingGap = buildPricingGapInsight(current)
   const concentrationRisk = buildConcentrationInsight(current, previous)
   const specWhitespace = buildWhitespaceInsight(current)
-  const entryAngles = buildEntryAngleInsights(current)
+  const entryAngles = buildEntryAngleInsights(current, categoryId)
 
   return {
     pricingGap,
@@ -1063,11 +1065,11 @@ function buildWhitespaceInsight(snapshot: SnapshotSummary) {
   return "No clear whitespace bucket in current type rows; test differentiation inside top segments."
 }
 
-function buildEntryAngleInsights(snapshot: SnapshotSummary) {
+function buildEntryAngleInsights(snapshot: SnapshotSummary, categoryId?: string) {
   const angles: string[] = []
   const topBrand = snapshot.brandTotals[0]
   const secondBrand = snapshot.brandTotals[1]
-  const avgTopPrice = averagePrice(snapshot.topProducts)
+  const avgTopPrice = averagePrice(categoryId, snapshot.topProducts)
 
   if (topBrand) {
     angles.push(
@@ -1083,8 +1085,6 @@ function buildEntryAngleInsights(snapshot: SnapshotSummary) {
   return angles.slice(0, 3)
 }
 
-function averagePrice(products: SnapshotSummary["topProducts"]) {
-  const prices = products.filter((product) => product.price > 0).map((product) => product.price)
-  if (!prices.length) return 0
-  return prices.reduce((sum, value) => sum + value, 0) / prices.length
+function averagePrice(categoryId: string | undefined, products: SnapshotSummary["topProducts"]) {
+  return averagePriceForCategory(categoryId, products)
 }

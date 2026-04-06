@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { DashboardData, SnapshotSummary } from "@/lib/competitor-data"
 import { cn } from "@/lib/utils"
+import { averagePriceForCategory } from "@/lib/jump-starters-classification"
 import { formatSnapshotDateFull, formatSnapshotLabelMonthEnd } from "@/lib/snapshot-date"
 import {
   formatChangeLabel,
@@ -60,12 +61,12 @@ export function Top50Client({ data }: { data: DashboardData }) {
   const activeTop50 = selectTop50(activeSnapshot, resolvedMode)
   const previousTop50 = selectTop50(previousSnapshot, resolvedMode)
 
-  const activeTotals = summarizeTop50(activeTop50, activeSnapshot)
-  const previousTotals = summarizeTop50(previousTop50, previousSnapshot)
+  const activeTotals = summarizeTop50(activeTop50, activeSnapshot, selectedCategory?.id)
+  const previousTotals = summarizeTop50(previousTop50, previousSnapshot, selectedCategory?.id)
 
   const top50Trend = snapshots.map((snapshot) => {
     const selectedTop = selectTop50(snapshot, resolvedMode)
-    const summary = summarizeTop50(selectedTop, snapshot)
+    const summary = summarizeTop50(selectedTop, snapshot, selectedCategory?.id)
     return {
       label: formatSnapshotLabelMonthEnd(snapshot.date),
       sales: summary.units,
@@ -296,12 +297,14 @@ function selectTop50(snapshot: SnapshotSummary | undefined, mode: Top50Mode) {
   return snapshot.topProducts.slice(0, 50)
 }
 
-function summarizeTop50(products: SnapshotSummary["topProducts"], snapshot?: SnapshotSummary) {
+function summarizeTop50(
+  products: SnapshotSummary["topProducts"],
+  snapshot?: SnapshotSummary,
+  categoryId?: string
+) {
   const revenue = products.reduce((sum, item) => sum + item.revenue, 0)
   const units = products.reduce((sum, item) => sum + item.units, 0)
-  const avgPrice = products.length
-    ? products.reduce((sum, item) => sum + item.price, 0) / products.length
-    : 0
+  const avgPrice = averagePriceForCategory(categoryId, products)
   const validRatings = products
     .map((item) => item.rating)
     .filter((rating) => Number.isFinite(rating) && rating > 0)

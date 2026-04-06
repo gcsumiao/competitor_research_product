@@ -324,7 +324,7 @@ export function SurveysClient({ data }: { data: DashboardData }) {
 function buildProductTypeOptions(products: ProductSummary[]) {
   const types = new Set<string>()
   for (const product of products.slice(0, 50)) {
-    const label = product.subcategory?.trim()
+    const label = product.toolType?.trim() || product.subcategory?.trim()
     if (label) types.add(label)
   }
   return ["All types", ...Array.from(types).sort()]

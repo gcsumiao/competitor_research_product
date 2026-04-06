@@ -48,7 +48,7 @@ export async function ingestNonCodeSnapshots(args: CliArgs) {
     if (category.id === "code_reader_scanner") continue
 
     const rawDir = resolveCategoryRawDir(category.id)
-    const rawSnapshots = await loadCsvCategorySnapshotRecords(rawDir)
+    const rawSnapshots = await loadCsvCategorySnapshotRecords(rawDir, category.id)
     const rawRowsByDate = new Map(rawSnapshots.map((item) => [item.date, item.records]))
     const workbookSource = await resolveCategorySourceWorkbook(category.id)
 
@@ -65,7 +65,7 @@ export async function ingestNonCodeSnapshots(args: CliArgs) {
         asin: row.asin,
         title: row.title,
         brand: row.brand,
-        typeLabel: row.subcategory ?? row.sizeTier,
+        typeLabel: row.typeLabel ?? row.subcategory ?? row.sizeTier,
         price: row.price,
         revenue: row.asinRevenue,
         units: row.asinSales,
@@ -78,6 +78,7 @@ export async function ingestNonCodeSnapshots(args: CliArgs) {
         imageUrl: row.imageUrl,
         monthlyRevenue: row.asinRevenue,
         monthlyUnits: row.asinSales,
+        metadata: row.categoryMetadata,
       }))
 
       await ingestSnapshotData({

@@ -13,6 +13,11 @@ import {
   listNonCodeCategoryConfigs,
   type NonCodeCategoryId,
 } from "@/lib/non-code-category-config"
+import {
+  averagePriceForCategory,
+  classifyJumpStarterProduct,
+  isJumpStartersCategory,
+} from "@/lib/jump-starters-classification"
 import { formatSnapshotLabelMonthEnd, normalizeSnapshotDate } from "@/lib/snapshot-date"
 import type { TypeSummarySection } from "@/lib/type-summaries"
 
@@ -179,6 +184,9 @@ export type RawRecord = {
   subcategory?: string
   url?: string
   imageUrl?: string
+  typeLabel?: string
+  excludeFromAvgPrice?: boolean
+  categoryMetadata?: Record<string, string | boolean>
 }
 
 type CsvCategoryConfig = {
@@ -270,7 +278,7 @@ export async function loadDashboardDataFromFiles(): Promise<DashboardData> {
     enabledCategories.map(async (category) => {
       const snapshots =
         category.source === "csv"
-          ? await loadCsvCategorySnapshots(resolveNonCodeCategoryDir(category.id, "raw_data"))
+          ? await loadCsvCategorySnapshots(resolveNonCodeCategoryDir(category.id, "raw_data"), category.id)
           : await loadCodeReaderScannerSnapshots(resolveCodeReaderDataDir())
 
       return {
@@ -286,23 +294,23 @@ export async function loadDashboardDataFromFiles(): Promise<DashboardData> {
   }
 }
 
-export async function loadCsvCategorySnapshots(baseDir: string | null) {
+export async function loadCsvCategorySnapshots(baseDir: string | null, categoryId?: NonCodeCategoryId) {
   if (!baseDir) return []
-  const snapshotsWithRecords = await loadCsvCategorySnapshotRecords(baseDir)
-  const snapshots = snapshotsWithRecords.map(({ date, records }) => buildSnapshotSummary(date, records))
+  const snapshotsWithRecords = await loadCsvCategorySnapshotRecords(baseDir, categoryId)
+  const snapshots = snapshotsWithRecords.map(({ date, records }) => buildSnapshotSummary(date, records, categoryId))
 
   return snapshots
     .filter((snapshot) => snapshot.totals.asinCount > 0)
     .sort((a, b) => a.date.localeCompare(b.date))
 }
 
-export async function loadCsvCategorySnapshotRecords(baseDir: string | null) {
+export async function loadCsvCategorySnapshotRecords(baseDir: string | null, categoryId?: NonCodeCategoryId) {
   if (!baseDir) return [] as Array<{ date: string; records: RawRecord[] }>
   const files = await listCsvFiles(baseDir).catch(() => [])
   const grouped = groupFilesBySnapshot(files, baseDir)
   const snapshots = await Promise.all(
     Array.from(grouped.entries()).map(async ([date, dateFiles]) => {
-      const records = await loadSnapshotRecords(dateFiles)
+      const records = await loadSnapshotRecords(dateFiles, categoryId)
       return { date, records }
     })
   )
@@ -372,7 +380,7 @@ function monthKeyFromFolderName(file: string, baseDir: string) {
   return null
 }
 
-async function loadSnapshotRecords(files: string[]): Promise<RawRecord[]> {
+async function loadSnapshotRecords(files: string[], categoryId?: NonCodeCategoryId): Promise<RawRecord[]> {
   const records = new Map<string, RawRecord>()
 
   for (const file of files) {
@@ -406,6 +414,22 @@ async function loadSnapshotRecords(files: string[]): Promise<RawRecord[]> {
         subcategory: getValue("Subcategory").trim() || undefined,
         url: getValue("URL").trim() || undefined,
         imageUrl: getValue("Image URL").trim() || undefined,
+      }
+
+      if (isJumpStartersCategory(categoryId)) {
+        const classification = classifyJumpStarterProduct(record)
+        if (!classification.includeInCategory) {
+          continue
+        }
+        record.typeLabel = classification.typeLabel
+        record.excludeFromAvgPrice = classification.excludeFromAvgPrice
+        record.categoryMetadata = {
+          isAccessory: classification.isAccessory,
+          accessoryType: classification.accessoryType,
+          hasInflator: classification.hasInflator,
+          hasPowerStation: classification.hasPowerStation,
+          voltageClass: classification.voltageClass,
+        }
       }
 
       // Enforce category-wide ceiling for non-code-reader snapshots.
@@ -599,7 +623,7 @@ function coerceSnapshotDate(value: string | Date) {
   return null
 }
 
-function buildSnapshotSummary(date: string, records: RawRecord[]): SnapshotSummary {
+function buildSnapshotSummary(date: string, records: RawRecord[], categoryId?: NonCodeCategoryId): SnapshotSummary {
   const mapRecord = (record: RawRecord): ProductSummary => ({
     asin: record.asin,
     title: record.title,
@@ -612,6 +636,7 @@ function buildSnapshotSummary(date: string, records: RawRecord[]): SnapshotSumma
     fulfillment: record.fulfillment,
     sizeTier: record.sizeTier,
     subcategory: record.subcategory,
+    toolType: record.typeLabel,
     url: record.url,
     imageUrl: record.imageUrl,
   })
@@ -623,10 +648,7 @@ function buildSnapshotSummary(date: string, records: RawRecord[]): SnapshotSumma
     (sum, record) => sum + record.rating * record.reviewCount,
     0
   )
-  const avgPriceValues = records.filter((record) => record.price > 0)
-  const avgPrice =
-    avgPriceValues.reduce((sum, record) => sum + record.price, 0) /
-    (avgPriceValues.length || 1)
+  const avgPrice = averagePriceForCategory(categoryId, records)
 
   const brandMap = new Map<string, { revenue: number; units: number }>()
   for (const record of records) {
