@@ -85,6 +85,19 @@ const JUMP_STARTERS_QUESTIONS = {
   competitive_gaps: ["Where are the best whitespace opportunities across portable, heavy-duty, and combo jump starter products?"],
 }
 
+const MECHANIC_STOOL_QUESTIONS = {
+  market_size: ["How large is the mechanic stool market this month?"],
+  product_type_mix: [
+    "How is revenue split across rolling mechanic stools, backrest stools, creeper seats, low-profile stools, and tall shop stools?",
+  ],
+  feature_analysis: [
+    "What price premium do backrest mechanic stools command versus standard rolling stools?",
+    "How much of the market uses adjustable height, tool trays or drawers, and which material mix is winning?",
+  ],
+  brand_comparison: ["Compare FreekyFit, FREEKYROCK, VEVOR, and WEN on share, pricing, and type mix."],
+  competitive_gaps: ["Where are the best whitespace opportunities across mechanic stool types and storage-feature combinations?"],
+}
+
 export const NON_CODE_CATEGORY_CONFIGS = [
   {
     id: "dmm",
@@ -254,6 +267,37 @@ export const NON_CODE_CATEGORY_CONFIGS = [
       },
     ],
     starterQuestions: JUMP_STARTERS_QUESTIONS,
+    specsMode: "generic",
+  },
+  {
+    id: "mechanic_stool",
+    label: "Mechanic Stool",
+    folderName: "MechanicStool",
+    sourceWorkbook: {
+      mode: "latest_match",
+      relativeDir: "outputs",
+      filePattern: /^Mechanic_Stool_Market_Analysis.*\.xlsx$/i,
+    },
+    typeSummarySources: [
+      {
+        mode: "latest_match",
+        relativeDir: "outputs",
+        filePattern: /^\d{2}-\d{2}-\d{2} .*Mechanic Stool.*\.xlsx$/i,
+      },
+      {
+        mode: "latest_match",
+        relativeDir: "outputs",
+        filePattern: /^Mechanic_Stool_Market_Analysis.*\.xlsx$/i,
+      },
+    ],
+    visibleReports: [
+      {
+        mode: "all_matches",
+        relativeDir: "outputs",
+        filePattern: /^\d{2}-\d{2}-\d{2} .*Mechanic Stool.*\.xlsx$/i,
+      },
+    ],
+    starterQuestions: MECHANIC_STOOL_QUESTIONS,
     specsMode: "generic",
   },
 ] as const satisfies readonly NonCodeCategoryConfig[]

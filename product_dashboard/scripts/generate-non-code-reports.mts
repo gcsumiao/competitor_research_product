@@ -17,6 +17,7 @@ import {
   classifyJumpStarterProduct,
   JUMP_STARTERS_ACCESSORY_TYPE_LABEL,
 } from "../lib/jump-starters-classification.ts"
+import { classifyMechanicStoolProduct } from "../lib/mechanic-stool-classification.ts"
 import {
   getNonCodeCategoryConfig,
   isNonCodeCategoryId,
@@ -88,6 +89,15 @@ const JUMP_STARTERS_FEATURE_HEADERS = [
   "Has Power Station",
   "Is Accessory",
   "Accessory Type",
+  "Subcategory",
+  "Size Tier",
+] as const
+
+const MECHANIC_STOOL_FEATURE_HEADERS = [
+  "Adjustable Height",
+  "Backrest",
+  "Storage Type",
+  "Material",
   "Subcategory",
   "Size Tier",
 ] as const
@@ -348,6 +358,9 @@ function orderedExtraColumns(categoryId: NonCodeCategoryId, values: Record<strin
   if (categoryId === "jump_starters") {
     return orderedColumns(values, JUMP_STARTERS_FEATURE_HEADERS)
   }
+  if (categoryId === "mechanic_stool") {
+    return orderedColumns(values, MECHANIC_STOOL_FEATURE_HEADERS)
+  }
   return values
 }
 
@@ -408,6 +421,20 @@ function buildTop50SummarySections(categoryId: NonCodeCategoryId, records: Enric
         (record) => record.extraColumns["Accessory Type"] ?? "Unknown",
         (record, label) => record.excludeFromAvgPrice !== true || label !== "Not accessory"
       ),
+    ].filter((section) => section.rows.length > 0)
+  }
+
+  if (categoryId === "mechanic_stool") {
+    return [
+      buildSummarySection("Type", records, (record) => record.typeLabel),
+      buildSummarySection(
+        "Adjustable Height",
+        records,
+        (record) => record.extraColumns["Adjustable Height"] ?? "Unknown"
+      ),
+      buildSummarySection("Backrest", records, (record) => record.extraColumns.Backrest ?? "Unknown"),
+      buildSummarySection("Storage Type", records, (record) => record.extraColumns["Storage Type"] ?? "Unknown"),
+      buildSummarySection("Material", records, (record) => record.extraColumns.Material ?? "Unknown"),
     ].filter((section) => section.rows.length > 0)
   }
 
@@ -555,6 +582,22 @@ function enrichRecord(categoryId: NonCodeCategoryId, record: RawRecord): Enriche
         "Has Power Station": jumpStarter.isAccessory ? "N/A" : yesNo(jumpStarter.hasPowerStation),
         "Is Accessory": yesNo(jumpStarter.isAccessory),
         "Accessory Type": jumpStarter.accessoryType,
+        Subcategory: record.subcategory ?? "",
+        "Size Tier": record.sizeTier ?? "",
+      },
+    }
+  }
+
+  if (categoryId === "mechanic_stool") {
+    const mechanicStool = classifyMechanicStoolProduct(record)
+    return {
+      ...record,
+      typeLabel: mechanicStool.typeLabel,
+      extraColumns: {
+        "Adjustable Height": yesNo(mechanicStool.isAdjustableHeight),
+        Backrest: yesNo(mechanicStool.hasBackrest),
+        "Storage Type": mechanicStool.storageType,
+        Material: mechanicStool.materialLabel,
         Subcategory: record.subcategory ?? "",
         "Size Tier": record.sizeTier ?? "",
       },

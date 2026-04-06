@@ -372,6 +372,10 @@ const CATEGORY_KEYWORD_BOOSTS: Partial<Record<CategoryId, Array<{ intent: ChatIn
     { intent: "feature_analysis", terms: ["built-in air pump", "pressure gauge", "smoke fluid", "adapter"] },
     { intent: "product_type_mix", terms: ["leak detector", "high volume", "accessory", "fluid", "evap"] },
   ],
+  mechanic_stool: [
+    { intent: "feature_analysis", terms: ["backrest", "adjustable height", "tool tray", "drawer", "material"] },
+    { intent: "product_type_mix", terms: ["creeper", "z-creeper", "low-profile", "tall shop stool", "rolling stool"] },
+  ],
 }
 
 export function detectIntent(message: string, categoryId?: CategoryId): IntentDetection {

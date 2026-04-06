@@ -18,6 +18,10 @@ import {
   classifyJumpStarterProduct,
   isJumpStartersCategory,
 } from "@/lib/jump-starters-classification"
+import {
+  classifyMechanicStoolProduct,
+  isMechanicStoolCategory,
+} from "@/lib/mechanic-stool-classification"
 import { formatSnapshotLabelMonthEnd, normalizeSnapshotDate } from "@/lib/snapshot-date"
 import type { TypeSummarySection } from "@/lib/type-summaries"
 
@@ -437,6 +441,20 @@ async function loadSnapshotRecords(files: string[], categoryId?: NonCodeCategory
           hasInflator: classification.hasInflator,
           hasPowerStation: classification.hasPowerStation,
           voltageClass: classification.voltageClass,
+        }
+      }
+
+      if (isMechanicStoolCategory(categoryId)) {
+        const classification = classifyMechanicStoolProduct(record)
+        if (!classification.includeInCategory) {
+          continue
+        }
+        record.typeLabel = classification.typeLabel
+        record.categoryMetadata = {
+          isAdjustableHeight: classification.isAdjustableHeight,
+          hasBackrest: classification.hasBackrest,
+          storageType: classification.storageType,
+          materialLabel: classification.materialLabel,
         }
       }
 
