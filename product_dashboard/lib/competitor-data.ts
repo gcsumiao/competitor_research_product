@@ -236,9 +236,17 @@ function monthKeyFromDate(dateValue: string) {
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {
-  return isPostgresDashboardSource()
-    ? loadDashboardDataFromPostgres()
-    : loadDashboardDataFromFiles()
+  if (!isPostgresDashboardSource()) {
+    return loadDashboardDataFromFiles()
+  }
+
+  const postgresData = await loadDashboardDataFromPostgres()
+  if (!needsNonCodeDashboardFallback(postgresData)) {
+    return postgresData
+  }
+
+  const fileData = await loadDashboardDataFromFiles()
+  return mergeDashboardData(postgresData, fileData)
 }
 
 export async function loadOverviewDashboardData() {
@@ -496,6 +504,60 @@ export async function loadDashboardDataFromPostgres(): Promise<DashboardData> {
   return {
     categories: enabledCategories
       .map((category) => categories.get(category.id))
+      .filter((category): category is CategorySummary => Boolean(category)),
+  }
+}
+
+function needsNonCodeDashboardFallback(data: DashboardData) {
+  if (getDashboardDeploymentMode() !== "full") {
+    return false
+  }
+
+  const categoriesById = new Map(data.categories.map((category) => [category.id, category]))
+  return listNonCodeCategoryConfigs().some((category) => {
+    const existing = categoriesById.get(category.id)
+    return !existing || existing.snapshots.length === 0
+  })
+}
+
+function mergeDashboardData(primary: DashboardData, fallback: DashboardData): DashboardData {
+  const merged = new Map<CategoryId, CategorySummary>(
+    primary.categories.map((category) => [
+      category.id,
+      {
+        ...category,
+        snapshots: [...category.snapshots].sort((a, b) => a.date.localeCompare(b.date)),
+      },
+    ])
+  )
+
+  for (const category of fallback.categories) {
+    if (category.id === "code_reader_scanner") continue
+    const existing = merged.get(category.id)
+    if (!existing) {
+      merged.set(category.id, {
+        ...category,
+        snapshots: [...category.snapshots].sort((a, b) => a.date.localeCompare(b.date)),
+      })
+      continue
+    }
+
+    const snapshotsByDate = new Map(existing.snapshots.map((snapshot) => [snapshot.date, snapshot]))
+    for (const snapshot of category.snapshots) {
+      if (!snapshotsByDate.has(snapshot.date)) {
+        existing.snapshots.push(snapshot)
+      }
+    }
+    existing.snapshots.sort((a, b) => a.date.localeCompare(b.date))
+  }
+
+  const enabledCategories = CATEGORY_CONFIG.filter(
+    (category) => getDashboardDeploymentMode() === "full" || category.id === "code_reader_scanner"
+  )
+
+  return {
+    categories: enabledCategories
+      .map((category) => merged.get(category.id))
       .filter((category): category is CategorySummary => Boolean(category)),
   }
 }

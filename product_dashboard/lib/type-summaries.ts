@@ -34,9 +34,17 @@ export type CategoryTypeSummary = {
 const SUMMARY_SHEET_REGEX = /^Top\s?50.*Summary/i
 
 export async function loadTypeSummaries(): Promise<Record<CategoryId, CategoryTypeSummary | null>> {
-  return isPostgresDashboardSource()
-    ? loadTypeSummariesFromPostgresCached()
-    : loadTypeSummariesFromFiles()
+  if (!isPostgresDashboardSource()) {
+    return loadTypeSummariesFromFiles()
+  }
+
+  const postgresSummaries = await loadTypeSummariesFromPostgresCached()
+  if (!needsTypeSummaryFallback(postgresSummaries)) {
+    return postgresSummaries
+  }
+
+  const fileSummaries = await loadTypeSummariesFromFiles()
+  return mergeTypeSummaries(postgresSummaries, fileSummaries)
 }
 
 export async function loadTypeSummariesFromFiles(): Promise<Record<CategoryId, CategoryTypeSummary | null>> {
@@ -151,6 +159,27 @@ export async function loadTypeSummariesFromPostgres(): Promise<Record<CategoryId
   }
 
   return result
+}
+
+function needsTypeSummaryFallback(summaries: Record<CategoryId, CategoryTypeSummary | null>) {
+  if (getDashboardDeploymentMode() !== "full") {
+    return false
+  }
+
+  return listNonCodeCategoryIds().some((categoryId) => !summaries[categoryId])
+}
+
+function mergeTypeSummaries(
+  primary: Record<CategoryId, CategoryTypeSummary | null>,
+  fallback: Record<CategoryId, CategoryTypeSummary | null>
+) {
+  const merged = { ...primary }
+  for (const categoryId of listNonCodeCategoryIds()) {
+    if (!merged[categoryId] && fallback[categoryId]) {
+      merged[categoryId] = fallback[categoryId]
+    }
+  }
+  return merged
 }
 
 function parseMetadata(value: Record<string, unknown> | string | null) {

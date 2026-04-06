@@ -12,6 +12,7 @@ import {
   getNonCodeCategoryConfig,
   isConfiguredVisibleReport,
   isNonCodeCategoryId,
+  listNonCodeCategoryConfigs,
 } from "@/lib/non-code-category-config"
 
 export type ReportSource = CategoryId
@@ -31,9 +32,17 @@ const CODE_READER_FILES = ["report.xlsx", "analysis.xlsx"] as const
 const IGNORED_SOURCE_DIRS = new Set([".git", ".venv", "__pycache__", "_archive"])
 
 export async function loadReportFiles(): Promise<ReportFile[]> {
-  return isPostgresDashboardSource()
-    ? loadReportFilesFromPostgresCached()
-    : loadReportFilesFromFiles()
+  if (!isPostgresDashboardSource()) {
+    return loadReportFilesFromFiles()
+  }
+
+  const postgresReports = await loadReportFilesFromPostgresCached()
+  if (!needsReportFileFallback(postgresReports)) {
+    return postgresReports
+  }
+
+  const fileReports = await loadReportFilesFromFiles()
+  return mergeReportFiles(postgresReports, fileReports)
 }
 
 export async function loadReportFilesFromFiles(): Promise<ReportFile[]> {
@@ -237,6 +246,34 @@ export async function loadReportFilesFromPostgres(): Promise<ReportFile[]> {
     })
 }
 
+function needsReportFileFallback(reports: ReportFile[]) {
+  if (!isFullDashboardEnabled()) {
+    return false
+  }
+
+  const categoriesWithReports = new Set(
+    reports
+      .filter((report) => report.source !== "code_reader_scanner")
+      .map((report) => report.source)
+  )
+
+  return Array.from(categoriesWithReports).length === 0
+    || listConfiguredNonCodeCategoryIds().some((categoryId) => !categoriesWithReports.has(categoryId))
+}
+
+function mergeReportFiles(primary: ReportFile[], fallback: ReportFile[]) {
+  const merged = new Map(primary.map((report) => [`${report.source}:${report.relativePath}`, report]))
+  for (const report of fallback) {
+    if (report.source === "code_reader_scanner") continue
+    const key = `${report.source}:${report.relativePath}`
+    if (!merged.has(key)) {
+      merged.set(key, report)
+    }
+  }
+
+  return Array.from(merged.values()).sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt))
+}
+
 function parseMetadata(value: Record<string, unknown> | string | null) {
   if (!value) return {}
   if (typeof value === "string") {
@@ -256,4 +293,8 @@ function normalizeReportSource(categoryId: string | null): ReportSource {
   if (categoryId === "code_reader_scanner") return "code_reader_scanner"
   if (isNonCodeCategoryId(categoryId)) return categoryId
   return "code_reader_scanner"
+}
+
+function listConfiguredNonCodeCategoryIds() {
+  return listNonCodeCategoryConfigs().map((category) => category.id)
 }

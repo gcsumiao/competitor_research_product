@@ -39,17 +39,30 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unsupported file type" }, { status: 400 })
     }
     const artifact = await getSourceArtifactByPath(fileParam)
-    if (!artifact) {
+    if (artifact) {
+      return new NextResponse(new Uint8Array(artifact.content), {
+        headers: {
+          "Content-Type": artifact.mediaType,
+          "Content-Disposition": `attachment; filename="${artifact.fileName}"`,
+        },
+      })
+    }
+
+    if (sourceParam === "code_reader_scanner") {
       return NextResponse.json({ error: "File not found" }, { status: 404 })
     }
-    return new NextResponse(new Uint8Array(artifact.content), {
-      headers: {
-        "Content-Type": artifact.mediaType,
-        "Content-Disposition": `attachment; filename="${artifact.fileName}"`,
-      },
-    })
+
+    return readReportFromFilesystem(fileParam, sourceParam)
   }
 
+  return readReportFromFilesystem(fileParam, sourceParam)
+}
+
+function isPathInside(baseDir: string, filePath: string) {
+  return filePath === baseDir || filePath.startsWith(`${baseDir}${path.sep}`)
+}
+
+async function readReportFromFilesystem(fileParam: string, sourceParam: ReportSource) {
   const baseDir = resolveBaseDir(sourceParam)
   if (!baseDir) {
     return NextResponse.json({ error: "Report source unavailable" }, { status: 404 })
@@ -76,8 +89,4 @@ export async function GET(request: Request) {
   } catch {
     return NextResponse.json({ error: "File not found" }, { status: 404 })
   }
-}
-
-function isPathInside(baseDir: string, filePath: string) {
-  return filePath === baseDir || filePath.startsWith(`${baseDir}${path.sep}`)
 }
