@@ -376,6 +376,10 @@ const CATEGORY_KEYWORD_BOOSTS: Partial<Record<CategoryId, Array<{ intent: ChatIn
     { intent: "feature_analysis", terms: ["backrest", "adjustable height", "tool tray", "drawer", "material"] },
     { intent: "product_type_mix", terms: ["creeper", "z-creeper", "low-profile", "tall shop stool", "rolling stool"] },
   ],
+  backpack: [
+    { intent: "feature_analysis", terms: ["rolling backpack", "laptop compartment", "molded base", "weight", "height", "bsr"] },
+    { intent: "product_type_mix", terms: ["tool backpack", "welder backpack", "electrician backpack", "hvac backpack", "tech backpack"] },
+  ],
 }
 
 export function detectIntent(message: string, categoryId?: CategoryId): IntentDetection {

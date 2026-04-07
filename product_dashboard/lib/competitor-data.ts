@@ -14,6 +14,10 @@ import {
   type NonCodeCategoryId,
 } from "@/lib/non-code-category-config"
 import {
+  classifyBackpackProduct,
+  isBackpackCategory,
+} from "@/lib/backpack-classification"
+import {
   averagePriceForCategory,
   classifyJumpStarterProduct,
   isJumpStartersCategory,
@@ -188,9 +192,23 @@ export type RawRecord = {
   subcategory?: string
   url?: string
   imageUrl?: string
+  bsr?: number
+  subcategoryBsr?: number
+  shippingDetails?: string
+  length?: number
+  width?: number
+  height?: number
+  weight?: number
+  bestSalesPeriod?: string
+  listingAgeMonths?: number
+  imageCount?: number
+  variationCount?: number
+  lastYearSales?: number
+  salesYearOverYearPct?: number
+  salesToReviews?: number
   typeLabel?: string
   excludeFromAvgPrice?: boolean
-  categoryMetadata?: Record<string, string | boolean>
+  categoryMetadata?: Record<string, string | number | boolean | null>
 }
 
 type CsvCategoryConfig = {
@@ -422,10 +440,57 @@ async function loadSnapshotRecords(files: string[], categoryId?: NonCodeCategory
         reviewCount: parseNumber(getValue("Review Count")),
         rating: parseNumber(getValue("Reviews Rating")),
         fulfillment: getValue("Fulfillment").trim() || undefined,
-        sizeTier: getValue("Size Tier").trim() || undefined,
+        sizeTier: getValue("Size Tier").trim() || getValue("Shipping Details").trim() || undefined,
         subcategory: getValue("Subcategory").trim() || undefined,
         url: getValue("URL").trim() || undefined,
         imageUrl: getValue("Image URL").trim() || undefined,
+        bsr: parseOptionalNumber(getValue("BSR")),
+        subcategoryBsr: parseOptionalNumber(getValue("Subcategory BSR")),
+        shippingDetails: getValue("Shipping Details").trim() || undefined,
+        length: parseOptionalNumber(getValue("Length")),
+        width: parseOptionalNumber(getValue("Width")),
+        height: parseOptionalNumber(getValue("Height")),
+        weight: parseOptionalNumber(getValue("Weight")),
+        bestSalesPeriod: getValue("Best Sales Period").trim() || undefined,
+        listingAgeMonths: parseOptionalNumber(getValue("Listing Age (Months)")),
+        imageCount: parseOptionalNumber(getValue("Number of Images")),
+        variationCount: parseOptionalNumber(getValue("Variation Count")),
+        lastYearSales: parseOptionalNumber(getValue("Last Year Sales")),
+        salesYearOverYearPct: parseOptionalNumber(getValue("Sales Year Over Year (%)")),
+        salesToReviews: parseOptionalNumber(getValue("Sales to Reviews")),
+      }
+
+      if (isBackpackCategory(categoryId)) {
+        const classification = classifyBackpackProduct(record)
+        if (!classification.includeInCategory) {
+          continue
+        }
+        record.typeLabel = classification.typeLabel
+        record.categoryMetadata = {
+          tradeFocus: classification.tradeFocus,
+          isRolling: classification.isRolling,
+          hasLaptopCompartment: classification.hasLaptopCompartment,
+          baseStyle: classification.baseStyle,
+          shippingTier: classification.shippingTier,
+          heightBand: classification.heightBand,
+          weightBand: classification.weightBand,
+          bestSalesSeason: classification.bestSalesSeason,
+          bsrTier: classification.bsrTier,
+          bsr: record.bsr ?? null,
+          subcategoryBsr: record.subcategoryBsr ?? null,
+          shippingDetails: record.shippingDetails ?? null,
+          length: record.length ?? null,
+          width: record.width ?? null,
+          height: record.height ?? null,
+          weight: record.weight ?? null,
+          bestSalesPeriod: record.bestSalesPeriod ?? null,
+          listingAgeMonths: record.listingAgeMonths ?? null,
+          imageCount: record.imageCount ?? null,
+          variationCount: record.variationCount ?? null,
+          lastYearSales: record.lastYearSales ?? null,
+          salesYearOverYearPct: record.salesYearOverYearPct ?? null,
+          salesToReviews: record.salesToReviews ?? null,
+        }
       }
 
       if (isJumpStartersCategory(categoryId)) {
@@ -711,6 +776,8 @@ function buildSnapshotSummary(date: string, records: RawRecord[], categoryId?: N
     price: record.price,
     revenue: record.asinRevenue,
     units: record.asinSales,
+    monthlyRevenue: record.asinRevenue,
+    monthlyUnits: record.asinSales,
     reviewCount: record.reviewCount,
     rating: record.rating,
     fulfillment: record.fulfillment,
@@ -879,4 +946,13 @@ function parseNumber(value: string): number {
   }
   const parsed = Number(cleaned)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function parseOptionalNumber(value: string): number | undefined {
+  const cleaned = value.replace(/[$,%]/g, "").trim()
+  if (!cleaned || cleaned.toLowerCase() === "n/a" || cleaned === "-") {
+    return undefined
+  }
+  const parsed = Number(cleaned)
+  return Number.isFinite(parsed) ? parsed : undefined
 }

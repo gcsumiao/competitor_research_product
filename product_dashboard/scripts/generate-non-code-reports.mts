@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url"
 
 import * as XLSX from "xlsx"
 
+import { classifyBackpackProduct } from "../lib/backpack-classification.ts"
 import {
   loadCsvCategorySnapshotRecords,
   type RawRecord,
@@ -100,6 +101,27 @@ const MECHANIC_STOOL_FEATURE_HEADERS = [
   "Material",
   "Subcategory",
   "Size Tier",
+] as const
+
+const BACKPACK_FEATURE_HEADERS = [
+  "Trade Focus",
+  "Is Rolling",
+  "Has Laptop Compartment",
+  "Base Style",
+  "Shipping Tier",
+  "BSR",
+  "Subcategory BSR",
+  "Length",
+  "Width",
+  "Height",
+  "Weight",
+  "Best Sales Period",
+  "Best Sales Season",
+  "Listing Age (Months)",
+  "Variation Count",
+  "Number of Images",
+  "Sales YoY %",
+  "Sales to Reviews",
 ] as const
 
 const THERMAL_DIMENSION_HEADERS = [
@@ -361,6 +383,9 @@ function orderedExtraColumns(categoryId: NonCodeCategoryId, values: Record<strin
   if (categoryId === "mechanic_stool") {
     return orderedColumns(values, MECHANIC_STOOL_FEATURE_HEADERS)
   }
+  if (categoryId === "backpack") {
+    return orderedColumns(values, BACKPACK_FEATURE_HEADERS)
+  }
   return values
 }
 
@@ -435,6 +460,29 @@ function buildTop50SummarySections(categoryId: NonCodeCategoryId, records: Enric
       buildSummarySection("Backrest", records, (record) => record.extraColumns.Backrest ?? "Unknown"),
       buildSummarySection("Storage Type", records, (record) => record.extraColumns["Storage Type"] ?? "Unknown"),
       buildSummarySection("Material", records, (record) => record.extraColumns.Material ?? "Unknown"),
+    ].filter((section) => section.rows.length > 0)
+  }
+
+  if (categoryId === "backpack") {
+    return [
+      buildSummarySection("Type", records, (record) => record.typeLabel),
+      buildSummarySection("Trade Focus", records, (record) => record.extraColumns["Trade Focus"] ?? "Unknown"),
+      buildSummarySection("Is Rolling", records, (record) => record.extraColumns["Is Rolling"] ?? "Unknown"),
+      buildSummarySection(
+        "Has Laptop Compartment",
+        records,
+        (record) => record.extraColumns["Has Laptop Compartment"] ?? "Unknown"
+      ),
+      buildSummarySection("Base Style", records, (record) => record.extraColumns["Base Style"] ?? "Unknown"),
+      buildSummarySection("Shipping Tier", records, (record) => record.extraColumns["Shipping Tier"] ?? "Unknown"),
+      buildSummarySection("Height Band", records, (record) => classifyBackpackProduct(record).heightBand),
+      buildSummarySection("Weight Band", records, (record) => classifyBackpackProduct(record).weightBand),
+      buildSummarySection(
+        "Best Sales Season",
+        records,
+        (record) => record.extraColumns["Best Sales Season"] ?? "Unknown"
+      ),
+      buildSummarySection("BSR Tier", records, (record) => classifyBackpackProduct(record).bsrTier),
     ].filter((section) => section.rows.length > 0)
   }
 
@@ -600,6 +648,34 @@ function enrichRecord(categoryId: NonCodeCategoryId, record: RawRecord): Enriche
         Material: mechanicStool.materialLabel,
         Subcategory: record.subcategory ?? "",
         "Size Tier": record.sizeTier ?? "",
+      },
+    }
+  }
+
+  if (categoryId === "backpack") {
+    const backpack = classifyBackpackProduct(record)
+    return {
+      ...record,
+      typeLabel: backpack.typeLabel,
+      extraColumns: {
+        "Trade Focus": backpack.tradeFocus,
+        "Is Rolling": yesNo(backpack.isRolling),
+        "Has Laptop Compartment": yesNo(backpack.hasLaptopCompartment),
+        "Base Style": backpack.baseStyle,
+        "Shipping Tier": backpack.shippingTier,
+        BSR: integerCell(record.bsr),
+        "Subcategory BSR": integerCell(record.subcategoryBsr),
+        Length: metricCell(record.length),
+        Width: metricCell(record.width),
+        Height: metricCell(record.height),
+        Weight: metricCell(record.weight),
+        "Best Sales Period": record.bestSalesPeriod ?? "Unknown",
+        "Best Sales Season": backpack.bestSalesSeason,
+        "Listing Age (Months)": integerCell(record.listingAgeMonths),
+        "Variation Count": integerCell(record.variationCount),
+        "Number of Images": integerCell(record.imageCount),
+        "Sales YoY %": metricCell(record.salesYearOverYearPct),
+        "Sales to Reviews": metricCell(record.salesToReviews),
       },
     }
   }
@@ -834,6 +910,16 @@ function round4(value: number) {
 
 function trimDecimal(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
+}
+
+function integerCell(value: number | null | undefined) {
+  if (!Number.isFinite(value) || value === undefined || value === null) return "Unknown"
+  return `${Math.round(value)}`
+}
+
+function metricCell(value: number | null | undefined) {
+  if (!Number.isFinite(value) || value === undefined || value === null) return "Unknown"
+  return `${round2(value)}`
 }
 
 function parseArgs(argv: string[]): CliArgs {

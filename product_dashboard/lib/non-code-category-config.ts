@@ -98,6 +98,19 @@ const MECHANIC_STOOL_QUESTIONS = {
   competitive_gaps: ["Where are the best whitespace opportunities across mechanic stool types and storage-feature combinations?"],
 }
 
+const BACKPACK_QUESTIONS = {
+  market_size: ["How large is the tool backpack market this month?"],
+  product_type_mix: [
+    "How is revenue split across standard tool backpacks, rolling tool backpacks, tech/laptop tool backpacks, and welder/specialty trade backpacks?",
+  ],
+  feature_analysis: [
+    "What premium do rolling and laptop-compartment tool backpacks command versus standard tool backpacks?",
+    "How do shipping tier, height, and weight bands relate to price and monthly revenue in tool backpacks?",
+  ],
+  brand_comparison: ["Compare Klein Tools, Veto, DEWALT, and CLC on share, pricing, and backpack type mix."],
+  competitive_gaps: ["Where are the strongest whitespace opportunities across trade focus, backpack size, and base-style combinations?"],
+}
+
 export const NON_CODE_CATEGORY_CONFIGS = [
   {
     id: "dmm",
@@ -298,6 +311,37 @@ export const NON_CODE_CATEGORY_CONFIGS = [
       },
     ],
     starterQuestions: MECHANIC_STOOL_QUESTIONS,
+    specsMode: "generic",
+  },
+  {
+    id: "backpack",
+    label: "Tool Backpack",
+    folderName: "Backpack",
+    sourceWorkbook: {
+      mode: "latest_match",
+      relativeDir: "outputs",
+      filePattern: /^Tool_Backpack_Market_Analysis.*\.xlsx$/i,
+    },
+    typeSummarySources: [
+      {
+        mode: "latest_match",
+        relativeDir: "outputs",
+        filePattern: /^\d{2}-\d{2}-\d{2} .*Tool Backpack.*\.xlsx$/i,
+      },
+      {
+        mode: "latest_match",
+        relativeDir: "outputs",
+        filePattern: /^Tool_Backpack_Market_Analysis.*\.xlsx$/i,
+      },
+    ],
+    visibleReports: [
+      {
+        mode: "all_matches",
+        relativeDir: "outputs",
+        filePattern: /^\d{2}-\d{2}-\d{2} .*Tool Backpack.*\.xlsx$/i,
+      },
+    ],
+    starterQuestions: BACKPACK_QUESTIONS,
     specsMode: "generic",
   },
 ] as const satisfies readonly NonCodeCategoryConfig[]
