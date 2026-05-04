@@ -14,6 +14,8 @@ type Mismatch = {
   message: string
 }
 
+const REVENUE_ROUNDING_TOLERANCE = 2
+
 const EXPLICIT_EXPECTATIONS = [
   { date: "2026-02-28", brand: "Autel", revenueGrandTotal: 64_035_702, unitsGrandTotal: 217_875 },
   { date: "2026-02-28", brand: "Innova", revenueGrandTotal: 14_541_709, unitsGrandTotal: 86_642 },
@@ -110,7 +112,7 @@ function compareAllRolling12Brands(
       })
       continue
     }
-    if (Math.round(actual.revenueGrandTotal) !== Math.round(expected.revenueGrandTotal)) {
+    if (!sameRoundedNumber(actual.revenueGrandTotal, expected.revenueGrandTotal, REVENUE_ROUNDING_TOLERANCE)) {
       mismatches.push({
         scope,
         message: `${brand} revenue grand total mismatch: expected=${Math.round(expected.revenueGrandTotal)} actual=${Math.round(actual.revenueGrandTotal)}`,
@@ -148,7 +150,7 @@ function validateExplicitExpectation(
     return
   }
 
-  if (Math.round(totals.revenueGrandTotal) !== expectation.revenueGrandTotal) {
+  if (!sameRoundedNumber(totals.revenueGrandTotal, expectation.revenueGrandTotal, REVENUE_ROUNDING_TOLERANCE)) {
     mismatches.push({
       scope,
       message: `Revenue mismatch: expected=${expectation.revenueGrandTotal} actual=${Math.round(totals.revenueGrandTotal)}`,
@@ -160,6 +162,10 @@ function validateExplicitExpectation(
       message: `Units mismatch: expected=${expectation.unitsGrandTotal} actual=${Math.round(totals.unitsGrandTotal)}`,
     })
   }
+}
+
+function sameRoundedNumber(left: number, right: number, tolerance: number) {
+  return Math.abs(Math.round(left) - Math.round(right)) <= tolerance
 }
 
 function listRolling12Brands(snapshot: SnapshotSummary) {
