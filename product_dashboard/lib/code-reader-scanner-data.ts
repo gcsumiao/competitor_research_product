@@ -338,9 +338,13 @@ function parseRollingSection(rows: string[][], headerIndex: number): ParsedRolli
     const monthly = values[values.length - 1] ?? 0
     const computedGrandTotal = values.reduce((sum, value) => sum + value, 0)
     const grandTotalCell = grandTotalCol >= 0 ? getCell(row, grandTotalCol).trim() : ""
-    const grandTotal =
+    const parsedGrandTotal =
       grandTotalCell && grandTotalCell.toLowerCase() !== "n/a"
         ? parseNumber(grandTotalCell)
+        : null
+    const grandTotal =
+      parsedGrandTotal && parsedGrandTotal !== 0
+        ? parsedGrandTotal
         : computedGrandTotal
 
     const parsedRow: RollingRow = {
@@ -1099,7 +1103,7 @@ function toRollingMetric(section: ParsedRollingSection | undefined): Rolling12Me
   if (!section || !section.brandRows.length) return undefined
 
   const sortedBrands = [...section.brandRows]
-    .sort((a, b) => b.grandTotal - a.grandTotal)
+    .sort((a, b) => b.monthly - a.monthly)
     .map((row, index) => ({
       brand: row.brand,
       monthly: row.monthly,

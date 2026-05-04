@@ -70,6 +70,8 @@ async function main() {
 
     compareAllRolling12Brands(`adjusted.${directSnapshot.date}.file`, directSnapshot, fileSnapshot, mismatches)
     compareAllRolling12Brands(`adjusted.${directSnapshot.date}.postgres`, directSnapshot, postgresSnapshot, mismatches)
+    compareRolling12OrderAndRanks(`adjusted.${directSnapshot.date}.file`, directSnapshot, fileSnapshot, mismatches)
+    compareRolling12OrderAndRanks(`adjusted.${directSnapshot.date}.postgres`, directSnapshot, postgresSnapshot, mismatches)
   }
 
   for (const expectation of EXPLICIT_EXPECTATIONS) {
@@ -122,6 +124,57 @@ function compareAllRolling12Brands(
       mismatches.push({
         scope,
         message: `${brand} units grand total mismatch: expected=${Math.round(expected.unitsGrandTotal)} actual=${Math.round(actual.unitsGrandTotal)}`,
+      })
+    }
+  }
+}
+
+function compareRolling12OrderAndRanks(
+  scope: string,
+  expectedSnapshot: SnapshotSummary,
+  actualSnapshot: SnapshotSummary,
+  mismatches: Mismatch[]
+) {
+  compareRolling12MetricOrder("revenue", scope, expectedSnapshot, actualSnapshot, mismatches)
+  compareRolling12MetricOrder("units", scope, expectedSnapshot, actualSnapshot, mismatches)
+}
+
+function compareRolling12MetricOrder(
+  metric: "revenue" | "units",
+  scope: string,
+  expectedSnapshot: SnapshotSummary,
+  actualSnapshot: SnapshotSummary,
+  mismatches: Mismatch[]
+) {
+  const expectedRows = metric === "revenue"
+    ? expectedSnapshot.rolling12?.revenue?.brands ?? []
+    : expectedSnapshot.rolling12?.units?.brands ?? []
+  const actualRows = metric === "revenue"
+    ? actualSnapshot.rolling12?.revenue?.brands ?? []
+    : actualSnapshot.rolling12?.units?.brands ?? []
+
+  if (expectedRows.length !== actualRows.length) {
+    mismatches.push({
+      scope,
+      message: `${metric} rolling 12 row count mismatch: expected=${expectedRows.length} actual=${actualRows.length}`,
+    })
+  }
+
+  const maxRows = Math.min(expectedRows.length, actualRows.length)
+  for (let index = 0; index < maxRows; index += 1) {
+    const expected = expectedRows[index]
+    const actual = actualRows[index]
+    if (normalizeBrandForOrder(expected.brand) !== normalizeBrandForOrder(actual.brand)) {
+      mismatches.push({
+        scope,
+        message: `${metric} rolling 12 rank ${index + 1} brand mismatch: expected=${expected.brand} actual=${actual.brand}`,
+      })
+      continue
+    }
+    if (actual.rank !== expected.rank) {
+      mismatches.push({
+        scope,
+        message: `${metric} rolling 12 ${expected.brand} rank mismatch: expected=${expected.rank} actual=${actual.rank}`,
       })
     }
   }
@@ -182,6 +235,10 @@ function listRolling12Brands(snapshot: SnapshotSummary) {
     ordered.push(brand)
   }
   return ordered
+}
+
+function normalizeBrandForOrder(value: string) {
+  return value.trim().toLowerCase()
 }
 
 main()

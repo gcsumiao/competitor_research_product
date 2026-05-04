@@ -1425,14 +1425,13 @@ def _fill_report_workbook(
             keys = [f"{key_prefix}-{i}" for i in range(11, 0, -1)] + [key_prefix]
             total_src = next((r for r in rows if _norm(r.get("Brand", "")) == "total"), None)
             total_market_src = next((r for r in rows if _norm(r.get("Brand", "")) == "total market"), None)
-            grand_total_key = "Grand Total Revenue" if key_prefix == "Monthly Revenue" else "Grand Total Units"
             top_rows = [
                 r for r in rows
                 if _norm(r.get("Brand", "")) not in {"", "total", "total market"}
             ]
             top_rows = sorted(
                 top_rows,
-                key=lambda r: _coerce_number(r.get(grand_total_key)) or 0,
+                key=lambda r: _coerce_number(r.get(key_prefix)) or 0,
                 reverse=True,
             )[:25]
 
