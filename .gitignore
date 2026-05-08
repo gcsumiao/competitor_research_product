@@ -31,7 +31,14 @@ _archive/
 .vscode/
 *.swp
 *.swo
+~$*.xlsx
+.~lock*.xlsx#
 
 # Optional local scratch
 tmp/
 cache/
+output/
+.playwright-cli/
+.playwright-mcp/
+.skill_build/
+code-reader-dashboard-local.png
