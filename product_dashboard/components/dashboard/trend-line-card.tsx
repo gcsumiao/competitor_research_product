@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+import type { TooltipProps } from "recharts"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -51,15 +52,10 @@ export function TrendLineCard({
   const chartId = useId().replace(/:/g, "")
   const formatValue = formatter ?? ((value: number) => value.toLocaleString())
   const formatAxisValue = axisFormatter ?? formatValue
-  const renderTooltip = (props: any) => {
-    const { active, label, payload } = props as {
-      active?: boolean
-      label?: string
-      payload?: Array<{ payload?: TrendLineDatum }>
-    }
+  const renderTooltip = ({ active, label, payload }: TooltipProps<number, string>) => {
     if (!active || !payload?.length) return null
 
-    const datum = payload[0]?.payload
+    const datum = payload[0]?.payload as TrendLineDatum | undefined
     if (!datum) return null
 
     const tooltipRows =

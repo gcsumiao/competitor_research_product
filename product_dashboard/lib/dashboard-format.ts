@@ -44,19 +44,11 @@ export function formatCurrency(value: number, decimals = 1) {
 }
 
 export function formatCurrencyCompact(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)
+  return `${value < 0 ? "-" : ""}$${formatCompactMagnitude(Math.abs(value))}`
 }
 
 export function formatNumberCompact(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)
+  return `${value < 0 ? "-" : ""}${formatCompactMagnitude(Math.abs(value))}`
 }
 
 export function formatPercent(value: number, decimals = 1) {
@@ -87,4 +79,18 @@ export function formatDeltaLabel(current: number, previous?: number) {
 export function truncateLabel(label: string, maxLength: number) {
   if (label.length <= maxLength) return label
   return `${label.slice(0, maxLength - 3)}...`
+}
+
+function formatCompactMagnitude(value: number) {
+  if (!Number.isFinite(value)) return "0"
+  if (value >= 1_000_000_000) return `${trimCompactDecimal(value / 1_000_000_000)}B`
+  if (value >= 1_000_000) return `${trimCompactDecimal(value / 1_000_000)}M`
+  if (value >= 1_000) return `${trimCompactDecimal(value / 1_000)}K`
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+function trimCompactDecimal(value: number) {
+  return value.toFixed(1).replace(/\.0$/, "")
 }

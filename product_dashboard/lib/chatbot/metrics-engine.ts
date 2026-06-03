@@ -465,9 +465,7 @@ function runAnalyzer(
     const rolling12Previous = singleBrand
       ? getBrandRolling12GrandTotals(mart.previous, singleBrand.brand)
       : null
-    const requestedRolling12 =
-      /\b(rolling 12|rolling12|12 month|12-month|grand total)\b/.test(params.parsed.normalized) ||
-      params.parsed.plan.historicalWindow === "12m"
+    const requestedRolling12 = isExplicitRolling12Request(params.parsed.normalized)
 
     if (requestedRolling12 && !singleBrand) {
       const rolling12Brands = listRolling12Brands(mart.snapshot)
@@ -510,9 +508,13 @@ function runAnalyzer(
           ? `${singleBrand.brand} Rolling 12 grand total is ${formatCurrency(rolling12Current.revenueGrandTotal)} revenue and ${formatNumber(rolling12Current.unitsGrandTotal)} units.`
           : `${labelForScope(params.scope)} delivered ${formatCurrency(currentRevenue)} monthly revenue and ${formatNumber(currentUnits)} units (${formatPercent(ratio(currentRevenue, prevRevenue))} revenue MoM).`,
       bullets: [
-        singleBrand && rolling12Current
-          ? `Rolling 12 grand total: ${formatCurrency(rolling12Current.revenueGrandTotal)} revenue and ${formatNumber(rolling12Current.unitsGrandTotal)} units (${formatPercent(ratio(rolling12Current.revenueGrandTotal, rolling12Previous?.revenueGrandTotal ?? 0))} revenue change vs previous snapshot).`
-          : `Rolling 12 grand total is unavailable for this scope.`,
+        ...(singleBrand && rolling12Current
+          ? [
+              `Rolling 12 grand total: ${formatCurrency(rolling12Current.revenueGrandTotal)} revenue and ${formatNumber(rolling12Current.unitsGrandTotal)} units (${formatPercent(ratio(rolling12Current.revenueGrandTotal, rolling12Previous?.revenueGrandTotal ?? 0))} revenue change vs previous snapshot).`,
+            ]
+          : requestedRolling12
+            ? ["Rolling 12 grand total is unavailable for this scope."]
+            : []),
         singleBrand
           ? `${singleBrand.brand} rank is #${revenueRank ?? "n/a"} by revenue and #${unitsRank ?? "n/a"} by units.`
           : `Current scope includes ${currentRows.length} brands in this snapshot.`,
@@ -1230,9 +1232,7 @@ function analyzeBrandComparison(params: AnalyzerParams): AnalyzerOutput {
   const unitsGap = left.units - right.units
   const leftRolling12 = getBrandRolling12GrandTotals(mart.snapshot, left.brand)
   const rightRolling12 = getBrandRolling12GrandTotals(mart.snapshot, right.brand)
-  const rolling12Requested =
-    /\b(rolling 12|rolling12|12 month|12-month|grand total)\b/.test(params.parsed.normalized) ||
-    params.parsed.plan.historicalWindow === "12m"
+  const rolling12Requested = isExplicitRolling12Request(params.parsed.normalized)
 
   return {
     answer:
@@ -1858,6 +1858,10 @@ function describeTrend(value: number | null) {
   if (value >= 0.08) return "growing"
   if (value <= -0.08) return "declining"
   return "stable"
+}
+
+function isExplicitRolling12Request(normalized: string) {
+  return /\b(rolling 12|rolling12|12 month|12-month|grand total)\b/.test(normalized)
 }
 
 function unique(values: string[]) {
