@@ -60,6 +60,11 @@ export const CODE_READER_ADJUSTED_HISTORY: CodeReaderAdjustedHistoryEntry[] = [
     reportRelativePath: "Amazon_Monthly_Competitor_Report copy/26-04-reports/26-05-04 Amazon Competitor Report April Innova Adjusted.xlsx",
     analysisRelativePath: "Amazon_Monthly_Competitor_Report copy/26-04-reports/26-05-04 Amazon Competitor Analysis April.xlsx",
   },
+  {
+    month: "202605",
+    reportRelativePath: "product_dashboard/data/code_reader_scanner/202605/report.xlsx",
+    analysisRelativePath: "product_dashboard/data/code_reader_scanner/202605/analysis.xlsx",
+  },
 ]
 
 export function resolveCodeReaderAdjustedHistoryPaths(workspaceRoot?: string) {

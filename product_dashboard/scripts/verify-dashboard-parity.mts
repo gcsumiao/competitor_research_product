@@ -32,6 +32,8 @@ const CODE_READER_GRAND_TOTAL_EXPECTATIONS = [
   },
 ] as const
 
+const CODE_READER_ROLLING12_PARITY_START_DATE = "2026-05-31"
+
 async function main() {
   process.env.DASHBOARD_DEPLOYMENT_MODE ||= "full"
 
@@ -148,6 +150,68 @@ function compareSnapshot(
     (postgresSnapshot.qualityIssues ?? []).map((item) => `${item.code}:${item.severity}`),
     mismatches
   )
+
+  if (
+    categoryId === "code_reader_scanner" &&
+    fileSnapshot.date >= CODE_READER_ROLLING12_PARITY_START_DATE
+  ) {
+    compareRolling12Metric(scope, "revenue", fileSnapshot, postgresSnapshot, mismatches)
+    compareRolling12Metric(scope, "units", fileSnapshot, postgresSnapshot, mismatches)
+  }
+}
+
+function compareRolling12Metric(
+  scope: string,
+  metric: "revenue" | "units",
+  fileSnapshot: SnapshotSummary,
+  postgresSnapshot: SnapshotSummary,
+  mismatches: Mismatch[]
+) {
+  const fileRows = getRolling12Rows(fileSnapshot, metric)
+  const postgresRows = getRolling12Rows(postgresSnapshot, metric)
+  const metricScope = `${scope}.rolling12.${metric}`
+
+  if (fileRows.length !== postgresRows.length) {
+    mismatches.push({
+      scope: metricScope,
+      message: `Length mismatch: file=${fileRows.length} postgres=${postgresRows.length}`,
+    })
+  }
+
+  const maxRows = Math.min(fileRows.length, postgresRows.length)
+  for (let index = 0; index < maxRows; index += 1) {
+    const fileRow = fileRows[index]
+    const postgresRow = postgresRows[index]
+    const rowScope = `${metricScope}.rank${index + 1}`
+
+    if (fileRow.brand !== postgresRow.brand) {
+      mismatches.push({
+        scope: rowScope,
+        message: `Brand order mismatch: file=${fileRow.brand} postgres=${postgresRow.brand}`,
+      })
+    }
+
+    if (fileRow.rank !== postgresRow.rank) {
+      mismatches.push({
+        scope: rowScope,
+        message: `Rank mismatch for ${fileRow.brand}: file=${fileRow.rank} postgres=${postgresRow.rank}`,
+      })
+    }
+
+    compareNumber(
+      rowScope,
+      `${fileRow.brand}.grandTotal`,
+      fileRow.grandTotal,
+      postgresRow.grandTotal,
+      mismatches
+    )
+  }
+}
+
+function getRolling12Rows(snapshot: SnapshotSummary, metric: "revenue" | "units") {
+  return metric === "revenue"
+    ? snapshot.rolling12?.revenue?.brands ?? []
+    : snapshot.rolling12?.units?.brands ?? []
 }
 
 function compareReports(
