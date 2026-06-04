@@ -1103,7 +1103,7 @@ function toRollingMetric(section: ParsedRollingSection | undefined): Rolling12Me
   if (!section || !section.brandRows.length) return undefined
 
   const sortedBrands = [...section.brandRows]
-    .sort((a, b) => b.monthly - a.monthly)
+    .sort((a, b) => b.grandTotal - a.grandTotal)
     .map((row, index) => ({
       brand: row.brand,
       monthly: row.monthly,
