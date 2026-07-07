@@ -1,0 +1,4 @@
+﻿Program=[Retail],Distributor View=[Manufacturing],View By=[ASIN],Countries=[US],Businesses=[Equus Products, Inc.],Locale=[en_US],Currency=[USD],Search for ASINs=[B001O1X65A;B000EVYGZA;B000KIMHRQ],Reporting Range=[Custom],Viewing Range=[4/1/25 - 5/1/25],Report Updated=[4/11/26]
+ASIN,"Product Title",Brand,"Ordered Revenue","Ordered Units","Shipped Revenue","Shipped COGS","Shipped Units","Customer Returns"
+B000EVYGZA,"INNOVA 3320 Auto-Ranging Digital Multimeter, Red & Black",Innova,"$15,392.15",484,"$15,464.78","$7,568.61",483,16
+B000KIMHRQ,"Innova 3340 Professional Automotive Digital Multimeter, Black",Innova,"$6,442.12",92,"$6,512.11","$5,241.48",93,6
