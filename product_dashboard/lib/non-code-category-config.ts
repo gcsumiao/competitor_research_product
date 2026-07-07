@@ -111,6 +111,28 @@ const BACKPACK_QUESTIONS = {
   competitive_gaps: ["Where are the strongest whitespace opportunities across trade focus, backpack size, and base-style combinations?"],
 }
 
+const OIL_QUESTIONS = {
+  market_size: ["How large is the automotive oil and fluids market this month?"],
+  top_products: ["Which oil and fluid ASINs lead by revenue and by units?"],
+  product_type_mix: [
+    "How is revenue split across motor oils, additives, coolants, cleaners, lubricants, refrigerants, and specialty fluids?",
+  ],
+  price_range: ["Which price bands capture the most revenue and unit demand in automotive oil and fluids?"],
+  brand_comparison: ["How does Liqui Moly perform versus the broader oil and fluids market?"],
+  competitive_gaps: ["Where are the strongest whitespace opportunities across oil and fluid product types?"],
+}
+
+const STETHOSCOPE_QUESTIONS = {
+  market_size: ["How large is the automotive diagnostic noise finder market this month?"],
+  top_products: ["Which automotive noise diagnostic ASINs lead by revenue and by units?"],
+  product_type_mix: [
+    "How is revenue split across mechanical stethoscopes, electronic ears, and chassis ear noise finder tools?",
+  ],
+  price_range: ["Which price bands capture the most revenue and unit demand in automotive noise diagnostic tools?"],
+  brand_comparison: ["Which brands lead automotive diagnostic noise finder share this month?"],
+  competitive_gaps: ["Where are the strongest whitespace opportunities across noise finder diagnostic types?"],
+}
+
 export const NON_CODE_CATEGORY_CONFIGS = [
   {
     id: "dmm",
@@ -342,6 +364,78 @@ export const NON_CODE_CATEGORY_CONFIGS = [
       },
     ],
     starterQuestions: BACKPACK_QUESTIONS,
+    specsMode: "generic",
+  },
+  {
+    id: "oil",
+    label: "Automotive Oil & Fluids",
+    folderName: "oil",
+    sourceWorkbook: {
+      mode: "latest_match",
+      relativeDir: "outputs",
+      filePattern: /^Automotive_Oil_Fluids_Market_Analysis.*\.xlsx$/i,
+    },
+    typeSummarySources: [
+      {
+        mode: "latest_match",
+        relativeDir: "outputs",
+        filePattern: /^\d{2}-\d{2}-\d{2} .*Automotive Oil & Fluids.*\.xlsx$/i,
+      },
+      {
+        mode: "latest_match",
+        relativeDir: "outputs",
+        filePattern: /^Automotive_Oil_Fluids_Market_Analysis.*\.xlsx$/i,
+      },
+    ],
+    visibleReports: [
+      {
+        mode: "all_matches",
+        relativeDir: "outputs",
+        filePattern: /^\d{2}-\d{2}-\d{2} .*Automotive Oil & Fluids.*\.xlsx$/i,
+      },
+      {
+        mode: "all_matches",
+        relativeDir: "outputs",
+        filePattern: /^Automotive_Oil_Fluids_Market_Analysis.*\.xlsx$/i,
+      },
+    ],
+    starterQuestions: OIL_QUESTIONS,
+    specsMode: "generic",
+  },
+  {
+    id: "stethoscope",
+    label: "Automotive Diagnostic Noise Finder",
+    folderName: "stethoscope",
+    sourceWorkbook: {
+      mode: "latest_match",
+      relativeDir: "outputs",
+      filePattern: /^Automotive_Diagnostic_Noise_Finder_Market_Analysis.*\.xlsx$/i,
+    },
+    typeSummarySources: [
+      {
+        mode: "latest_match",
+        relativeDir: "outputs",
+        filePattern: /^\d{2}-\d{2}-\d{2} .*Automotive Diagnostic Noise Finder.*\.xlsx$/i,
+      },
+      {
+        mode: "latest_match",
+        relativeDir: "outputs",
+        filePattern: /^Automotive_Diagnostic_Noise_Finder_Market_Analysis.*\.xlsx$/i,
+      },
+    ],
+    visibleReports: [
+      {
+        mode: "all_matches",
+        relativeDir: "outputs",
+        filePattern: /^\d{2}-\d{2}-\d{2} .*Automotive Diagnostic Noise Finder.*\.xlsx$/i,
+      },
+      {
+        mode: "all_matches",
+        relativeDir: "outputs",
+        filePattern: /^Automotive_Diagnostic_Noise_Finder_Market_Analysis.*\.xlsx$/i,
+      },
+    ],
+    starterQuestions: STETHOSCOPE_QUESTIONS,
     specsMode: "generic",
   },
 ] as const satisfies readonly NonCodeCategoryConfig[]

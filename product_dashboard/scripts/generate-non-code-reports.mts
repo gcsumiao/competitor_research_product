@@ -1,4 +1,4 @@
-import { mkdir, readdir } from "node:fs/promises"
+import { mkdir, readFile, readdir } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -19,6 +19,8 @@ import {
   JUMP_STARTERS_ACCESSORY_TYPE_LABEL,
 } from "../lib/jump-starters-classification.ts"
 import { classifyMechanicStoolProduct } from "../lib/mechanic-stool-classification.ts"
+import { classifyOilProduct } from "../lib/oil-classification.ts"
+import { classifyStethoscopeProduct } from "../lib/stethoscope-classification.ts"
 import {
   getNonCodeCategoryConfig,
   isNonCodeCategoryId,
@@ -54,6 +56,21 @@ type Section = {
 type BrandDetailTab = {
   sheetName: string
   brandName: string
+  headers?: readonly string[]
+}
+
+type DuplicateAudit = {
+  totalRawRows: number
+  uniqueAsins: number
+  duplicateAsinGroups: number
+  duplicateExtraRows: number
+  duplicateRows: Array<{
+    asin: string
+    duplicateRowCount: number
+    keptRevenue: number
+    files: string
+    sampleTitle: string
+  }>
 }
 
 const __filename = fileURLToPath(import.meta.url)
@@ -65,6 +82,15 @@ const PRICE_TIERS = [
   { label: "$40-60", min: 40, max: 60 },
   { label: "$60-90", min: 60, max: 90 },
   { label: "$90+", min: 90, max: Number.POSITIVE_INFINITY },
+]
+
+const OIL_PRICE_TIERS = [
+  { label: "$0-20", min: 0, max: 20 },
+  { label: "$20-40", min: 20, max: 40 },
+  { label: "$40-80", min: 40, max: 80 },
+  { label: "$80-150", min: 80, max: 150 },
+  { label: "$150-250", min: 150, max: 250 },
+  { label: "$250+", min: 250, max: Number.POSITIVE_INFINITY },
 ]
 
 const BORESCOPE_DIMENSION_HEADERS = [
@@ -124,6 +150,25 @@ const BACKPACK_FEATURE_HEADERS = [
   "Sales to Reviews",
 ] as const
 
+const OIL_FEATURE_HEADERS = [
+  "Raw Subcategory",
+  "Product Family",
+  "Fluid Application",
+  "Viscosity / Grade",
+  "Pack Size",
+  "Seasonal Use",
+] as const
+
+const STETHOSCOPE_FEATURE_HEADERS = [
+  "Diagnostic Type",
+  "Electronic",
+  "Channel Count",
+  "Probe Count",
+  "Vehicle Context",
+  "Subcategory",
+  "Size Tier",
+] as const
+
 const THERMAL_DIMENSION_HEADERS = [
   "Phone adapted",
   "Basic Resolution",
@@ -150,6 +195,37 @@ const BRAND_DETAIL_HEADERS = [
   "Subcategory",
   "Size Tier",
 ] as const
+
+const OIL_BRAND_DETAIL_HEADERS = [
+  "ASIN",
+  "Title",
+  "Brand",
+  "Type",
+  "Price",
+  "Monthly Rev",
+  "Monthly Units",
+  "Avg Rating",
+  "# of Reviews",
+  "Link",
+  ...OIL_FEATURE_HEADERS,
+] as const
+
+const OIL_TYPE_SHEET_LABELS: Record<string, string> = {
+  "Air Conditioning Oils": "AC Oils",
+  "Antifreezes & Coolants": "Coolants",
+  "Brake Fluids": "Brake Fluids",
+  "Corrosion & Rust Inhibitors": "Rust Inhibitors",
+  "Gear Oils": "Gear Oils",
+  "Greases & Lubricants": "Greases-Lubes",
+  "Hydraulic Oils": "Hydraulic Oils",
+  "Motor Oils": "Motor Oils",
+  "Power Steering Fluids": "Power Steering",
+  "Radiator Conditioners & Protectants": "Radiator Protect",
+  "Refrigerants": "Refrigerants",
+  "Transmission Fluids": "Transmission",
+  "Windshield Washer Fluids": "Washer Fluids",
+  "Winter Products": "Winter Products",
+}
 
 const BASIC_RESOLUTION_REGEX = /\b(80x60|96x96|120x90|128x96|160x120|256x192|320x240)\b/i
 const SUPER_RESOLUTION_REGEX =
@@ -189,6 +265,7 @@ async function generateCategoryReports(params: {
 
   const rawMonthDir = path.join(rawDataDir, params.month)
   const runDate = await resolveLatestRunDate(rawMonthDir, snapshot.date)
+  const duplicateAudit = undefined
   const enrichedRecords = snapshot.records.map((record) => enrichRecord(params.categoryId, record))
   const topByRevenue = [...enrichedRecords].sort((a, b) => b.asinRevenue - a.asinRevenue).slice(0, 50)
   const topByUnits = [...enrichedRecords].sort((a, b) => b.asinSales - a.asinSales).slice(0, 50)
@@ -204,6 +281,7 @@ async function generateCategoryReports(params: {
     records: enrichedRecords,
     topByRevenue,
     topByUnits,
+    duplicateAudit,
   })
 
   const { analysisPath, formattedPath } = resolveOutputPaths({
@@ -231,10 +309,11 @@ function buildWorkbook(params: {
   records: EnrichedRecord[]
   topByRevenue: EnrichedRecord[]
   topByUnits: EnrichedRecord[]
+  duplicateAudit?: DuplicateAudit
 }) {
   const workbook = XLSX.utils.book_new()
 
-  const summaryRows = buildBrandSummary(params.records)
+  const summaryRows = buildBrandSummary(params.categoryId, params.records)
   const topRevenueRows = buildTopSheetRows(params.categoryId, params.topByRevenue)
   const topUnitsRows = buildTopSheetRows(params.categoryId, params.topByUnits)
   const summarySections = buildTop50SummarySections(params.categoryId, params.topByRevenue)
@@ -272,16 +351,75 @@ function buildWorkbook(params: {
   ])
   appendJsonSheet(workbook, "All ASINs", allRows)
   appendAoaSheet(workbook, "Metadata", metadataRows)
+  if (params.duplicateAudit) {
+    appendAoaSheet(workbook, "Duplicate Audit", buildDuplicateAuditSheetMatrix(params.duplicateAudit))
+  }
 
   for (const brandTab of resolveBrandDetailTabs(params.categoryId, params.month)) {
     const brandRows = allRows
       .filter((row) => normalizeBrandName(String(row.Brand ?? "")) === normalizeBrandName(brandTab.brandName))
       .sort((left, right) => Number(right["Monthly Rev"]) - Number(left["Monthly Rev"]))
 
-    appendJsonSheet(workbook, brandTab.sheetName, brandRows, [...BRAND_DETAIL_HEADERS])
+    appendJsonSheet(workbook, brandTab.sheetName, brandRows, [...(brandTab.headers ?? BRAND_DETAIL_HEADERS)])
   }
 
+  appendTypeTop50Sheets(workbook, params.categoryId, params.records)
+
   return workbook
+}
+
+function appendTypeTop50Sheets(workbook: XLSX.WorkBook, categoryId: NonCodeCategoryId, records: EnrichedRecord[]) {
+  if (categoryId !== "oil") return
+
+  const typeGroups = new Map<string, EnrichedRecord[]>()
+  for (const record of records) {
+    const typeLabel = record.typeLabel || "Other"
+    const group = typeGroups.get(typeLabel) ?? []
+    group.push(record)
+    typeGroups.set(typeLabel, group)
+  }
+
+  const orderedGroups = Array.from(typeGroups.entries())
+    .map(([typeLabel, group]) => ({
+      typeLabel,
+      group,
+      revenue: group.reduce((sum, record) => sum + record.asinRevenue, 0),
+    }))
+    .sort((left, right) => right.revenue - left.revenue || left.typeLabel.localeCompare(right.typeLabel))
+
+  const usedSheetNames = new Set(workbook.SheetNames)
+  for (const { typeLabel, group } of orderedGroups) {
+    const revenueRows = buildTopSheetRows(
+      categoryId,
+      group.slice().sort((left, right) => right.asinRevenue - left.asinRevenue).slice(0, 50)
+    )
+    const unitRows = buildTopSheetRows(
+      categoryId,
+      group.slice().sort((left, right) => right.asinSales - left.asinSales).slice(0, 50)
+    )
+
+    appendJsonSheet(workbook, makeTypeTop50SheetName("Rev", typeLabel, usedSheetNames), revenueRows)
+    appendJsonSheet(workbook, makeTypeTop50SheetName("Units", typeLabel, usedSheetNames), unitRows)
+  }
+}
+
+function makeTypeTop50SheetName(prefix: "Rev" | "Units", typeLabel: string, usedSheetNames: Set<string>) {
+  const fullPrefix = `Top50 ${prefix}`
+  const baseLabel = OIL_TYPE_SHEET_LABELS[typeLabel] ?? typeLabel
+  const normalizedBase = baseLabel.replace(/[\[\]:*?/\\]/g, "-").replace(/\s+/g, " ").trim()
+  const maxBaseLength = 31 - fullPrefix.length - 1
+  const truncatedBase = normalizedBase.slice(0, maxBaseLength).trim()
+  const baseName = `${fullPrefix} ${truncatedBase}`.slice(0, 31)
+
+  let sheetName = baseName
+  let suffix = 2
+  while (usedSheetNames.has(sheetName)) {
+    const suffixText = ` ${suffix}`
+    sheetName = `${baseName.slice(0, 31 - suffixText.length)}${suffixText}`
+    suffix += 1
+  }
+  usedSheetNames.add(sheetName)
+  return sheetName
 }
 
 function appendJsonSheet(workbook: XLSX.WorkBook, sheetName: string, rows: Record<string, unknown>[], headers?: string[]) {
@@ -303,19 +441,30 @@ function resolveBrandDetailTabs(categoryId: NonCodeCategoryId, month: string): B
       { sheetName: "Guide Sensmart", brandName: "Guide Sensmart" },
     ]
   }
+  if (categoryId === "oil") {
+    return [{ sheetName: "Liqui Moly", brandName: "Liqui Moly", headers: OIL_BRAND_DETAIL_HEADERS }]
+  }
   return []
 }
 
-function buildBrandSummary(records: EnrichedRecord[]) {
+function buildBrandSummary(categoryId: NonCodeCategoryId, records: EnrichedRecord[]) {
   const byBrand = new Map<
     string,
-    { listings: number; revenue: number; units: number; weightedRating: number; ratingWeight: number }
+    { brand: string; listings: number; revenue: number; units: number; weightedRating: number; ratingWeight: number }
   >()
   const totalRevenue = records.reduce((sum, record) => sum + record.asinRevenue, 0)
 
   for (const record of records) {
-    const key = record.brand || "Unknown"
-    const bucket = byBrand.get(key) ?? { listings: 0, revenue: 0, units: 0, weightedRating: 0, ratingWeight: 0 }
+    const brand = record.brand || "Unknown"
+    const key = categoryId === "oil" ? normalizeBrandName(brand) : brand
+    const bucket = byBrand.get(key) ?? {
+      brand: normalizeBrandDisplayName(brand),
+      listings: 0,
+      revenue: 0,
+      units: 0,
+      weightedRating: 0,
+      ratingWeight: 0,
+    }
     bucket.listings += 1
     bucket.revenue += record.asinRevenue
     bucket.units += record.asinSales
@@ -325,8 +474,8 @@ function buildBrandSummary(records: EnrichedRecord[]) {
   }
 
   const rows = Array.from(byBrand.entries())
-    .map(([brand, bucket]) => ({
-      Brand: brand,
+    .map(([, bucket]) => ({
+      Brand: bucket.brand,
       "# of Listings": bucket.listings,
       "Monthly Rev": round2(bucket.revenue),
       "Monthly Units": round2(bucket.units),
@@ -336,8 +485,9 @@ function buildBrandSummary(records: EnrichedRecord[]) {
     }))
     .sort((a, b) => Number(b["Monthly Rev"]) - Number(a["Monthly Rev"]))
 
+  const totalBrandLabel = rows.some((row) => normalizeBrandName(String(row.Brand)) === "total") ? "Grand Total" : "Total"
   rows.push({
-    Brand: "Total",
+    Brand: totalBrandLabel,
     "# of Listings": rows.reduce((sum, row) => sum + Number(row["# of Listings"]), 0),
     "Monthly Rev": round2(rows.reduce((sum, row) => sum + Number(row["Monthly Rev"]), 0)),
     "Monthly Units": round2(rows.reduce((sum, row) => sum + Number(row["Monthly Units"]), 0)),
@@ -385,6 +535,12 @@ function orderedExtraColumns(categoryId: NonCodeCategoryId, values: Record<strin
   }
   if (categoryId === "backpack") {
     return orderedColumns(values, BACKPACK_FEATURE_HEADERS)
+  }
+  if (categoryId === "oil") {
+    return orderedColumns(values, OIL_FEATURE_HEADERS)
+  }
+  if (categoryId === "stethoscope") {
+    return orderedColumns(values, STETHOSCOPE_FEATURE_HEADERS)
   }
   return values
 }
@@ -486,6 +642,42 @@ function buildTop50SummarySections(categoryId: NonCodeCategoryId, records: Enric
     ].filter((section) => section.rows.length > 0)
   }
 
+  if (categoryId === "oil") {
+    return [
+      buildSummarySection("Type", records, (record) => record.typeLabel),
+      buildSummarySection("Product Family", records, (record) => record.extraColumns["Product Family"] ?? "Unknown"),
+      buildSummarySection(
+        "Fluid Application",
+        records,
+        (record) => record.extraColumns["Fluid Application"] ?? "Unknown"
+      ),
+      buildSummarySection(
+        "Raw Subcategory",
+        records,
+        (record) => record.extraColumns["Raw Subcategory"] ?? "Unknown"
+      ),
+      buildSummarySection(
+        "Seasonal Use",
+        records,
+        (record) => record.extraColumns["Seasonal Use"] ?? "Unknown"
+      ),
+    ].filter((section) => section.rows.length > 0)
+  }
+
+  if (categoryId === "stethoscope") {
+    return [
+      buildSummarySection("Type", records, (record) => record.typeLabel),
+      buildSummarySection(
+        "Diagnostic Type",
+        records,
+        (record) => record.extraColumns["Diagnostic Type"] ?? "Unknown"
+      ),
+      buildSummarySection("Electronic", records, (record) => record.extraColumns.Electronic ?? "Unknown"),
+      buildSummarySection("Channel Count", records, (record) => record.extraColumns["Channel Count"] ?? "Unknown"),
+      buildSummarySection("Vehicle Context", records, (record) => record.extraColumns["Vehicle Context"] ?? "Unknown"),
+    ].filter((section) => section.rows.length > 0)
+  }
+
   return [buildSummarySection("Type", records, (record) => record.typeLabel)].filter(
     (section) => section.rows.length > 0
   )
@@ -549,11 +741,30 @@ function buildSummarySheetMatrix(sections: Section[]) {
   return rows
 }
 
+function buildDuplicateAuditSheetMatrix(audit: DuplicateAudit) {
+  const rows: Array<Array<string | number>> = [
+    ["Metric", "Value"],
+    ["Total Raw ASIN Rows", audit.totalRawRows],
+    ["Unique ASINs After Deduplication", audit.uniqueAsins],
+    ["Duplicate ASIN Groups", audit.duplicateAsinGroups],
+    ["Duplicate Extra Rows Removed", audit.duplicateExtraRows],
+    [],
+    ["Duplicate ASIN", "Duplicate Row Count", "Kept Revenue", "Files", "Sample Title"],
+  ]
+
+  for (const row of audit.duplicateRows) {
+    rows.push([row.asin, row.duplicateRowCount, round2(row.keptRevenue), row.files, row.sampleTitle])
+  }
+
+  return rows
+}
+
 function buildPriceTierRows(categoryId: NonCodeCategoryId, records: EnrichedRecord[]) {
   const totalRevenue = records.reduce((sum, record) => sum + record.asinRevenue, 0)
   const totalUnits = records.reduce((sum, record) => sum + record.asinSales, 0)
+  const tiers = categoryId === "oil" ? OIL_PRICE_TIERS : PRICE_TIERS
 
-  return PRICE_TIERS.map((tier) => {
+  return tiers.map((tier) => {
     const matched = records.filter((record) => record.price >= tier.min && record.price < tier.max)
     const revenue = matched.reduce((sum, record) => sum + record.asinRevenue, 0)
     const units = matched.reduce((sum, record) => sum + record.asinSales, 0)
@@ -676,6 +887,39 @@ function enrichRecord(categoryId: NonCodeCategoryId, record: RawRecord): Enriche
         "Number of Images": integerCell(record.imageCount),
         "Sales YoY %": metricCell(record.salesYearOverYearPct),
         "Sales to Reviews": metricCell(record.salesToReviews),
+      },
+    }
+  }
+
+  if (categoryId === "oil") {
+    const oil = classifyOilProduct(record)
+    return {
+      ...record,
+      typeLabel: oil.typeLabel,
+      extraColumns: {
+        "Raw Subcategory": oil.rawSubcategory,
+        "Product Family": oil.productFamily,
+        "Fluid Application": oil.fluidApplication,
+        "Viscosity / Grade": oil.viscosityGrade,
+        "Pack Size": oil.packSize,
+        "Seasonal Use": oil.seasonalUse,
+      },
+    }
+  }
+
+  if (categoryId === "stethoscope") {
+    const stethoscope = classifyStethoscopeProduct(record)
+    return {
+      ...record,
+      typeLabel: stethoscope.typeLabel,
+      extraColumns: {
+        "Diagnostic Type": stethoscope.diagnosticType,
+        Electronic: yesNo(stethoscope.isElectronic),
+        "Channel Count": stethoscope.channelCount,
+        "Probe Count": stethoscope.probeCount,
+        "Vehicle Context": stethoscope.vehicleContext,
+        Subcategory: record.subcategory ?? "",
+        "Size Tier": record.sizeTier ?? "",
       },
     }
   }
@@ -816,6 +1060,127 @@ function inferCableLength(title: string) {
   return "Unknown"
 }
 
+// Retained for the electric_air_blower category, which is temporarily backed
+// out until its dashboard data is generated; re-wire the call in generateReport
+// when that category is re-registered.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function buildDuplicateAudit(rawMonthDir: string, runDate: string): Promise<DuplicateAudit> {
+  const entries = await readdir(rawMonthDir, { withFileTypes: true }).catch(() => [])
+  const csvFiles = entries
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".csv"))
+    .map((entry) => entry.name)
+    .filter((name) => name.includes(runDate))
+    .sort()
+
+  const byAsin = new Map<string, Array<{ file: string; revenue: number; title: string }>>()
+  let totalRawRows = 0
+
+  for (const file of csvFiles) {
+    const contents = await readFile(path.join(rawMonthDir, file), "utf8")
+    const rows = parseCsvRows(contents)
+    if (!rows.length) continue
+    const headers = rows[0].map(normalizeCsvHeader)
+    const columnIndex = new Map(headers.map((name, index) => [name, index]))
+    const asinIndex = columnIndex.get("ASIN")
+    if (asinIndex === undefined) continue
+
+    const revenueIndex = columnIndex.get("ASIN Revenue")
+    const titleIndex = columnIndex.get("Title")
+    for (const row of rows.slice(1)) {
+      const asin = `${row[asinIndex] ?? ""}`.trim().toUpperCase()
+      if (!asin) continue
+      totalRawRows += 1
+      const revenue = revenueIndex === undefined ? 0 : parseNumericCell(row[revenueIndex] ?? "")
+      const title = titleIndex === undefined ? "" : `${row[titleIndex] ?? ""}`.trim()
+      const existing = byAsin.get(asin) ?? []
+      existing.push({ file, revenue, title })
+      byAsin.set(asin, existing)
+    }
+  }
+
+  const duplicateGroups = Array.from(byAsin.entries()).filter(([, rows]) => rows.length > 1)
+  const duplicateRows = duplicateGroups
+    .map(([asin, rows]) => ({
+      asin,
+      duplicateRowCount: rows.length,
+      keptRevenue: Math.max(...rows.map((row) => row.revenue)),
+      files: Array.from(new Set(rows.map((row) => row.file))).join(" | "),
+      sampleTitle: rows[0]?.title ?? "",
+    }))
+    .sort((left, right) => right.duplicateRowCount - left.duplicateRowCount || right.keptRevenue - left.keptRevenue)
+
+  return {
+    totalRawRows,
+    uniqueAsins: byAsin.size,
+    duplicateAsinGroups: duplicateGroups.length,
+    duplicateExtraRows: totalRawRows - byAsin.size,
+    duplicateRows,
+  }
+}
+
+function parseCsvRows(text: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let field = ""
+  let inQuotes = false
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[index + 1] === '"') {
+          field += '"'
+          index += 1
+        } else {
+          inQuotes = false
+        }
+      } else {
+        field += char
+      }
+      continue
+    }
+
+    if (char === '"') {
+      inQuotes = true
+      continue
+    }
+    if (char === ",") {
+      row.push(field)
+      field = ""
+      continue
+    }
+    if (char === "\n") {
+      row.push(field)
+      rows.push(row)
+      row = []
+      field = ""
+      continue
+    }
+    if (char !== "\r") {
+      field += char
+    }
+  }
+
+  if (field.length > 0 || row.length > 0) {
+    row.push(field)
+    rows.push(row)
+  }
+
+  return rows
+}
+
+function normalizeCsvHeader(value: string) {
+  return value.replace(/^\uFEFF/, "").trim()
+}
+
+function parseNumericCell(value: string) {
+  const normalized = value.replace(/[$,%]/g, "").replace(/,/g, "").trim()
+  if (!normalized || normalized === "N/A") return 0
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 async function resolveLatestRunDate(monthDir: string, fallbackSnapshotDate: string) {
   const entries = await readdir(monthDir, { withFileTypes: true }).catch(() => [])
   const dates = entries
@@ -840,6 +1205,12 @@ function inferColumnWidths(rows: Array<Array<string | number>>) {
 
 function normalizeBrandName(value: string) {
   return value.trim().toLowerCase()
+}
+
+function normalizeBrandDisplayName(value: string) {
+  const normalized = normalizeBrandName(value)
+  if (normalized === "liqui moly") return "Liqui Moly"
+  return value.trim() || "Unknown"
 }
 
 function analysisFileBase(label: string) {

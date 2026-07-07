@@ -26,6 +26,14 @@ import {
   classifyMechanicStoolProduct,
   isMechanicStoolCategory,
 } from "@/lib/mechanic-stool-classification"
+import {
+  classifyOilProduct,
+  isOilCategory,
+} from "@/lib/oil-classification"
+import {
+  classifyStethoscopeProduct,
+  isStethoscopeCategory,
+} from "@/lib/stethoscope-classification"
 import { formatSnapshotLabelMonthEnd, normalizeSnapshotDate } from "@/lib/snapshot-date"
 import type { TypeSummarySection } from "@/lib/type-summaries"
 
@@ -427,7 +435,7 @@ async function loadSnapshotRecords(files: string[], categoryId?: NonCodeCategory
         return row[index] ?? ""
       }
 
-      const asin = getValue("ASIN").trim()
+      const asin = getValue("ASIN").trim().toUpperCase()
       if (!asin) continue
 
       const record: RawRecord = {
@@ -520,6 +528,37 @@ async function loadSnapshotRecords(files: string[], categoryId?: NonCodeCategory
           hasBackrest: classification.hasBackrest,
           storageType: classification.storageType,
           materialLabel: classification.materialLabel,
+        }
+      }
+
+      if (isOilCategory(categoryId)) {
+        const classification = classifyOilProduct(record)
+        if (!classification.includeInCategory) {
+          continue
+        }
+        record.typeLabel = classification.typeLabel
+        record.categoryMetadata = {
+          rawSubcategory: classification.rawSubcategory,
+          productFamily: classification.productFamily,
+          fluidApplication: classification.fluidApplication,
+          viscosityGrade: classification.viscosityGrade,
+          packSize: classification.packSize,
+          seasonalUse: classification.seasonalUse,
+        }
+      }
+
+      if (isStethoscopeCategory(categoryId)) {
+        const classification = classifyStethoscopeProduct(record)
+        if (!classification.includeInCategory) {
+          continue
+        }
+        record.typeLabel = classification.typeLabel
+        record.categoryMetadata = {
+          diagnosticType: classification.diagnosticType,
+          isElectronic: classification.isElectronic,
+          channelCount: classification.channelCount,
+          probeCount: classification.probeCount,
+          vehicleContext: classification.vehicleContext,
         }
       }
 
