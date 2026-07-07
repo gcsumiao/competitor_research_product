@@ -42,3 +42,7 @@ output/
 .playwright-mcp/
 .skill_build/
 code-reader-dashboard-local.png
+thermal-imager-hh-compare-tc004.png
+
+# Chinese runbook is a personal reference copy; English MONTHLY_CODE_READER_RUNBOOK.md is authoritative
+MONTHLY_CODE_READER_RUNBOOK_ZH.md
