@@ -351,7 +351,14 @@ function buildTopCategoryShare(snapshot?: { topProducts: ProductSummary[]; total
 function formatDate(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleDateString("en-CA")
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date)
+  const values = new Map(parts.map((part) => [part.type, part.value]))
+  return `${values.get("year")}-${values.get("month")}-${values.get("day")}`
 }
 
 function getReportsForCategory(categoryId: CategoryId, reports: ReportFile[]) {
