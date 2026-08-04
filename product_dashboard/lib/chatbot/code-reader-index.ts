@@ -254,16 +254,16 @@ export function buildCodeReaderDataMart(
 function extractSnapshotProducts(snapshot: SnapshotSummary) {
   const merged = new Map<string, ProductSummary>()
 
+  for (const listing of snapshot.brandSheetListings ?? []) {
+    for (const product of listing.products) {
+      mergeProduct(merged, product)
+    }
+  }
   for (const product of snapshot.top50ByUnits ?? []) {
     mergeProduct(merged, product)
   }
   for (const product of snapshot.topProducts ?? []) {
     mergeProduct(merged, product)
-  }
-  for (const listing of snapshot.brandSheetListings ?? []) {
-    for (const product of listing.products) {
-      mergeProduct(merged, product)
-    }
   }
 
   return merged
