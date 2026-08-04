@@ -279,6 +279,30 @@ export async function loadDashboardData(): Promise<DashboardData> {
   return mergeDashboardData(postgresData, fileData)
 }
 
+export async function loadDashboardDataForCategory(categoryId: string): Promise<DashboardData> {
+  const deploymentMode = getDashboardDeploymentMode()
+  const category = CATEGORY_CONFIG.find(
+    (item) =>
+      item.id === categoryId &&
+      (deploymentMode === "full" || item.id === "code_reader_scanner")
+  )
+  if (!category) {
+    return { categories: [] }
+  }
+
+  if (!isPostgresDashboardSource()) {
+    return { categories: [await loadCategoryDashboardDataFromFiles(category)] }
+  }
+
+  const postgresData = await loadDashboardDataFromPostgres([category.id])
+  const postgresCategory = postgresData.categories[0]
+  if (postgresCategory?.snapshots.length) {
+    return postgresData
+  }
+
+  return { categories: [await loadCategoryDashboardDataFromFiles(category)] }
+}
+
 export async function loadOverviewDashboardData() {
   return pruneDashboardDataForPage(await loadDashboardData(), "overview")
 }
@@ -312,23 +336,23 @@ export async function loadDashboardDataFromFiles(): Promise<DashboardData> {
   const enabledCategories = CATEGORY_CONFIG.filter(
     (category) => deploymentMode === "full" || category.id === "code_reader_scanner"
   )
-  const categories = await Promise.all(
-    enabledCategories.map(async (category) => {
-      const snapshots =
-        category.source === "csv"
-          ? await loadCsvCategorySnapshots(resolveNonCodeCategoryDir(category.id, "raw_data"), category.id)
-          : await loadCodeReaderScannerSnapshots(resolveCodeReaderDataDir())
-
-      return {
-        id: category.id,
-        label: category.label,
-        snapshots,
-      }
-    })
-  )
+  const categories = await Promise.all(enabledCategories.map(loadCategoryDashboardDataFromFiles))
 
   return {
     categories,
+  }
+}
+
+async function loadCategoryDashboardDataFromFiles(category: CategoryConfig): Promise<CategorySummary> {
+  const snapshots =
+    category.source === "csv"
+      ? await loadCsvCategorySnapshots(resolveNonCodeCategoryDir(category.id, "raw_data"), category.id)
+      : await loadCodeReaderScannerSnapshots(resolveCodeReaderDataDir())
+
+  return {
+    id: category.id,
+    label: category.label,
+    snapshots,
   }
 }
 
@@ -577,11 +601,14 @@ async function loadSnapshotRecords(files: string[], categoryId?: NonCodeCategory
   return Array.from(records.values())
 }
 
-export async function loadDashboardDataFromPostgres(): Promise<DashboardData> {
+export async function loadDashboardDataFromPostgres(categoryIds?: readonly CategoryId[]): Promise<DashboardData> {
   const deploymentMode = getDashboardDeploymentMode()
   const enabledCategories = CATEGORY_CONFIG.filter(
     (category) => deploymentMode === "full" || category.id === "code_reader_scanner"
-  )
+  ).filter((category) => !categoryIds || categoryIds.includes(category.id))
+  if (!enabledCategories.length) {
+    return { categories: [] }
+  }
   const result = await queryDb<{
     category_id: CategoryId
     label: string

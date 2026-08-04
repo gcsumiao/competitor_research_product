@@ -4,18 +4,20 @@ import { buildDeterministicChatResponse } from "@/lib/chatbot/insights"
 import { detectIntent } from "@/lib/chatbot/intents"
 import type { ChatRequest, ChatResponse } from "@/lib/chatbot/types"
 import { resolveSnapshotTimeRange } from "@/lib/chatbot/time-resolver"
-import { loadDashboardData } from "@/lib/competitor-data"
+import { loadDashboardDataForCategory } from "@/lib/competitor-data"
 import { normalizeSnapshotDate } from "@/lib/snapshot-date"
 
 const CACHE_TTL_MS = 15_000
 const MESSAGE_MAX_LENGTH = 1200
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
-let dashboardCache:
-  | {
-      loadedAt: number
-      data: Awaited<ReturnType<typeof loadDashboardData>>
-    }
-  | null = null
+const OPENAI_TIMEOUT_MS = 8_000
+const dashboardCache = new Map<
+  string,
+  {
+    loadedAt: number
+    data: Awaited<ReturnType<typeof loadDashboardDataForCategory>>
+  }
+>()
 
 export async function POST(request: Request) {
   try {
@@ -34,7 +36,7 @@ export async function POST(request: Request) {
         ? payload.targetBrand.trim()
         : undefined
 
-    const data = await loadDashboardDataCached()
+    const data = await loadDashboardDataCached(categoryId)
     const category = data.categories.find((item) => item.id === categoryId)
     if (!category) {
       return NextResponse.json({ error: `Unknown category: ${categoryId}` }, { status: 400 })
@@ -166,6 +168,7 @@ async function maybeEnhanceWithLlm(
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
+      signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
         temperature: 0.2,
@@ -268,17 +271,18 @@ function containsAllBrands(text: string, brands: string[]) {
   return brands.every((brand) => normalized.includes(brand))
 }
 
-async function loadDashboardDataCached() {
+async function loadDashboardDataCached(categoryId: string) {
   const now = Date.now()
-  if (dashboardCache && now - dashboardCache.loadedAt <= CACHE_TTL_MS) {
-    return dashboardCache.data
+  const cached = dashboardCache.get(categoryId)
+  if (cached && now - cached.loadedAt <= CACHE_TTL_MS) {
+    return cached.data
   }
 
-  const data = await loadDashboardData()
-  dashboardCache = {
+  const data = await loadDashboardDataForCategory(categoryId)
+  dashboardCache.set(categoryId, {
     loadedAt: now,
     data,
-  }
+  })
   return data
 }
 

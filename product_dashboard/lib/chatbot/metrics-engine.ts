@@ -468,24 +468,40 @@ function runAnalyzer(
     const requestedRolling12 = isExplicitRolling12Request(params.parsed.normalized)
 
     if (requestedRolling12 && !singleBrand) {
-      const rolling12Brands = listRolling12Brands(mart.snapshot)
+      const revenueSeries = mart.snapshot.rolling12?.revenue?.marketSeries ?? []
+      const unitsSeries = mart.snapshot.rolling12?.units?.marketSeries ?? []
+      const rolling12Revenue = sum(revenueSeries)
+      const rolling12Units = sum(unitsSeries)
+      const hasMarketRolling12 = revenueSeries.length > 0 && unitsSeries.length > 0
       return {
-        answer: rolling12Brands.length
-          ? "Select a brand to view its Rolling 12 month grand total revenue and units."
-          : "Rolling 12 brand totals are unavailable for the selected snapshot.",
-        bullets: rolling12Brands.length
+        answer: hasMarketRolling12
+          ? `Total market Rolling 12 grand total is ${formatCurrency(rolling12Revenue)} revenue and ${formatNumber(rolling12Units)} units.`
+          : "Rolling 12 market totals are unavailable for the selected snapshot.",
+        bullets: hasMarketRolling12
           ? [
-              `I found ${rolling12Brands.length} brands in the current Rolling 12 table.`,
-              "Choose any brand below and I will return its Rolling 12 month grand total revenue and units.",
+              `Window: ${mart.snapshot.rolling12?.revenue?.monthLabels[0]} through ${mart.snapshot.rolling12?.revenue?.currentMonthLabel}.`,
+              `Current month contribution: ${formatCurrency(mart.snapshot.totals.revenue)} revenue and ${formatNumber(mart.snapshot.totals.units)} units.`,
             ]
-          : ["The current snapshot does not include Rolling 12 brand totals."],
-        evidence: baseEvidence(mart.snapshot),
-        confidence: rolling12Brands.length ? 0.92 : 0.58,
-        assumptions: ["Rolling 12 grand total answers require a single brand selection."],
-        citations: rolling12Brands.length
-          ? [citation("Rolling 12 brand totals", "snapshot.rolling12", mart.snapshot.date)]
+          : ["The current snapshot does not include complete Rolling 12 market series."],
+        evidence: [
+          ...baseEvidence(mart.snapshot),
+          ...(hasMarketRolling12
+            ? [
+                { label: "Rolling 12 Market Revenue", value: formatCurrency(rolling12Revenue) },
+                { label: "Rolling 12 Market Units", value: formatNumber(rolling12Units) },
+              ]
+            : []),
+        ],
+        confidence: hasMarketRolling12 ? 0.96 : 0.58,
+        assumptions: ["Market Rolling 12 totals sum the 12 monthly Total Market series."],
+        citations: hasMarketRolling12
+          ? [citation("Rolling 12 market totals", "snapshot.rolling12.marketSeries", mart.snapshot.date)]
           : [],
-        suggestedQuestions: rolling12Brands,
+        suggestedQuestions: [
+          "What are Innova's Rolling 12 grand total revenue and units?",
+          "Which brand leads Rolling 12 revenue?",
+          "How did the market change versus last month?",
+        ],
         warnings: [],
       }
     }
@@ -629,6 +645,40 @@ function runAnalyzer(
     const scopeRows = mart.typeMetrics
       .filter((row) => row.revenue > 0)
       .sort((a, b) => b.revenueShare - a.revenueShare)
+    if (analyzer === "product_type_mix") {
+      const totalRows = scopeRows.filter(
+        (row) => row.scopeKey.startsWith("total_") && row.scopeKey !== "total"
+      )
+      const topType = totalRows[0]
+      return {
+        answer: topType
+          ? `${topType.label} led July product types with ${formatCurrency(topType.revenue)} revenue (${formatPercent(topType.revenueShare)} share) and ${formatNumber(topType.units)} units.`
+          : "Product type performance is unavailable for this snapshot.",
+        bullets: totalRows.map(
+          (row) =>
+            `${row.label}: ${formatCurrency(row.revenue)} revenue (${formatPercent(row.revenueShare)}), ${formatNumber(row.units)} units (${formatPercent(row.unitsShare)}).`
+        ),
+        evidence: [
+          ...baseEvidence(mart.snapshot),
+          ...(topType
+            ? [
+                { label: "Leading Product Type", value: topType.label },
+                { label: "Type Revenue", value: formatCurrency(topType.revenue) },
+                { label: "Type Units", value: formatNumber(topType.units) },
+              ]
+            : []),
+        ],
+        confidence: totalRows.length ? 0.94 : 0.58,
+        assumptions: ["Type performance uses all-ASIN total category rows for the selected snapshot."],
+        citations: [citation("Type breakdowns", "snapshot.typeBreakdowns.allAsins", mart.snapshot.date)],
+        suggestedQuestions: [
+          "Which tablet price tier grew fastest?",
+          "Which brands lead handheld revenue?",
+          "Where is Innova underrepresented by product type?",
+        ],
+        warnings: [],
+      }
+    }
     const ownMix = mart.snapshot.typeBreakdowns?.categoryBrandMix ?? []
     const brandScope = resolveBrandScopeSet(params.scope, ownBrands)
     const candidate = scopeRows
@@ -659,7 +709,65 @@ function runAnalyzer(
     }
   }
 
-  if (analyzer === "top_products" || analyzer === "market_leader" || analyzer === "market_size") {
+  if (analyzer === "market_size") {
+    return {
+      answer: `July total market was ${formatCurrency(mart.snapshot.totals.revenue)} revenue and ${formatNumber(mart.snapshot.totals.units)} units across ${formatNumber(mart.snapshot.totals.asinCount)} ASINs.`,
+      bullets: [
+        `Average market price: ${formatCurrency(mart.snapshot.totals.avgPrice)}.`,
+        `Top 3 brand share: ${formatPercent(mart.snapshot.totals.top3Share)}.`,
+        `Tracked brands: ${formatNumber(mart.snapshot.totals.brandCount)}.`,
+      ],
+      evidence: baseEvidence(mart.snapshot),
+      confidence: 0.98,
+      assumptions: ["Market size uses the selected snapshot totals."],
+      citations: [citation("Market totals", "snapshot.totals", mart.snapshot.date)],
+      suggestedQuestions: [
+        "Which brand ranked first by revenue?",
+        "Which product ranked first by revenue?",
+        "How did the market change versus June?",
+      ],
+      warnings: [],
+    }
+  }
+
+  if (analyzer === "market_leader") {
+    const metric = params.parsed.plan.rankingMetric
+    const leaders = [...mart.snapshot.brandTotals].sort((a, b) =>
+      metric === "units" ? b.units - a.units : b.revenue - a.revenue
+    )
+    const leader = leaders[0]
+    return {
+      answer: leader
+        ? `${leader.brand} ranked first by July ${metric} with ${metric === "units" ? `${formatNumber(leader.units)} units` : `${formatCurrency(leader.revenue)} revenue`} and ${formatPercent(leader.share)} revenue share.`
+        : "Brand leader data is unavailable for this snapshot.",
+      bullets: leaders.slice(0, 5).map(
+        (row, index) =>
+          `#${index + 1} ${row.brand}: ${formatCurrency(row.revenue)} revenue, ${formatNumber(row.units)} units, ${formatPercent(row.share)} share.`
+      ),
+      evidence: [
+        ...baseEvidence(mart.snapshot),
+        ...(leader
+          ? [
+              { label: "Leading Brand", value: leader.brand },
+              { label: "Brand Revenue", value: formatCurrency(leader.revenue) },
+              { label: "Brand Units", value: formatNumber(leader.units) },
+              { label: "Brand Share", value: formatPercent(leader.share) },
+            ]
+          : []),
+      ],
+      confidence: leader ? 0.98 : 0.55,
+      assumptions: ["Brand ranking uses current snapshot brand totals."],
+      citations: [citation("Brand totals", "snapshot.brandTotals", mart.snapshot.date)],
+      suggestedQuestions: [
+        "Which product ranked first by revenue?",
+        "How did the leading brand change versus June?",
+        "Which brand gained the most share?",
+      ],
+      warnings: [],
+    }
+  }
+
+  if (analyzer === "top_products") {
     const sorted = [...getScopedProducts(mart, params.scope)].sort((a, b) =>
       params.parsed.plan.rankingMetric === "units" ? b.units - a.units : b.revenue - a.revenue
     )
@@ -671,7 +779,7 @@ function runAnalyzer(
     }
     return {
       answer: top.length
-        ? `Top ${scopeLabel} SKU: ${top[0].brand} ${top[0].asin} (${params.parsed.plan.rankingMetric === "units" ? `${formatNumber(top[0].units)} units` : `${formatCurrency(top[0].revenue)} revenue`}).`
+        ? `Top ${scopeLabel} product: ${top[0].title} — ${top[0].brand} ${top[0].asin} (${params.parsed.plan.rankingMetric === "units" ? `${formatNumber(top[0].units)} units` : `${formatCurrency(top[0].revenue)} revenue`}).`
         : "No top-product data is available for this snapshot.",
       bullets: top.map((item, idx) => `#${idx + 1} ${item.brand} ${item.asin}: ${formatCurrency(item.revenue)} / ${formatNumber(item.units)} units.`),
       evidence: [

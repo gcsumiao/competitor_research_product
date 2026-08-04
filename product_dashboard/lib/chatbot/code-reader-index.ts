@@ -141,8 +141,13 @@ export function buildCodeReaderDataMart(
   const previous = getPreviousSnapshot(sorted, snapshotDate)
   const yoy = getYoYSnapshot(sorted, snapshotDate)
 
-  const currentProducts = extractSnapshotProducts(snapshot)
-  const previousProducts = previous ? extractSnapshotProducts(previous) : new Map<string, ProductSummary>()
+  const snapshotProductsByDate = new Map(
+    sorted.map((item) => [item.date, extractSnapshotProducts(item)] as const)
+  )
+  const currentProducts = snapshotProductsByDate.get(snapshot.date) ?? new Map<string, ProductSummary>()
+  const previousProducts = previous
+    ? snapshotProductsByDate.get(previous.date) ?? new Map<string, ProductSummary>()
+    : new Map<string, ProductSummary>()
 
   const products = Array.from(currentProducts.values())
     .map((raw) => {
@@ -177,7 +182,7 @@ export function buildCodeReaderDataMart(
           safeNumber(previousRaw?.avgPrice ?? previousRaw?.price)
         ),
         ratingMoM: safeNumber(raw.toolRating ?? raw.rating) - safeNumber(previousRaw?.toolRating ?? previousRaw?.rating),
-        history: buildProductHistory(sorted, raw.asin),
+        history: buildProductHistory(sorted, raw.asin, snapshotProductsByDate),
       }
     })
     .sort((a, b) => b.revenue - a.revenue)
@@ -185,10 +190,11 @@ export function buildCodeReaderDataMart(
   products.forEach((item, index) => {
     item.rankRevenue = index + 1
   })
+  const rankedProductByAsin = new Map(products.map((item) => [normalize(item.asin), item]))
   ;[...products]
     .sort((a, b) => b.units - a.units)
     .forEach((item, index) => {
-      const target = products.find((product) => product.asin === item.asin)
+      const target = rankedProductByAsin.get(normalize(item.asin))
       if (target) target.rankUnits = index + 1
     })
 
@@ -295,12 +301,17 @@ function mergeProduct(map: Map<string, ProductSummary>, next: ProductSummary) {
   })
 }
 
-function buildProductHistory(sortedSnapshots: SnapshotSummary[], asin: string): ProductHistoryPoint[] {
+function buildProductHistory(
+  sortedSnapshots: SnapshotSummary[],
+  asin: string,
+  snapshotProductsByDate: Map<string, Map<string, ProductSummary>>
+): ProductHistoryPoint[] {
   const key = normalize(asin)
   const history: ProductHistoryPoint[] = []
 
   for (const snapshot of sortedSnapshots) {
-    const productMap = extractSnapshotProducts(snapshot)
+    const productMap = snapshotProductsByDate.get(snapshot.date)
+    if (!productMap) continue
     const product = productMap.get(key)
     if (!product) continue
 

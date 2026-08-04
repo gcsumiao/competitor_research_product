@@ -107,6 +107,27 @@ function forceIntentFromPattern(
     return { intent: "brand_health", confidence: 0.94 }
   }
   if (
+    /\b(product|sku|asin)\b/.test(normalized) &&
+    /\b(ranked? first|ranked? #?1|number one|highest|leader|leading)\b/.test(normalized)
+  ) {
+    return { intent: "top_products", confidence: 0.97 }
+  }
+  if (
+    /\bbrand\b/.test(normalized) &&
+    /\b(ranked? first|ranked? #?1|number one|highest|leader|leading)\b/.test(normalized)
+  ) {
+    return { intent: "market_leader", confidence: 0.97 }
+  }
+  if (/\b(product\s+types?|type\s+performance|types?\s+perform)\b/.test(normalized)) {
+    return { intent: "product_type_mix", confidence: 0.95 }
+  }
+  if (
+    /\bmarket\b/.test(normalized) &&
+    /\b(revenue|units|sales|size|total)\b/.test(normalized)
+  ) {
+    return { intent: "market_size", confidence: 0.95 }
+  }
+  if (
     /\b(price tier|price tiers|pricing tier|pricing tiers)\b/.test(normalized) &&
     /\b(fastest|grow|growth|rising|increase)\b/.test(normalized)
   ) {
