@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import math
 import unittest
 
 import pandas as pd
@@ -10,6 +11,7 @@ from full_report_month import (
     INNOVA_ADDED_3P_COL,
     INNOVA_RAW_PRESENT_COL,
     _apply_innova_monthly_rules,
+    _brand_avg_ratings,
     _build_innova_account_sheet,
     _classify_innova_3p_non_code_product,
     _filter_innova_3p_non_code_products,
@@ -220,6 +222,86 @@ class InnovaMonthlyRulesTest(unittest.TestCase):
         )
         self.assertEqual(_innova_3p_non_code_exclusion_map(row, "202606"), {})
         self.assertIsNotNone(_classify_innova_3p_non_code_product(row.iloc[0]["Title"]))
+
+
+class InnovaAvgRatingRuleTest(unittest.TestCase):
+    def _market(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            [
+                {"ASIN": "INN1", "Brand": "innova", "Reviews Rating": 4.5},
+                {"ASIN": "INN2", "Brand": "innova", "Reviews Rating": 4.1},
+                {"ASIN": "INN0", "Brand": "innova", "Reviews Rating": 0.0},
+                {"ASIN": "INNN", "Brand": "innova", "Reviews Rating": None},
+                {"ASIN": "ANN0", "Brand": "innova-ann", "Reviews Rating": 0.0},
+                {"ASIN": "ANN1", "Brand": "innova-ann", "Reviews Rating": 4.0},
+                {"ASIN": "OTH0", "Brand": "other", "Reviews Rating": 0.0},
+                {"ASIN": "OTH1", "Brand": "other", "Reviews Rating": 5.0},
+            ]
+        )
+
+    def test_202607_excludes_innova_zero_and_missing_ratings(self) -> None:
+        ratings = _brand_avg_ratings(self._market(), "202607")
+        self.assertEqual(ratings.loc["innova"], 4.3)
+        self.assertEqual(ratings.loc["other"], 2.5)
+        self.assertEqual(ratings.loc["innova-ann"], 2.0)
+
+    def test_202606_keeps_zero_inclusive_mean_for_innova(self) -> None:
+        ratings = _brand_avg_ratings(self._market(), "202606")
+        self.assertEqual(ratings.loc["innova"], 2.9)
+        self.assertEqual(ratings.loc["other"], 2.5)
+        self.assertEqual(ratings.loc["innova-ann"], 2.0)
+
+    def test_missing_month_keeps_old_behavior(self) -> None:
+        self.assertEqual(_brand_avg_ratings(self._market(), None).loc["innova"], 2.9)
+
+    def test_july_2026_shape_moves_3_9_to_4_3(self) -> None:
+        rows = (
+            [{"ASIN": f"P{i}", "Brand": "innova", "Reviews Rating": 4.3} for i in range(22)]
+            + [
+                {"ASIN": "Z1", "Brand": "innova", "Reviews Rating": 0.0},
+                {"ASIN": "Z2", "Brand": "innova", "Reviews Rating": 0.0},
+            ]
+            + [{"ASIN": f"N{i}", "Brand": "innova", "Reviews Rating": None} for i in range(4)]
+        )
+        market = pd.DataFrame(rows)
+        self.assertEqual(_brand_avg_ratings(market, "202606").loc["innova"], 3.9)
+        self.assertEqual(_brand_avg_ratings(market, "202607").loc["innova"], 4.3)
+
+    def test_202607_innova_all_non_positive_is_nan(self) -> None:
+        market = pd.DataFrame(
+            [
+                {"ASIN": "A", "Brand": "innova", "Reviews Rating": 0.0},
+                {"ASIN": "B", "Brand": "innova", "Reviews Rating": None},
+            ]
+        )
+        self.assertTrue(math.isnan(_brand_avg_ratings(market, "202607").loc["innova"]))
+
+    def test_call_site_path_matches_legacy_expression_pre_rule(self) -> None:
+        # Pins the full call-site path used in main(): reindex against the
+        # brand frame built by the groupby-sum, compared element-wise with the
+        # original expression (which must stay bit-identical pre-202607).
+        market = self._market().assign(**{"Monthly Sales": 1, "Monthly Revenue": 2.0, "Review Count": 3})
+        market.loc[market["ASIN"] == "OTH0", "Brand"] = "zeta"  # unsorted brand order exercise
+        brand = (
+            market.groupby(["Brand"], as_index=False)
+            .sum(["Monthly Sales", "Monthly Revenue", "Review Count"])[["Brand", "Monthly Sales", "Monthly Revenue", "Review Count"]]
+        )
+        legacy = round(market.groupby(["Brand"]).mean(["Reviews Rating"])["Reviews Rating"], 1).tolist()
+        for m in (None, "202606"):
+            new = _brand_avg_ratings(market, m).reindex(brand["Brand"]).tolist()
+            self.assertTrue(pd.Series(new).equals(pd.Series(legacy)))
+
+    def test_202607_override_is_rounded_after_exclusion(self) -> None:
+        # Non-terminating mean: (4.5 + 4.0 + 4.0) / 3 = 4.1666… -> 4.2.
+        market = pd.DataFrame(
+            [
+                {"ASIN": "A", "Brand": "innova", "Reviews Rating": 4.5},
+                {"ASIN": "B", "Brand": "innova", "Reviews Rating": 4.0},
+                {"ASIN": "C", "Brand": "innova", "Reviews Rating": 4.0},
+                {"ASIN": "D", "Brand": "innova", "Reviews Rating": 0.0},
+            ]
+        )
+        self.assertEqual(_brand_avg_ratings(market, "202607").loc["innova"], 4.2)
 
 
 if __name__ == "__main__":

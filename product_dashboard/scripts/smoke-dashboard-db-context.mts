@@ -47,6 +47,19 @@ async function main() {
   if (!serialized.includes(RETAINED_INNOVA_5420_ASIN)) {
     throw new Error(`Database snapshot ${expectedMonth} is missing retained ASIN ${RETAINED_INNOVA_5420_ASIN}.`)
   }
+  if (expectedMonth >= "202607") {
+    const top = Array.isArray(payload?.topProducts)
+      ? (payload.topProducts as Array<{ imageUrl?: string }>)
+      : []
+    const covered = top.filter(
+      (item) => typeof item.imageUrl === "string" && item.imageUrl.trim()
+    ).length
+    if (top.length && covered / top.length < 0.75) {
+      throw new Error(
+        `Database snapshot ${expectedMonth} topProducts imageUrl coverage ${covered}/${top.length} < 75%.`
+      )
+    }
+  }
 
   const artifactResult = await queryDb<{
     artifact_path: string

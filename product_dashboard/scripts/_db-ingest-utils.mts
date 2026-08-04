@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import type { SnapshotSummary } from "../lib/competitor-data.ts"
 import type { SnapshotRowInput } from "../lib/db/ingest.ts"
 import type { SourceArtifactInput } from "../lib/db/source-artifacts.ts"
 
@@ -54,6 +55,41 @@ export async function writeJsonFile(filePath: string, payload: unknown) {
 
 export function toMonthKey(snapshotDate: string) {
   return snapshotDate.replace(/-/g, "").slice(0, 6)
+}
+
+export function applySnapshotRowImageUrls(
+  snapshot: SnapshotSummary,
+  rowRecords: SnapshotRowInput[]
+) {
+  const imageUrlsByAsin = new Map<string, string>()
+  for (const row of rowRecords) {
+    const asin = row.asin?.trim().toUpperCase()
+    const imageUrl = row.imageUrl
+    if (!asin || !imageUrl?.trim() || imageUrlsByAsin.has(asin)) continue
+    imageUrlsByAsin.set(asin, imageUrl.trim())
+  }
+
+  if (imageUrlsByAsin.size === 0) return { enriched: 0 }
+
+  let enriched = 0
+  const enrichProducts = (products: SnapshotSummary["topProducts"] | undefined) => {
+    products?.forEach((product) => {
+      if (product.imageUrl) return
+      const asin = product.asin?.trim().toUpperCase()
+      if (!asin) return
+      const imageUrl = imageUrlsByAsin.get(asin)
+      if (!imageUrl) return
+      product.imageUrl = imageUrl
+      enriched += 1
+    })
+  }
+
+  enrichProducts(snapshot.topProducts)
+  enrichProducts(snapshot.top50ByUnits)
+  snapshot.brandListings?.forEach((listing) => enrichProducts(listing.products))
+  snapshot.brandSheetListings?.forEach((listing) => enrichProducts(listing.products))
+
+  return { enriched }
 }
 
 export async function parseStructuredSnapshotRows(filePath: string | undefined) {

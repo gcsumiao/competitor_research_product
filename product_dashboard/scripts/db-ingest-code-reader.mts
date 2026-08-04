@@ -3,6 +3,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 import {
+  applySnapshotRowImageUrls,
   buildArtifactFromFile,
   ensureCopiedFile,
   parseStructuredSnapshotRows,
@@ -255,6 +256,8 @@ async function ingestExplicitCodeReaderMonth(args: CliArgs) {
   }
 
   const rowRecords = await parseStructuredSnapshotRows(args.structuredJsonPath)
+  const { enriched } = applySnapshotRowImageUrls(snapshot, rowRecords)
+  console.log(`Enriched ${enriched} snapshot products with image URLs for ${month}`)
 
   await ingestSnapshotData({
     sourceName: "code_reader_monthly_pipeline",

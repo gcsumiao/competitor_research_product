@@ -76,6 +76,12 @@ function TopProductImage({ product }: { product: TopProduct }) {
       height={48}
       className="w-full h-full object-cover"
       unoptimized
+      onLoad={(event) => {
+        const img = event.currentTarget
+        if (img.naturalWidth <= 1 && img.naturalHeight <= 1 && candidateIndex < candidates.length - 1) {
+          setCandidateIndex((current) => current + 1)
+        }
+      }}
       onError={() => {
         if (candidateIndex < candidates.length - 1) {
           setCandidateIndex((current) => current + 1)
@@ -105,7 +111,6 @@ function resolveImageCandidates(product: TopProduct) {
   const asin = product.asin?.trim().toUpperCase() || extractAsin(product.url)
   if (asin) {
     values.push(`https://m.media-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_.jpg`)
-    values.push(`https://images-na.ssl-images-amazon.com/images/P/${asin}.01.LZZZZZZZ.jpg`)
     values.push(`https://m.media-amazon.com/images/P/${asin}.01._SL160_.jpg`)
     values.push(`https://m.media-amazon.com/images/P/${asin}.01._AC_UL160_.jpg`)
   }

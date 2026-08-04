@@ -36,6 +36,8 @@ INNOVA_EFFECTIVE_1P_COL = "_Innova Effective 1P Actual"
 INNOVA_EFFECTIVE_3P_COL = "_Innova Effective 3P Actual"
 CARRYOVER_ZERO_COL = "_Carryover Zero"
 INNOVA_3P_NON_CODE_EXCLUSION_START_MONTH = "202607"
+INNOVA_RATING_ZERO_EXCLUSION_START_MONTH = "202607"
+INNOVA_RATING_ZERO_EXCLUSION_BRAND = "innova"
 INNOVA_3P_EXCLUDED_FAMILY_DIGITAL_MULTIMETER = "Digital Multimeter"
 INNOVA_3P_EXCLUDED_FAMILY_THERMAL = "Thermal Imager/Thermal Camera"
 INNOVA_3P_EXCLUDED_FAMILY_BORESCOPE = "Borescope/Inspection Camera"
@@ -297,7 +299,7 @@ def _load_helium10_meta(*folders: Path) -> pd.DataFrame:
     """
     Load Helium10 Black Box export metadata for ASIN-level fields needed in Innova/BLCKTEC tabs.
     """
-    keep_cols = ["ASIN", "URL", "Title", "Brand", "Review Count", "Reviews Rating", "Price", "Fulfillment"]
+    keep_cols = ["ASIN", "URL", "Title", "Brand", "Review Count", "Reviews Rating", "Price", "Fulfillment", "Image URL"]
     dfs: list[pd.DataFrame] = []
     for folder in folders:
         if folder is None or not folder.exists():
@@ -758,7 +760,7 @@ def _fill_metadata_from_history(
     cur["ASIN"] = _clean_asin(cur["ASIN"])
 
     # Ensure columns exist.
-    meta_cols = ["Title", "Type", "Price", "Review Count", "Reviews Rating", "URL"]
+    meta_cols = ["Title", "Type", "Price", "Review Count", "Reviews Rating", "URL", "Image URL"]
     for c in meta_cols:
         if c not in cur.columns:
             cur[c] = np.nan
@@ -878,7 +880,7 @@ def _finalize_innova_blcktec_fields(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _log_missing_rating_metadata(df: pd.DataFrame) -> None:
+def _log_missing_rating_metadata(df: pd.DataFrame, month: str | None = None) -> None:
     if df.empty or "Brand" not in df.columns or "ASIN" not in df.columns:
         return
     b = df["Brand"].astype(str).str.lower().str.strip()
@@ -889,15 +891,42 @@ def _log_missing_rating_metadata(df: pd.DataFrame) -> None:
             | df.get("Reviews Rating", pd.Series(np.nan, index=df.index)).isna()
         )
     ].copy()
-    if missing.empty:
-        return
+    if not missing.empty:
+        print("Innova/BLCKTEC ASINs missing Helium10 review/rating metadata:")
+        for _, row in missing.sort_values(["Brand", "ASIN"]).iterrows():
+            asin = row.get("ASIN")
+            brand = row.get("Brand")
+            title = str(row.get("Title") or "").strip()
+            print(f"  - {brand} {asin}: {title[:100]}")
 
-    print("Innova/BLCKTEC ASINs missing Helium10 review/rating metadata:")
-    for _, row in missing.sort_values(["Brand", "ASIN"]).iterrows():
-        asin = row.get("ASIN")
-        brand = row.get("Brand")
-        title = str(row.get("Title") or "").strip()
-        print(f"  - {brand} {asin}: {title[:100]}")
+    if month and month >= INNOVA_RATING_ZERO_EXCLUSION_START_MONTH and "Reviews Rating" in df.columns:
+        rr = pd.to_numeric(df["Reviews Rating"], errors="coerce")
+        excluded = df[b.eq(INNOVA_RATING_ZERO_EXCLUSION_BRAND) & rr.notna() & (rr <= 0)]
+        if not excluded.empty:
+            print(
+                f"Innova ASINs excluded from brand Ave Rating (rating <= 0, rule active {INNOVA_RATING_ZERO_EXCLUSION_START_MONTH}+):"
+            )
+            for _, row in excluded.sort_values("ASIN").iterrows():
+                title = str(row.get("Title") or "").strip()
+                print(f"  - {row.get('Brand')} {row.get('ASIN')} rating={row.get('Reviews Rating')}: {title[:100]}")
+
+
+def _brand_avg_ratings(market: pd.DataFrame, month: str | None) -> pd.Series:
+    """Per-brand mean of the current-month Reviews Rating, rounded to 1 decimal.
+
+    From INNOVA_RATING_ZERO_EXCLUSION_START_MONTH onward, brand 'innova' rows
+    whose Reviews Rating is missing or <= 0 are excluded from innova's
+    denominator. Every other brand, and every month before the start month,
+    keeps the original skipna mean (zero ratings included).
+    """
+    ratings = market.groupby(["Brand"])["Reviews Rating"].mean()
+    if month and month >= INNOVA_RATING_ZERO_EXCLUSION_START_MONTH:
+        innova_mask = market["Brand"].eq(INNOVA_RATING_ZERO_EXCLUSION_BRAND)
+        if innova_mask.any():
+            valid = market.loc[innova_mask, "Reviews Rating"]
+            valid = valid[valid > 0]
+            ratings.loc[INNOVA_RATING_ZERO_EXCLUSION_BRAND] = valid.mean() if not valid.empty else np.nan
+    return ratings.round(1)
 
 
 def extract_first_digit(text: str) -> str | None:
@@ -1134,7 +1163,7 @@ def main() -> int:
     markets[-1] = _set_avg_price_for_asins(markets[-1], innova_added_asins)
     markets[-1] = _recalc_avg_price(markets[-1], "blcktec")
     markets[-1] = _finalize_innova_blcktec_fields(markets[-1])
-    _log_missing_rating_metadata(markets[-1])
+    _log_missing_rating_metadata(markets[-1], month=month)
 
     writer = pd.ExcelWriter(out_report, engine="openpyxl")
 
@@ -1169,7 +1198,7 @@ def main() -> int:
     brand["Price Per Unit"] = round(brand["Monthly Revenue"] / brand["Monthly Sales"], 2)
     brand["Market Rev Share %"] = round(brand["Monthly Revenue"] / market_rev_total, 4)
     brand["Market Units Share %"] = round(brand["Monthly Sales"] / market_unit_total, 4)
-    brand["Ave Rating"] = round(market.groupby(["Brand"]).mean(["Reviews Rating"])["Reviews Rating"], 1).tolist()
+    brand["Ave Rating"] = _brand_avg_ratings(market, month).reindex(brand["Brand"]).tolist()
     brand_top = brand.sort_values("Monthly Revenue", ascending=False, ignore_index=True).head(25)
     brand_list = brand_top.sort_values("Brand", ignore_index=True).Brand.tolist()
 
@@ -1466,6 +1495,7 @@ def main() -> int:
             "URL",
             "12mo Revenue",
             "12mo Units",
+            "Image URL",
         ]
         export_df = market.copy()
         for col in export_cols:
@@ -1488,6 +1518,7 @@ def main() -> int:
                     "rating": record.get("Reviews Rating"),
                     "fulfillment": record.get("Fulfillment"),
                     "url": record.get("URL"),
+                    "imageUrl": record.get("Image URL"),
                     "estimatedRevenue12mo": record.get("12mo Revenue"),
                     "estimatedUnits12mo": record.get("12mo Units"),
                 }

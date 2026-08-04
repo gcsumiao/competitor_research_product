@@ -33,6 +33,8 @@ const CODE_READER_GRAND_TOTAL_EXPECTATIONS = [
 ] as const
 
 const CODE_READER_ROLLING12_PARITY_START_DATE = "2026-05-31"
+const IMAGE_COVERAGE_START_DATE = "2026-07-31"
+const IMAGE_COVERAGE_MIN = 0.75
 
 async function main() {
   process.env.DASHBOARD_DEPLOYMENT_MODE ||= "full"
@@ -53,6 +55,7 @@ async function main() {
   compareTypeSummaries(fileTypeSummaries, postgresTypeSummaries, mismatches)
   validateCodeReaderGrandTotals("file", fileData, mismatches)
   validateCodeReaderGrandTotals("postgres", postgresData, mismatches)
+  validateTopProductsImageCoverage(postgresData, mismatches)
 
   if (mismatches.length > 0) {
     console.error(`Parity check failed with ${mismatches.length} mismatches.`)
@@ -285,6 +288,23 @@ function validateCodeReaderGrandTotals(
       mismatches.push({
         scope: `codeReaderGrandTotals.${scope}.${result.brand}`,
         message: `Units grand total mismatch: expected=${result.expectedUnitsGrandTotal} actual=${result.actualUnitsGrandTotal ?? "missing"}`,
+      })
+    }
+  }
+}
+
+function validateTopProductsImageCoverage(data: DashboardData, mismatches: Mismatch[]) {
+  const category = data.categories.find((item) => item.id === "code_reader_scanner")
+  for (const snapshot of category?.snapshots ?? []) {
+    const top = snapshot.topProducts ?? []
+    if (snapshot.date < IMAGE_COVERAGE_START_DATE || top.length === 0) continue
+    const covered = top.filter(
+      (product) => typeof product.imageUrl === "string" && product.imageUrl.trim()
+    ).length
+    if (covered / top.length < IMAGE_COVERAGE_MIN) {
+      mismatches.push({
+        scope: `dashboard.code_reader_scanner.${snapshot.date}.topProducts.imageUrl`,
+        message: `Image URL coverage ${covered}/${top.length} below 75%`,
       })
     }
   }
