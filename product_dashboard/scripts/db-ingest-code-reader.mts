@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises"
+import { readdir, readFile, stat } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -6,6 +6,7 @@ import {
   applySnapshotRowImageUrls,
   buildArtifactFromFile,
   ensureCopiedFile,
+  parseStructuredSnapshotSidecar,
   parseStructuredSnapshotRows,
   toMonthKey,
   triggerRevalidate,
@@ -16,7 +17,7 @@ import {
 } from "../lib/code-reader-scanner-data.ts"
 import { DASHBOARD_DATA_TAG, REPORT_FILES_TAG, TYPE_SUMMARIES_TAG } from "../lib/db/constants.ts"
 import { closeDatabasePools } from "../lib/db/client.ts"
-import { ingestSnapshotData } from "../lib/db/ingest.ts"
+import { ingestSnapshotData, type SnapshotRowInput } from "../lib/db/ingest.ts"
 import { deleteSourceArtifactsByPrefix } from "../lib/db/source-artifacts.ts"
 
 type CliArgs = {
@@ -64,6 +65,32 @@ export async function ingestCodeReaderSnapshots(args: CliArgs) {
     .filter((month) => !args.month || args.month === month)
     .sort()
 
+  const archiveRowsByMonth = new Map<string, SnapshotRowInput[] | undefined>()
+  for (const month of months) {
+    const monthDir = path.join(args.archiveDir, month)
+    const structuredJsonPath = await resolveOptionalFile(monthDir, ["dashboard_snapshot_rows.json"])
+    if (!structuredJsonPath) {
+      archiveRowsByMonth.set(month, undefined)
+      continue
+    }
+
+    try {
+      const parsedSidecar = await parseStructuredSnapshotSidecar(structuredJsonPath)
+      if (parsedSidecar.month !== month) {
+        throw new Error(
+          `Expected top-level month ${JSON.stringify(month)}, received ${JSON.stringify(parsedSidecar.month)}.`
+        )
+      }
+      archiveRowsByMonth.set(month, parsedSidecar.rows)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(
+        `Invalid code-reader sidecar for archive month ${month} (${structuredJsonPath}). ` +
+          `Aborting before any database writes: ${message}`
+      )
+    }
+  }
+
   for (const month of months) {
     const monthDir = path.join(args.archiveDir, month)
     const manifest = await readManifest(path.join(monthDir, "manifest.json"))
@@ -78,6 +105,10 @@ export async function ingestCodeReaderSnapshots(args: CliArgs) {
       manifest,
     })
     if (!snapshot) continue
+
+    const rowRecords = archiveRowsByMonth.get(month)
+    const { enriched } = applySnapshotRowImageUrls(snapshot, rowRecords ?? [])
+    console.log(`Enriched ${enriched} snapshot products with image URLs for ${month}`)
 
     await deleteSourceArtifactsByPrefix(`${month}/`, { direct: true })
 
@@ -139,6 +170,7 @@ export async function ingestCodeReaderSnapshots(args: CliArgs) {
         analysisFileName: manifest?.analysisFileName ?? null,
         summaryFileName: manifest?.summaryFileName ?? null,
       },
+      rowRecords,
       artifacts,
     })
 
@@ -255,8 +287,10 @@ async function ingestExplicitCodeReaderMonth(args: CliArgs) {
     }))
   }
 
-  const rowRecords = await parseStructuredSnapshotRows(args.structuredJsonPath)
-  const { enriched } = applySnapshotRowImageUrls(snapshot, rowRecords)
+  const rowRecords = args.structuredJsonPath
+    ? await parseStructuredSnapshotRows(args.structuredJsonPath)
+    : undefined
+  const { enriched } = applySnapshotRowImageUrls(snapshot, rowRecords ?? [])
   console.log(`Enriched ${enriched} snapshot products with image URLs for ${month}`)
 
   await ingestSnapshotData({
@@ -295,8 +329,8 @@ async function resolveOptionalFile(dir: string, names: string[]) {
   for (const name of names) {
     const filePath = path.join(dir, name)
     try {
-      await readFile(filePath)
-      return filePath
+      const fileStat = await stat(filePath)
+      if (fileStat.isFile()) return filePath
     } catch {
       continue
     }
