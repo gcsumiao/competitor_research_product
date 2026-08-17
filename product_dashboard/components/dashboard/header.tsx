@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Bell, ChevronDown } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import type { DashboardUser } from "@/lib/cloudflare-access-core"
 
 const navItems = [
   { label: "Dashboard", href: "/" },
@@ -22,7 +23,7 @@ const navItems = [
   { label: "Market Survey", href: "/orders" },
 ]
 
-export function Header() {
+export function Header({ user }: { user: DashboardUser }) {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -69,12 +70,11 @@ export function Header() {
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 cursor-pointer">
             <Avatar className="h-9 w-9">
-              <AvatarImage src="/favicon.ico" />
-              <AvatarFallback>OS</AvatarFallback>
+              <AvatarFallback>{initialsFor(user.displayName, user.email)}</AvatarFallback>
             </Avatar>
             <div className="hidden sm:block text-left">
-              <p className="text-sm font-medium">Ginny Chen</p>
-              <p className="text-xs text-muted-foreground">Admin</p>
+              <p className="max-w-40 truncate text-sm font-medium">{user.displayName}</p>
+              <p className="text-xs capitalize text-muted-foreground">{user.role}</p>
             </div>
             <ChevronDown className="w-4 h-4 text-muted-foreground hidden sm:block" />
           </DropdownMenuTrigger>
@@ -82,12 +82,27 @@ export function Header() {
             <DropdownMenuItem onClick={() => router.push(buildHref("/profile"))}>
               Profile
             </DropdownMenuItem>
-            <DropdownMenuItem>Settings</DropdownMenuItem>
+            {user.role === "admin" ? <DropdownMenuItem>Settings</DropdownMenuItem> : null}
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">Log out</DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => window.location.assign("/cdn-cgi/access/logout")}
+            >
+              Log out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
     </header>
   )
+}
+
+function initialsFor(name: string, email: string) {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("")
+  return initials || email.charAt(0).toUpperCase() || "U"
 }

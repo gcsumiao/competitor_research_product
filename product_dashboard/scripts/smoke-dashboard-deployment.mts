@@ -48,7 +48,7 @@ async function main() {
 
   const spotlightResponse = await fetch(
     new URL("/api/spotlight?category=code_reader_scanner", baseUrl),
-    { headers: { Connection: "close" } }
+    { headers: { ...cloudflareAccessHeaders(), Connection: "close" } }
   )
   const spotlight = (await expectOkJson(spotlightResponse, "spotlight")) as SpotlightPayload
   console.log(`Passed spotlight for ${spotlight.snapshotDate}`)
@@ -84,7 +84,9 @@ async function main() {
     const reportUrl = new URL("/api/report", baseUrl)
     reportUrl.searchParams.set("file", reportArtifact.artifactPath)
     reportUrl.searchParams.set("source", reportArtifact.categoryId ?? "code_reader_scanner")
-    const reportResponse = await fetch(reportUrl, { headers: { Connection: "close" } })
+    const reportResponse = await fetch(reportUrl, {
+      headers: { ...cloudflareAccessHeaders(), Connection: "close" },
+    })
     if (!reportResponse.ok) {
       throw new Error(`report download failed: ${reportResponse.status}`)
     }
@@ -98,7 +100,7 @@ async function main() {
   }
 
   const historyResponse = await fetch(new URL("/api/consult-me/history", baseUrl), {
-    headers: { Connection: "close" },
+    headers: { ...cloudflareAccessHeaders(), Connection: "close" },
   })
   await expectOkJson(historyResponse, "consult-me history")
   console.log("Passed consult-me history")
@@ -110,7 +112,7 @@ async function main() {
     revalidateUrl.searchParams.set("tag", "dashboard-data")
     const response = await fetch(revalidateUrl, {
       method: "POST",
-      headers: { Connection: "close" },
+      headers: { ...cloudflareAccessHeaders(), Connection: "close" },
     })
     await expectOkJson(response, "revalidate")
   } else {
@@ -154,7 +156,11 @@ async function loadChat(baseUrl: string, snapshotDate: string, label: string) {
   try {
     response = await fetch(new URL("/api/chat", baseUrl), {
       method: "POST",
-      headers: { "Content-Type": "application/json", Connection: "close" },
+      headers: {
+        ...cloudflareAccessHeaders(),
+        "Content-Type": "application/json",
+        Connection: "close",
+      },
       body: JSON.stringify({
         message: "How did we do this month?",
         categoryId: "code_reader_scanner",
@@ -211,7 +217,7 @@ function compactNumber(value: number) {
 
 async function expectOkHtml(url: string, label: string) {
   const response = await fetch(url, {
-    headers: { Connection: "close" },
+    headers: { ...cloudflareAccessHeaders(), Connection: "close" },
     signal: AbortSignal.timeout(30_000),
   })
   if (!response.ok) {
@@ -222,6 +228,19 @@ async function expectOkHtml(url: string, label: string) {
     throw new Error(`${label} returned unexpected content type: ${contentType}`)
   }
   await response.arrayBuffer()
+}
+
+function cloudflareAccessHeaders(): Record<string, string> {
+  const clientId = process.env.CF_ACCESS_CLIENT_ID?.trim()
+  const clientSecret = process.env.CF_ACCESS_CLIENT_SECRET?.trim()
+  if (!clientId && !clientSecret) return {}
+  if (!clientId || !clientSecret) {
+    throw new Error("CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET must be provided together.")
+  }
+  return {
+    "CF-Access-Client-Id": clientId,
+    "CF-Access-Client-Secret": clientSecret,
+  }
 }
 
 async function expectOkJson(response: Response, label: string) {
