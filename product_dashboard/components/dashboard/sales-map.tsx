@@ -43,6 +43,9 @@ interface SalesMapProps {
   toggleControl?: SalesMapControl
   primaryControl?: SalesMapControl
   secondaryControl?: SalesMapControl
+  topDisplayOrder?: "value-first" | "label-first"
+  growthDisplay?: "default" | "paired"
+  highlightPrimaryControl?: boolean
 }
 
 const CustomTooltip = ({
@@ -91,6 +94,9 @@ export function SalesMap({
   toggleControl,
   primaryControl,
   secondaryControl,
+  topDisplayOrder = "value-first",
+  growthDisplay = "default",
+  highlightPrimaryControl = false,
 }: SalesMapProps) {
   const total = items.reduce((sum, item) => sum + item.value, 0)
   const formatValue = valueFormatter ?? ((value: number) => `$${value.toLocaleString()}`)
@@ -131,8 +137,20 @@ export function SalesMap({
                   if (value) primaryControl.onChange(value)
                 }}
               >
-                <SelectTrigger size="sm" className="h-7 min-w-[124px] text-xs">
-                  <SelectValue />
+                <SelectTrigger
+                  size="sm"
+                  className={[
+                    "h-7 min-w-[124px] text-xs",
+                    highlightPrimaryControl
+                      ? "border-[var(--color-accent)] bg-[var(--color-accent)] font-medium text-foreground hover:bg-[var(--color-accent)]"
+                      : "",
+                  ].join(" ")}
+                >
+                  <SelectValue>
+                    {primaryControl.options.find(
+                      (option) => option.value === primaryControl.value
+                    )?.label ?? primaryControl.value}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent align="end">
                   {primaryControl.options.map((option) => (
@@ -172,29 +190,71 @@ export function SalesMap({
           <div className="space-y-4">
             <div>
               <p className="text-xs text-muted-foreground">Top tier</p>
-              <p className="text-2xl font-semibold">{topValue}</p>
-              <p className="text-xs text-muted-foreground">{topLabel}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">{growthLabel}</p>
-              <p className={["text-2xl font-semibold", growthValueClassName ?? "text-[var(--color-positive)]"].join(" ")}>
-                {growthValue}
-              </p>
-              <p className="text-xs text-muted-foreground">{growthSubLabel ?? "MoM change"}</p>
-              {growthSecondaryValue ? (
+              {topDisplayOrder === "label-first" ? (
                 <>
+                  <p className="text-2xl font-semibold">{topLabel}</p>
+                  <p className="text-xs text-muted-foreground">{topValue}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-2xl font-semibold">{topValue}</p>
+                  <p className="text-xs text-muted-foreground">{topLabel}</p>
+                </>
+              )}
+            </div>
+            {growthDisplay === "paired" ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-semibold text-foreground">
+                    {growthSubLabel ?? "MoM change"}
+                  </p>
                   <p
                     className={[
-                      "text-base font-semibold mt-1",
-                      growthSecondaryValueClassName ?? "text-[var(--color-positive)]",
+                      "mt-1 text-base font-semibold",
+                      growthValueClassName ?? "text-[var(--color-positive)]",
                     ].join(" ")}
                   >
-                    {growthSecondaryValue}
+                    {growthValue}
                   </p>
-                  <p className="text-xs text-muted-foreground">{growthSecondaryLabel ?? "YoY change"}</p>
-                </>
-              ) : null}
-            </div>
+                </div>
+                {growthSecondaryValue ? (
+                  <div>
+                    <p className="text-xs font-semibold text-foreground">
+                      {growthSecondaryLabel ?? "YoY change"}
+                    </p>
+                    <p
+                      className={[
+                        "mt-1 text-base font-semibold",
+                        growthSecondaryValueClassName ?? "text-[var(--color-positive)]",
+                      ].join(" ")}
+                    >
+                      {growthSecondaryValue}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div>
+                <p className="text-xs text-muted-foreground">{growthLabel}</p>
+                <p className={["text-2xl font-semibold", growthValueClassName ?? "text-[var(--color-positive)]"].join(" ")}>
+                  {growthValue}
+                </p>
+                <p className="text-xs text-muted-foreground">{growthSubLabel ?? "MoM change"}</p>
+                {growthSecondaryValue ? (
+                  <>
+                    <p
+                      className={[
+                        "text-base font-semibold mt-1",
+                        growthSecondaryValueClassName ?? "text-[var(--color-positive)]",
+                      ].join(" ")}
+                    >
+                      {growthSecondaryValue}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{growthSecondaryLabel ?? "YoY change"}</p>
+                  </>
+                ) : null}
+              </div>
+            )}
             <div>
               <p className="text-xs text-muted-foreground">{totalLabel}</p>
               <p className="text-2xl font-semibold">{totalValue || `$${total.toLocaleString()}`}</p>
