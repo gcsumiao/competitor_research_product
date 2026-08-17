@@ -130,8 +130,13 @@ export async function ingestSnapshotData(input: SnapshotIngestInput) {
         throw new Error("Failed to upsert category snapshot.")
       }
 
-      await clearSnapshotChildren(client, snapshotId)
-      await insertSnapshotRows(client, snapshotId, input.rowRecords ?? [])
+      const shouldReplaceSnapshotRows = input.rowRecords !== undefined
+      await clearSnapshotChildren(client, snapshotId, {
+        includeSnapshotRows: shouldReplaceSnapshotRows,
+      })
+      if (shouldReplaceSnapshotRows) {
+        await insertSnapshotRows(client, snapshotId, input.rowRecords ?? [])
+      }
       await insertSnapshotProducts(client, snapshotId, input.snapshotPayload)
       await insertBrandTotals(client, snapshotId, input.snapshotPayload)
       await insertPriceTiers(client, snapshotId, input.snapshotPayload)
@@ -174,10 +179,11 @@ export async function ingestSnapshotData(input: SnapshotIngestInput) {
 
 async function clearSnapshotChildren(
   client: PoolClient,
-  snapshotId: number
+  snapshotId: number,
+  options: { includeSnapshotRows?: boolean } = {}
 ) {
   const tables = [
-    "snapshot_rows",
+    ...(options.includeSnapshotRows === false ? [] : ["snapshot_rows"]),
     "snapshot_products",
     "snapshot_brand_totals",
     "snapshot_price_tiers",

@@ -18,20 +18,6 @@ type SpotlightResponse = {
   alerts: SpotlightAlert[]
 }
 
-let cachedDashboard:
-  | { loadedAt: number; data: Awaited<ReturnType<typeof loadDashboardData>> }
-  | null = null
-
-async function loadDashboardDataCached() {
-  const now = Date.now()
-  if (cachedDashboard && now - cachedDashboard.loadedAt < 60_000) {
-    return cachedDashboard.data
-  }
-  const data = await loadDashboardData()
-  cachedDashboard = { loadedAt: now, data }
-  return data
-}
-
 function pctChange(current: number, previous: number) {
   if (!previous) return null
   return ((current - previous) / previous) * 100
@@ -197,7 +183,7 @@ export async function GET(request: Request) {
   const category = url.searchParams.get("category")
   const snapshotDate = url.searchParams.get("snapshot")
 
-  const dashboard = await loadDashboardDataCached()
+  const dashboard = await loadDashboardData()
   const categories = dashboard.categories.filter((c) => c.snapshots.length > 0)
   const defaultCategory = [...categories].sort((a, b) => a.label.localeCompare(b.label))[0]
   const selectedCategory =

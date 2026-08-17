@@ -1,7 +1,9 @@
-import { readdir, readFile } from "fs/promises"
+import { readdir, readFile, stat } from "fs/promises"
 import path from "path"
+import { unstable_cache } from "next/cache"
 
 import { queryDb } from "@/lib/db/client"
+import { DASHBOARD_DATA_TAG, DEFAULT_CACHE_REVALIDATE_SECONDS } from "@/lib/db/constants"
 import { loadCodeReaderScannerSnapshots } from "@/lib/code-reader-scanner-data"
 import {
   isPostgresDashboardSource,
@@ -10,6 +12,7 @@ import {
   resolveNonCodeCategoryDir,
 } from "@/lib/dashboard-runtime"
 import {
+  isNonCodeCategoryId,
   listNonCodeCategoryConfigs,
   type NonCodeCategoryId,
 } from "@/lib/non-code-category-config"
@@ -258,6 +261,14 @@ const TOP_PRODUCTS_COUNT = 50
 const IGNORED_SOURCE_DIRS = new Set([".git", ".venv", "__pycache__", "_archive"])
 const NON_CODE_READER_PRICE_CEILING = 1000
 
+type DashboardDataMemo = {
+  at: number
+  promise: Promise<DashboardData>
+}
+
+let dashboardDataMemo: DashboardDataMemo | null = null
+const dashboardDataForCategoryMemo = new Map<string, DashboardDataMemo>()
+
 const CSV_DATE_REGEX = /(\d{4}-\d{2}-\d{2})/
 
 function monthKeyFromDate(dateValue: string) {
@@ -266,7 +277,14 @@ function monthKeyFromDate(dateValue: string) {
   return dateValue.slice(0, 7)
 }
 
-export async function loadDashboardData(): Promise<DashboardData> {
+function getDashboardMemoTtlMs() {
+  const raw = (process.env.DASHBOARD_MEMO_TTL_MS ?? "").trim()
+  if (!raw) return 60_000
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) ? parsed : 60_000
+}
+
+async function loadDashboardDataUncached(): Promise<DashboardData> {
   if (!isPostgresDashboardSource()) {
     return loadDashboardDataFromFiles()
   }
@@ -276,11 +294,32 @@ export async function loadDashboardData(): Promise<DashboardData> {
     return postgresData
   }
 
-  const fileData = await loadDashboardDataFromFiles()
+  const fileData = await loadNonCodeDashboardDataFromFiles()
   return mergeDashboardData(postgresData, fileData)
 }
 
-export async function loadDashboardDataForCategory(categoryId: string): Promise<DashboardData> {
+export async function loadDashboardData(): Promise<DashboardData> {
+  const ttlMs = getDashboardMemoTtlMs()
+  if (ttlMs <= 0) {
+    return loadDashboardDataUncached()
+  }
+
+  const now = Date.now()
+  if (dashboardDataMemo && now - dashboardDataMemo.at < ttlMs) {
+    return dashboardDataMemo.promise
+  }
+
+  const promise = loadDashboardDataUncached()
+  dashboardDataMemo = { at: now, promise }
+  void promise.catch(() => {
+    if (dashboardDataMemo?.promise === promise) {
+      dashboardDataMemo = null
+    }
+  })
+  return promise
+}
+
+async function loadDashboardDataForCategoryUncached(categoryId: string): Promise<DashboardData> {
   const deploymentMode = getDashboardDeploymentMode()
   const category = CATEGORY_CONFIG.find(
     (item) =>
@@ -302,6 +341,38 @@ export async function loadDashboardDataForCategory(categoryId: string): Promise<
   }
 
   return { categories: [await loadCategoryDashboardDataFromFiles(category)] }
+}
+
+export async function loadDashboardDataForCategory(categoryId: string): Promise<DashboardData> {
+  if (categoryId !== "code_reader_scanner" && !isNonCodeCategoryId(categoryId)) {
+    return loadDashboardDataForCategoryUncached(categoryId)
+  }
+
+  const ttlMs = getDashboardMemoTtlMs()
+  if (ttlMs <= 0) {
+    return loadDashboardDataForCategoryUncached(categoryId)
+  }
+
+  const now = Date.now()
+  const memo = dashboardDataForCategoryMemo.get(categoryId)
+  if (memo && now - memo.at < ttlMs) {
+    return memo.promise
+  }
+
+  for (const [memoCategoryId, entry] of dashboardDataForCategoryMemo) {
+    if (now - entry.at >= ttlMs) {
+      dashboardDataForCategoryMemo.delete(memoCategoryId)
+    }
+  }
+
+  const promise = loadDashboardDataForCategoryUncached(categoryId)
+  dashboardDataForCategoryMemo.set(categoryId, { at: now, promise })
+  void promise.catch(() => {
+    if (dashboardDataForCategoryMemo.get(categoryId)?.promise === promise) {
+      dashboardDataForCategoryMemo.delete(categoryId)
+    }
+  })
+  return promise
 }
 
 export async function loadOverviewDashboardData() {
@@ -344,6 +415,18 @@ export async function loadDashboardDataFromFiles(): Promise<DashboardData> {
   }
 }
 
+async function loadNonCodeDashboardDataFromFiles(): Promise<DashboardData> {
+  const deploymentMode = getDashboardDeploymentMode()
+  const enabledCategories = CATEGORY_CONFIG.filter(
+    (category) => deploymentMode === "full" && category.source === "csv"
+  )
+  const categories = await Promise.all(enabledCategories.map(loadCategoryDashboardDataFromFiles))
+
+  return {
+    categories,
+  }
+}
+
 async function loadCategoryDashboardDataFromFiles(category: CategoryConfig): Promise<CategorySummary> {
   const snapshots =
     category.source === "csv"
@@ -359,8 +442,16 @@ async function loadCategoryDashboardDataFromFiles(category: CategoryConfig): Pro
 
 export async function loadCsvCategorySnapshots(baseDir: string | null, categoryId?: NonCodeCategoryId) {
   if (!baseDir) return []
-  const snapshotsWithRecords = await loadCsvCategorySnapshotRecords(baseDir, categoryId)
-  const snapshots = snapshotsWithRecords.map(({ date, records }) => buildSnapshotSummary(date, records, categoryId))
+  const grouped = await listGroupedSnapshotFiles(baseDir)
+  const snapshots = await Promise.all(
+    Array.from(grouped.entries()).map(async ([date, dateFiles]) => {
+      const fingerprint = await Promise.all(dateFiles.map(async (f) => {
+        const s = await stat(f).catch(() => null)
+        return s ? `${f}:${s.mtimeMs}:${s.size}` : `${f}:missing`
+      }))
+      return loadCsvSnapshotSummary(categoryId, date, dateFiles, fingerprint)
+    })
+  )
 
   return snapshots
     .filter((snapshot) => snapshot.totals.asinCount > 0)
@@ -369,8 +460,7 @@ export async function loadCsvCategorySnapshots(baseDir: string | null, categoryI
 
 export async function loadCsvCategorySnapshotRecords(baseDir: string | null, categoryId?: NonCodeCategoryId) {
   if (!baseDir) return [] as Array<{ date: string; records: RawRecord[] }>
-  const files = await listCsvFiles(baseDir).catch(() => [])
-  const grouped = groupFilesBySnapshot(files, baseDir)
+  const grouped = await listGroupedSnapshotFiles(baseDir)
   const snapshots = await Promise.all(
     Array.from(grouped.entries()).map(async ([date, dateFiles]) => {
       const records = await loadSnapshotRecords(dateFiles, categoryId)
@@ -381,6 +471,11 @@ export async function loadCsvCategorySnapshotRecords(baseDir: string | null, cat
   return snapshots
     .filter((snapshot) => snapshot.records.length > 0)
     .sort((a, b) => a.date.localeCompare(b.date))
+}
+
+async function listGroupedSnapshotFiles(baseDir: string) {
+  const files = await listCsvFiles(baseDir).catch(() => [])
+  return groupFilesBySnapshot(files, baseDir)
 }
 
 async function listCsvFiles(dir: string): Promise<string[]> {
@@ -600,6 +695,87 @@ async function loadSnapshotRecords(files: string[], categoryId?: NonCodeCategory
   }
 
   return Array.from(records.values())
+}
+
+async function loadCsvSnapshotSummaryUncached(
+  categoryId: NonCodeCategoryId | undefined,
+  snapshotDate: string,
+  files: string[],
+  _fingerprint: string[]
+) {
+  const records = await loadSnapshotRecords(files, categoryId)
+  return buildSnapshotSummary(snapshotDate, records, categoryId)
+}
+
+const MAX_CACHED_CSV_SNAPSHOT_ENVELOPE_SIZE = 1.9 * 1024 * 1024
+const oversizedCsvSnapshotKeys = new Set<string>()
+const warnedOversizedCsvSnapshotKeys = new Set<string>()
+
+class OversizedCsvSnapshotSummaryError extends Error {
+  constructor(
+    readonly cacheKey: string,
+    readonly envelopeSize: number,
+    readonly result: SnapshotSummary
+  ) {
+    super(`CSV snapshot summary exceeds cache size limit: ${cacheKey}`)
+  }
+}
+
+async function loadCacheableCsvSnapshotSummary(
+  categoryId: NonCodeCategoryId | undefined,
+  snapshotDate: string,
+  files: string[],
+  fingerprint: string[]
+) {
+  const result = await loadCsvSnapshotSummaryUncached(categoryId, snapshotDate, files, fingerprint)
+  const serialized = JSON.stringify(result)
+  const envelopeSize = JSON.stringify({ headers: {}, body: serialized, status: 200, url: "" }).length
+  if (envelopeSize > MAX_CACHED_CSV_SNAPSHOT_ENVELOPE_SIZE) {
+    const cacheKey = `${categoryId ?? "-"}|${snapshotDate}`
+    oversizedCsvSnapshotKeys.add(cacheKey)
+    // Throwing prevents unstable_cache from attempting to store an oversized entry.
+    throw new OversizedCsvSnapshotSummaryError(cacheKey, envelopeSize, result)
+  }
+  return result
+}
+
+const loadCsvSnapshotSummaryCached = unstable_cache(
+  loadCacheableCsvSnapshotSummary,
+  ["csv-snapshot-summary", "v1"],
+  {
+    tags: [DASHBOARD_DATA_TAG],
+    revalidate: DEFAULT_CACHE_REVALIDATE_SECONDS,
+  }
+)
+
+async function loadCsvSnapshotSummary(
+  categoryId: NonCodeCategoryId | undefined,
+  snapshotDate: string,
+  files: string[],
+  fingerprint: string[]
+) {
+  // Plain-Node scripts import this module outside the Next runtime.
+  if (!process.env.NEXT_RUNTIME) {
+    return loadCsvSnapshotSummaryUncached(categoryId, snapshotDate, files, fingerprint)
+  }
+
+  const cacheKey = `${categoryId ?? "-"}|${snapshotDate}`
+  if (oversizedCsvSnapshotKeys.has(cacheKey)) {
+    return loadCsvSnapshotSummaryUncached(categoryId, snapshotDate, files, fingerprint)
+  }
+
+  try {
+    return await loadCsvSnapshotSummaryCached(categoryId, snapshotDate, files, fingerprint)
+  } catch (error) {
+    if (!(error instanceof OversizedCsvSnapshotSummaryError)) throw error
+    if (!warnedOversizedCsvSnapshotKeys.has(error.cacheKey)) {
+      warnedOversizedCsvSnapshotKeys.add(error.cacheKey)
+      console.warn(
+        `Bypassing unstable_cache for oversized CSV snapshot summary ${error.cacheKey} (${error.envelopeSize} bytes)`
+      )
+    }
+    return error.result
+  }
 }
 
 export async function loadDashboardDataFromPostgres(categoryIds?: readonly CategoryId[]): Promise<DashboardData> {

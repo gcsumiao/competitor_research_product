@@ -12,6 +12,14 @@ const REQUIRED_ENV_KEYS = [
   "DASHBOARD_REVALIDATE_URL",
 ] as const
 
+const REQUIRED_ACCESS_ENV_KEYS = [
+  "CF_ACCESS_TEAM_DOMAIN",
+  "CF_ACCESS_AUDIENCES",
+  "CF_ACCESS_USERS_GROUP_ID",
+  "CF_ACCESS_ADMIN_GROUP_ID",
+  "CF_ACCESS_AUTOMATION_CLIENT_ID",
+] as const
+
 function main() {
   const result: CheckResult = { errors: [], warnings: [] }
   const env = process.env
@@ -20,6 +28,18 @@ function main() {
     if (!env[key]?.trim()) {
       result.errors.push(`Missing ${key}.`)
     }
+  }
+
+  const accessEnabled = ["1", "true", "yes", "on"].includes(
+    (env.CF_ACCESS_ENABLED ?? "").trim().toLowerCase()
+  )
+  if (accessEnabled) {
+    for (const key of REQUIRED_ACCESS_ENV_KEYS) {
+      if (!env[key]?.trim()) result.errors.push(`Missing ${key} while CF_ACCESS_ENABLED is true.`)
+    }
+    validateAccessTeamDomain(env.CF_ACCESS_TEAM_DOMAIN, result)
+  } else {
+    result.warnings.push("CF_ACCESS_ENABLED is not true; the Vercel origin will accept direct traffic.")
   }
 
   if ((env.DASHBOARD_DATA_SOURCE ?? "").trim().toLowerCase() !== "postgres") {
@@ -48,7 +68,8 @@ function main() {
 
   if (env.VERCEL_URL && env.DASHBOARD_REVALIDATE_URL) {
     const host = safeHostname(env.DASHBOARD_REVALIDATE_URL)
-    if (host && host !== env.VERCEL_URL && !host.endsWith(env.VERCEL_URL)) {
+    const isExpectedPagesProxy = accessEnabled && host?.endsWith(".pages.dev")
+    if (host && host !== env.VERCEL_URL && !host.endsWith(env.VERCEL_URL) && !isExpectedPagesProxy) {
       result.warnings.push(
         `DASHBOARD_REVALIDATE_URL host (${host}) does not match VERCEL_URL (${env.VERCEL_URL}). Confirm you are targeting the intended deployment domain.`
       )
@@ -59,6 +80,18 @@ function main() {
 
   if (result.errors.length > 0) {
     process.exitCode = 1
+  }
+}
+
+function validateAccessTeamDomain(value: string | undefined, result: CheckResult) {
+  if (!value?.trim()) return
+  try {
+    const parsed = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`)
+    if (parsed.protocol !== "https:" || !parsed.hostname.endsWith(".cloudflareaccess.com")) {
+      result.errors.push("CF_ACCESS_TEAM_DOMAIN must be an https://*.cloudflareaccess.com URL.")
+    }
+  } catch {
+    result.errors.push("CF_ACCESS_TEAM_DOMAIN is not a valid URL.")
   }
 }
 
@@ -101,6 +134,7 @@ function printSummary(result: CheckResult) {
   console.log(`DASHBOARD_DATA_SOURCE: ${process.env.DASHBOARD_DATA_SOURCE ?? ""}`)
   console.log(`DASHBOARD_DEPLOYMENT_MODE: ${process.env.DASHBOARD_DEPLOYMENT_MODE ?? ""}`)
   console.log(`DASHBOARD_REVALIDATE_URL: ${process.env.DASHBOARD_REVALIDATE_URL ?? ""}`)
+  console.log(`CF_ACCESS_ENABLED: ${process.env.CF_ACCESS_ENABLED ?? "false"}`)
 
   if (result.warnings.length > 0) {
     for (const warning of result.warnings) {

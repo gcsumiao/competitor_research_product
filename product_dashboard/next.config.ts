@@ -6,7 +6,11 @@ const nextConfig: NextConfig = {
     root: path.resolve(__dirname),
   },
   outputFileTracingIncludes: {
-    "/*": ["./data/code_reader_scanner/**/*", "./data/non_code_categories/**/*"],
+    "/*": [
+      "./data/code_reader_scanner/**/*.xlsx",
+      "./data/code_reader_scanner/**/manifest.json",
+      "./data/non_code_categories/**/*",
+    ],
   },
   images: {
     remotePatterns: [

@@ -106,6 +106,30 @@ export async function parseStructuredSnapshotRows(filePath: string | undefined) 
     .filter((row): row is SnapshotRowInput => Boolean(row))
 }
 
+export async function parseStructuredSnapshotSidecar(filePath: string) {
+  const parsed = JSON.parse(await readFile(filePath, "utf8")) as unknown
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Expected a top-level JSON object.")
+  }
+
+  const raw = parsed as Record<string, unknown>
+  const sourceRows = Array.isArray(raw.snapshotRows)
+    ? raw.snapshotRows
+    : Array.isArray(raw.rows)
+      ? raw.rows
+      : null
+  if (!sourceRows) {
+    throw new Error('Expected a "snapshotRows" or "rows" array.')
+  }
+
+  return {
+    month: raw.month,
+    rows: sourceRows
+      .map((row) => toSnapshotRowInput(row))
+      .filter((row): row is SnapshotRowInput => Boolean(row)),
+  }
+}
+
 function toSnapshotRowInput(row: unknown): SnapshotRowInput | null {
   if (!row || typeof row !== "object" || Array.isArray(row)) return null
   const value = row as Record<string, unknown>
@@ -159,9 +183,22 @@ export async function triggerRevalidate(input: {
     url.searchParams.set("secret", input.secret)
     url.searchParams.set("tag", tag)
     try {
-      await fetch(url, { method: "POST" })
+      await fetch(url, { method: "POST", headers: cloudflareAccessHeaders() })
     } catch (error) {
       console.warn(`Failed to revalidate ${tag}: ${error instanceof Error ? error.message : error}`)
     }
+  }
+}
+
+function cloudflareAccessHeaders(): Record<string, string> {
+  const clientId = process.env.CF_ACCESS_CLIENT_ID?.trim()
+  const clientSecret = process.env.CF_ACCESS_CLIENT_SECRET?.trim()
+  if (!clientId && !clientSecret) return {}
+  if (!clientId || !clientSecret) {
+    throw new Error("CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET must be provided together.")
+  }
+  return {
+    "CF-Access-Client-Id": clientId,
+    "CF-Access-Client-Secret": clientSecret,
   }
 }
