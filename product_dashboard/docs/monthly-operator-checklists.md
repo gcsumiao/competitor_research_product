@@ -111,3 +111,7 @@ pnpm -C product_dashboard db:ingest:non-code
    - reports
    - specs
    - stakeholders copilot
+
+## Dashboard cache revalidation
+
+After running `pnpm db:ingest:code-reader` or `pnpm db:ingest:non-code`, watch the ingest output for `Failed to revalidate` warnings. The revalidate call is a silent no-op when `DASHBOARD_REVALIDATE_URL` or `DASHBOARD_REVALIDATE_SECRET` is unset. Allow ~60 seconds after ingest for the in-process memo TTL to expire before spot-checking the dashboard.

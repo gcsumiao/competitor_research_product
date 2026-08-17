@@ -12,6 +12,12 @@ export type FileLocator =
 export type SpecsMode = "generic" | "target_dimensions"
 export type TargetDimensionPreset = "borescope" | "thermal_imager"
 
+export type PriceTierConfig = {
+  label: string
+  min: number
+  max: number
+}
+
 export type NonCodeCategoryConfig = {
   id: string
   label: string
@@ -19,6 +25,7 @@ export type NonCodeCategoryConfig = {
   sourceWorkbook?: FileLocator
   typeSummarySources?: readonly FileLocator[]
   visibleReports: readonly FileLocator[]
+  priceTiers?: readonly PriceTierConfig[]
   starterQuestions?: Partial<Record<string, readonly string[]>>
   specsMode: SpecsMode
   targetDimensionPreset?: TargetDimensionPreset
@@ -454,7 +461,7 @@ export function listNonCodeCategoryIds(): NonCodeCategoryId[] {
   return NON_CODE_CATEGORY_CONFIGS.map((config) => config.id)
 }
 
-export function getNonCodeCategoryConfig(categoryId: NonCodeCategoryId) {
+export function getNonCodeCategoryConfig(categoryId: NonCodeCategoryId): NonCodeCategoryConfig | undefined {
   return NON_CODE_CATEGORY_CONFIG_MAP.get(categoryId)
 }
 
