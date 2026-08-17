@@ -9,6 +9,7 @@ import {
   findIdentityString,
   isAutomationAccessPayload,
   isAutomationRouteAllowed,
+  isDashboardAdmin,
   isHumanAccessPayload,
   readPayloadString,
 } from "../lib/cloudflare-access-core.ts"
@@ -76,4 +77,14 @@ test("extracts Entra group ids and profile values from nested identity data", ()
   assert.equal(groups.has("admins-group"), true)
   assert.equal(groups.has("Dashboard-Users"), true)
   assert.equal(findIdentityString(identity, ["displayName"]), "Ginny Chen")
+})
+
+test("supports OTP admin email allowlists before Entra groups are available", () => {
+  const groups = new Set<string>()
+  const env = { CF_ACCESS_ADMIN_EMAILS: "ginny.chen@innova.com, other@innova.com" }
+  assert.equal(isDashboardAdmin("Ginny.Chen@innova.com", groups, env), true)
+  assert.equal(isDashboardAdmin("employee@innova.com", groups, env), false)
+
+  const groupEnv = { CF_ACCESS_ADMIN_GROUP_ID: "admins-group" }
+  assert.equal(isDashboardAdmin("employee@innova.com", new Set(["admins-group"]), groupEnv), true)
 })

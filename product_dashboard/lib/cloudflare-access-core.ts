@@ -130,6 +130,22 @@ export function isAutomationRouteAllowed(pathname: string, method: string) {
   return false
 }
 
+export function isDashboardAdmin(
+  email: string,
+  groups: ReadonlySet<string>,
+  env: Record<string, string | undefined> = process.env
+) {
+  const normalizedEmail = email.trim().toLowerCase()
+  const configuredEmails = (env.CF_ACCESS_ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+  if (configuredEmails.includes(normalizedEmail)) return true
+
+  const adminGroupId = env.CF_ACCESS_ADMIN_GROUP_ID?.trim()
+  return Boolean(adminGroupId && groups.has(adminGroupId))
+}
+
 export function extractGroupValues(identity: unknown) {
   const groups = new Set<string>()
   collectGroupValues(identity, false, groups)

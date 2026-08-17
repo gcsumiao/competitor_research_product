@@ -15,9 +15,6 @@ const REQUIRED_ENV_KEYS = [
 const REQUIRED_ACCESS_ENV_KEYS = [
   "CF_ACCESS_TEAM_DOMAIN",
   "CF_ACCESS_AUDIENCES",
-  "CF_ACCESS_USERS_GROUP_ID",
-  "CF_ACCESS_ADMIN_GROUP_ID",
-  "CF_ACCESS_AUTOMATION_CLIENT_ID",
 ] as const
 
 function main() {
@@ -36,6 +33,11 @@ function main() {
   if (accessEnabled) {
     for (const key of REQUIRED_ACCESS_ENV_KEYS) {
       if (!env[key]?.trim()) result.errors.push(`Missing ${key} while CF_ACCESS_ENABLED is true.`)
+    }
+    if (!env.CF_ACCESS_ADMIN_GROUP_ID?.trim() && !env.CF_ACCESS_ADMIN_EMAILS?.trim()) {
+      result.errors.push(
+        "Set CF_ACCESS_ADMIN_GROUP_ID or CF_ACCESS_ADMIN_EMAILS while CF_ACCESS_ENABLED is true."
+      )
     }
     validateAccessTeamDomain(env.CF_ACCESS_TEAM_DOMAIN, result)
   } else {

@@ -6,6 +6,7 @@ import { headers } from "next/headers"
 import {
   extractGroupValues,
   findIdentityString,
+  isDashboardAdmin,
   isCloudflareAccessEnabled,
   readCloudflareAccessConfig,
   readPayloadString,
@@ -54,9 +55,8 @@ async function loadDashboardUser(): Promise<DashboardUser> {
     payload.sub ??
     email
 
-  const adminGroupId = process.env.CF_ACCESS_ADMIN_GROUP_ID?.trim()
   const groups = extractGroupValues(identity)
-  const role = adminGroupId && groups.has(adminGroupId) ? "admin" : "user"
+  const role = isDashboardAdmin(email, groups) ? "admin" : "user"
 
   return {
     id,
