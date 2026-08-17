@@ -488,7 +488,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             }
             color={
               isCodeReader
-                ? (marketTrendMetric === "units" ? "#64748B" : "#F97316")
+                ? (marketTrendMetric === "units" ? "#2563EB" : "#F97316")
                 : undefined
             }
             headerRight={
@@ -543,6 +543,9 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             growthSecondaryLabel="YoY change"
             growthValueClassName={metricDeltaClassName(scopeMoM)}
             growthSecondaryValueClassName={metricDeltaClassName(scopeYoY)}
+            topDisplayOrder={isCodeReader ? "label-first" : "value-first"}
+            growthDisplay={isCodeReader ? "paired" : "default"}
+            highlightPrimaryControl={isCodeReader}
             totalLabel={priceTierMetric === "revenue" ? "Total revenue" : "Total units"}
             totalValue={priceTierMetric === "revenue"
               ? (isCodeReader
@@ -695,7 +698,7 @@ function buildMetricCards(
         valueBadgeText: innovaRevenueMove.label,
         valueBadgeClassName: innovaRevenueMove.className,
         secondaryValue: `Revenue ${formatCodeReaderCurrencyCompact(innovaCurrentRevenue?.grandTotal ?? 0)}`,
-        change: `Rolling 12 ${formatChangeLabel(innovaRevenueChange)} vs prior snapshot`,
+        change: `Rolling 12 ${formatChangeLabel(innovaRevenueChange)} vs prior month`,
         changeClassName: metricDeltaClassName(innovaRevenueChange),
         isPositiveOutcome: (innovaRevenueChange ?? 0) >= 0,
         icon: DollarSign,
@@ -706,7 +709,7 @@ function buildMetricCards(
         valueBadgeText: innovaUnitsMove.label,
         valueBadgeClassName: innovaUnitsMove.className,
         secondaryValue: `Units ${formatCodeReaderUnitsCompact(innovaCurrentUnits?.grandTotal ?? 0)}`,
-        change: `Rolling 12 ${formatChangeLabel(innovaUnitsChange)} vs prior snapshot`,
+        change: `Rolling 12 ${formatChangeLabel(innovaUnitsChange)} vs prior month`,
         changeClassName: metricDeltaClassName(innovaUnitsChange),
         isPositiveOutcome: (innovaUnitsChange ?? 0) >= 0,
         icon: Package,
@@ -717,7 +720,7 @@ function buildMetricCards(
         valueBadgeText: blcktecRevenueMove.label,
         valueBadgeClassName: blcktecRevenueMove.className,
         secondaryValue: `Revenue ${formatCodeReaderCurrencyCompact(blcktecCurrentRevenue?.grandTotal ?? 0)}`,
-        change: `Rolling 12 ${formatChangeLabel(blcktecRevenueChange)} vs prior snapshot`,
+        change: `Rolling 12 ${formatChangeLabel(blcktecRevenueChange)} vs prior month`,
         changeClassName: metricDeltaClassName(blcktecRevenueChange),
         isPositiveOutcome: (blcktecRevenueChange ?? 0) >= 0,
         icon: DollarSign,
@@ -728,7 +731,7 @@ function buildMetricCards(
         valueBadgeText: blcktecUnitsMove.label,
         valueBadgeClassName: blcktecUnitsMove.className,
         secondaryValue: `Units ${formatCodeReaderUnitsCompact(blcktecCurrentUnits?.grandTotal ?? 0)}`,
-        change: `Rolling 12 ${formatChangeLabel(blcktecUnitsChange)} vs prior snapshot`,
+        change: `Rolling 12 ${formatChangeLabel(blcktecUnitsChange)} vs prior month`,
         changeClassName: metricDeltaClassName(blcktecUnitsChange),
         isPositiveOutcome: (blcktecUnitsChange ?? 0) >= 0,
         icon: Package,
@@ -923,9 +926,9 @@ function rankMovementBadge(delta: number | null) {
 
 function metricDeltaClassName(delta: number | null) {
   if (delta === null) return "text-muted-foreground"
-  if (delta > 0) return "text-[var(--color-positive)]"
-  if (delta < 0) return "text-[var(--color-negative)]"
-  return "text-foreground"
+  return delta < 0
+    ? "text-[var(--color-negative)]"
+    : "text-[var(--color-positive)]"
 }
 
 function metricMoM(currentValue: number | undefined, previousValue: number | undefined) {
