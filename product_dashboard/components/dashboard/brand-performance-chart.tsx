@@ -31,8 +31,8 @@ export type BrandPerformanceBrand = "innova" | "blcktec"
 const BRAND_PALETTES = {
   innova: {
     label: "Innova",
-    line: "#B91C1C",
-    bar: "#FCA5A5",
+    line: "#EA580C",
+    bar: "#FDBA74",
   },
   blcktec: {
     label: "BLCKTEC",
