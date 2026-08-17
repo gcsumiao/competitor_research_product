@@ -72,6 +72,8 @@ async function main() {
     compareAllRolling12Brands(`adjusted.${directSnapshot.date}.postgres`, directSnapshot, postgresSnapshot, mismatches)
     compareRolling12OrderAndRanks(`adjusted.${directSnapshot.date}.file`, directSnapshot, fileSnapshot, mismatches)
     compareRolling12OrderAndRanks(`adjusted.${directSnapshot.date}.postgres`, directSnapshot, postgresSnapshot, mismatches)
+    compareRolling12Series(`adjusted.${directSnapshot.date}.file`, directSnapshot, fileSnapshot, mismatches)
+    compareRolling12Series(`adjusted.${directSnapshot.date}.postgres`, directSnapshot, postgresSnapshot, mismatches)
   }
 
   for (const expectation of EXPLICIT_EXPECTATIONS) {
@@ -137,6 +139,53 @@ function compareRolling12OrderAndRanks(
 ) {
   compareRolling12MetricOrder("revenue", scope, expectedSnapshot, actualSnapshot, mismatches)
   compareRolling12MetricOrder("units", scope, expectedSnapshot, actualSnapshot, mismatches)
+}
+
+function compareRolling12Series(
+  scope: string,
+  expectedSnapshot: SnapshotSummary,
+  actualSnapshot: SnapshotSummary,
+  mismatches: Mismatch[]
+) {
+  for (const metric of ["revenue", "units"] as const) {
+    const expectedMetric = expectedSnapshot.rolling12?.[metric]
+    const actualMetric = actualSnapshot.rolling12?.[metric]
+    if (!expectedMetric || !actualMetric) continue
+
+    if (expectedMetric.monthLabels.join("|") !== actualMetric.monthLabels.join("|")) {
+      mismatches.push({
+        scope: `${scope}.${metric}.monthLabels`,
+        message: "Rolling 12 month labels do not match.",
+      })
+    }
+
+    const actualRows = new Map(
+      actualMetric.brands.map((row) => [normalizeBrandForOrder(row.brand), row])
+    )
+    for (const expectedRow of expectedMetric.brands) {
+      const actualRow = actualRows.get(normalizeBrandForOrder(expectedRow.brand))
+      if (!actualRow) continue
+      const expectedSeries = expectedRow.monthlySeries ?? []
+      const actualSeries = actualRow.monthlySeries ?? []
+      if (expectedSeries.length !== actualSeries.length) {
+        mismatches.push({
+          scope: `${scope}.${metric}.${expectedRow.brand}.monthlySeries`,
+          message: `Series length mismatch: expected=${expectedSeries.length} actual=${actualSeries.length}`,
+        })
+        continue
+      }
+      for (let index = 0; index < expectedSeries.length; index += 1) {
+        if (Math.abs(expectedSeries[index] - actualSeries[index]) <= 0.01) {
+          continue
+        }
+        mismatches.push({
+          scope: `${scope}.${metric}.${expectedRow.brand}.monthlySeries`,
+          message: `Series item ${index} mismatch: expected=${expectedSeries[index]} actual=${actualSeries[index]}`,
+        })
+        break
+      }
+    }
+  }
 }
 
 function compareRolling12MetricOrder(

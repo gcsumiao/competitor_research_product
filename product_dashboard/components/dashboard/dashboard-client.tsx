@@ -12,6 +12,10 @@ import {
   Users,
 } from "lucide-react"
 
+import {
+  BrandPerformanceChart,
+  type BrandPerformanceBrand,
+} from "@/components/dashboard/brand-performance-chart"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { PageHeader } from "@/components/dashboard/page-header"
 import { ProfitChart } from "@/components/dashboard/profit-chart"
@@ -38,6 +42,8 @@ import {
 import {
   buildRange,
   formatChangeLabel,
+  formatCodeReaderCurrencyCompact,
+  formatCodeReaderUnitsCompact,
   formatCurrency,
   formatCurrencyCompact,
   formatDeltaLabel,
@@ -49,7 +55,16 @@ import {
   truncateLabel,
 } from "@/lib/dashboard-format"
 
-const PRICE_TIER_COLORS = ["#3b82f6", "#22c55e", "#8b5cf6", "#f97316", "#14b8a6", "#f97316"]
+const PRICE_TIER_COLORS: Record<string, string> = {
+  tablet_800_plus: "var(--color-tier-tablet-800-plus)",
+  tablet_400_800: "var(--color-tier-tablet-400-800)",
+  tablet_under_400: "var(--color-tier-tablet-under-400)",
+  handheld_75_plus: "var(--color-tier-handheld-75-plus)",
+  handheld_under_75: "var(--color-tier-handheld-under-75)",
+  total_dongle: "var(--color-tier-total-dongle)",
+  total_other_tools: "var(--color-tier-total-other-tools)",
+}
+const PRICE_TIER_FALLBACK_COLOR = "var(--color-tier-total-other-tools)"
 const INNOVA_BRAND = "innova"
 const BLCKTEC_BRAND = "blcktec"
 
@@ -120,6 +135,8 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   const [priceTierMetric, setPriceTierMetric] = useState<"revenue" | "units">("revenue")
   const [marketTrendMetric, setMarketTrendMetric] = useState<"units" | "revenue">("revenue")
   const [topAsinsMetric, setTopAsinsMetric] = useState<"units" | "revenue">("revenue")
+  const [brandPerformanceBrand, setBrandPerformanceBrand] =
+    useState<BrandPerformanceBrand>("innova")
   const selectedTimeRangeLabel = activeSnapshot ? formatSnapshotRangeLabel(activeSnapshot.date) : "n/a"
 
   const metricCards = buildMetricCards(
@@ -138,43 +155,26 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     [activeSnapshot, isCodeReader]
   )
 
-  const profitChartData = isCodeReader && rollingMarketSeries.length
-    ? rollingMarketSeries.map((point) => ({
-        label: point.label,
-        sales: point.units,
-        revenue: point.revenue,
-      }))
-    : sortedSnapshots.map((snapshot) => ({
-        label: formatSnapshotLabelMonthEnd(snapshot.date),
-        sales: snapshot.totals.units,
-        revenue: snapshot.totals.revenue,
-      }))
+  const profitChartData = sortedSnapshots.map((snapshot) => ({
+    label: formatSnapshotLabelMonthEnd(snapshot.date),
+    sales: snapshot.totals.units,
+    revenue: snapshot.totals.revenue,
+  }))
 
-  const brandLeaders = useMemo(() => {
+  const brandPerformance = useMemo(
+    () => buildCodeReaderBrandPerformance(activeSnapshot, brandPerformanceBrand),
+    [activeSnapshot, brandPerformanceBrand]
+  )
+
+  const marketLeaders = useMemo(() => {
     if (!activeSnapshot) return []
-
-    if (isCodeReader) {
-      const targets = [INNOVA_BRAND, BLCKTEC_BRAND]
-      return targets.map((target, index) => {
-        const brand = activeSnapshot.brandTotals.find(
-          (entry) => entry.brand.toLowerCase() === target
-        )
-        return {
-          label: target === INNOVA_BRAND ? "Innova" : "BLCKTEC",
-          value: formatPercent(brand?.share ?? 0, 1),
-          sublabel: `${formatCurrencyCompact(brand?.revenue ?? 0)} revenue`,
-          tone: index === 0 ? "green" as const : "orange" as const,
-        }
-      })
-    }
-
     return (activeSnapshot.brandTotals ?? []).slice(0, 2).map((brand, index) => ({
       label: brand.brand,
       value: formatPercent(brand.share, 1),
       sublabel: `${formatCurrencyCompact(brand.revenue)} revenue`,
       tone: index === 0 ? "green" as const : "orange" as const,
     }))
-  }, [activeSnapshot, isCodeReader])
+  }, [activeSnapshot])
 
   const currentRevenue = isCodeReader && rollingMarketSeries.length
     ? (rollingMarketSeries[rollingMarketSeries.length - 1]?.revenue ?? 0)
@@ -224,10 +224,10 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   const currentPriceTierRows = buildPriceTierItems(activeSnapshot, resolvedPriceScope)
   const scopeMetric = findPriceScopeMetric(activeSnapshot, resolvedPriceScope, currentPriceTierRows)
 
-  const priceTiers = currentPriceTierRows.map((tier, index) => ({
+  const priceTiers = currentPriceTierRows.map((tier) => ({
     label: tier.label,
     value: priceTierMetric === "revenue" ? tier.revenue : tier.units,
-    color: PRICE_TIER_COLORS[index % PRICE_TIER_COLORS.length],
+    color: PRICE_TIER_COLORS[tier.scopeKey] ?? PRICE_TIER_FALLBACK_COLOR,
     revenueShare: tier.revenueShare,
     unitsShare: tier.unitsShare,
   }))
@@ -264,13 +264,25 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   const marketTrendTotalLabel = marketTrendMetric === "units" ? "Total units" : "Total revenue"
   const marketTrendTotalValue =
     marketTrendMetric === "units"
-      ? formatNumberCompact(currentUnits)
-      : formatCurrencyCompact(currentRevenue)
+      ? (isCodeReader
+          ? formatCodeReaderUnitsCompact(currentUnits)
+          : formatNumberCompact(currentUnits))
+      : (isCodeReader
+          ? formatCodeReaderCurrencyCompact(currentRevenue)
+          : formatCurrencyCompact(currentRevenue))
   const marketTrendChange = marketTrendMetric === "units" ? unitsChange : revenueChange
   const marketTrendDeltaLabel =
     marketTrendMetric === "units"
-      ? formatDeltaLabel(currentUnits, previousUnits)
-      : formatCurrencyDeltaCompact(currentRevenue, previousRevenue)
+      ? (isCodeReader
+          ? formatCodeReaderDelta(currentUnits, previousUnits, formatCodeReaderUnitsCompact)
+          : formatDeltaLabel(currentUnits, previousUnits))
+      : (isCodeReader
+          ? formatCodeReaderDelta(
+              currentRevenue,
+              previousRevenue,
+              formatCodeReaderCurrencyCompact
+            )
+          : formatCurrencyDeltaCompact(currentRevenue, previousRevenue))
 
   return (
     <>
@@ -381,18 +393,24 @@ export function DashboardClient({ data }: { data: DashboardData }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <div className="lg:col-span-2">
-          <ProfitChart
-            data={profitChartData}
-            totalLabel="Market overview"
-            totalValue={totalRevenueValue}
-            changeLabel={formatChangeLabel(revenueChange)}
-            highlightIndex={
-              isCodeReader && rollingMarketSeries.length
-                ? rollingMarketSeries.length - 1
-                : (activeIndex >= 0 ? activeIndex : undefined)
-            }
-            leaders={brandLeaders}
-          />
+          {isCodeReader ? (
+            <BrandPerformanceChart
+              brand={brandPerformanceBrand}
+              onBrandChange={setBrandPerformanceBrand}
+              data={brandPerformance.data}
+              revenueChange={brandPerformance.revenueChange}
+              unitsChange={brandPerformance.unitsChange}
+            />
+          ) : (
+            <ProfitChart
+              data={profitChartData}
+              totalLabel="Market overview"
+              totalValue={totalRevenueValue}
+              changeLabel={formatChangeLabel(revenueChange)}
+              highlightIndex={activeIndex >= 0 ? activeIndex : undefined}
+              leaders={marketLeaders}
+            />
+          )}
         </div>
         <div>
           {isCodeReader ? (
@@ -461,6 +479,18 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             changeLabel={formatChangeLabel(marketTrendChange)}
             changeValueLabel={marketTrendDeltaLabel}
             data={marketTrendData}
+            valueFormatter={
+              isCodeReader
+                ? (marketTrendMetric === "units"
+                    ? formatCodeReaderUnitsCompact
+                    : formatCodeReaderCurrencyCompact)
+                : undefined
+            }
+            color={
+              isCodeReader
+                ? (marketTrendMetric === "units" ? "#64748B" : "#F97316")
+                : undefined
+            }
             headerRight={
               <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
                 <button
@@ -500,8 +530,12 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             items={priceTiers}
             topLabel={topTier?.label ?? "n/a"}
             topValue={priceTierMetric === "revenue"
-              ? formatCurrencyCompact(topTier?.value ?? 0)
-              : formatNumberCompact(topTier?.value ?? 0)}
+              ? (isCodeReader
+                  ? formatCodeReaderCurrencyCompact(topTier?.value ?? 0)
+                  : formatCurrencyCompact(topTier?.value ?? 0))
+              : (isCodeReader
+                  ? formatCodeReaderUnitsCompact(topTier?.value ?? 0)
+                  : formatNumberCompact(topTier?.value ?? 0))}
             growthLabel="Scope momentum"
             growthValue={formatChangeLabel(scopeMoM)}
             growthSubLabel="MoM change"
@@ -511,12 +545,20 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             growthSecondaryValueClassName={metricDeltaClassName(scopeYoY)}
             totalLabel={priceTierMetric === "revenue" ? "Total revenue" : "Total units"}
             totalValue={priceTierMetric === "revenue"
-              ? formatCurrencyCompact(scopeTotalRevenue)
-              : formatNumberCompact(scopeTotalUnits)}
+              ? (isCodeReader
+                  ? formatCodeReaderCurrencyCompact(scopeTotalRevenue)
+                  : formatCurrencyCompact(scopeTotalRevenue))
+              : (isCodeReader
+                  ? formatCodeReaderUnitsCompact(scopeTotalUnits)
+                  : formatNumberCompact(scopeTotalUnits))}
             valueFormatter={(value) =>
               priceTierMetric === "revenue"
-                ? formatCurrencyCompact(value)
-                : formatNumberCompact(value)
+                ? (isCodeReader
+                    ? formatCodeReaderCurrencyCompact(value)
+                    : formatCurrencyCompact(value))
+                : (isCodeReader
+                    ? formatCodeReaderUnitsCompact(value)
+                    : formatNumberCompact(value))
             }
             toggleControl={isCodeReader ? {
               value: priceTierMetric,
@@ -582,6 +624,16 @@ function formatCurrencyDeltaCompact(current: number, previous?: number) {
   return `${delta >= 0 ? "+" : "-"}${label}`
 }
 
+function formatCodeReaderDelta(
+  current: number,
+  previous: number | undefined,
+  formatter: (value: number) => string
+) {
+  if (typeof previous !== "number" || !Number.isFinite(previous)) return ""
+  const delta = current - previous
+  return `${delta >= 0 ? "+" : "-"}${formatter(Math.abs(delta))}`
+}
+
 function buildMetricCards(
   current: SnapshotSummary | undefined,
   previous: SnapshotSummary | undefined,
@@ -615,10 +667,22 @@ function buildMetricCards(
     const innovaUnitsDelta = rankDelta(innovaCurrentUnits?.rank, innovaPreviousUnits?.rank)
     const blcktecRevenueDelta = rankDelta(blcktecCurrentRevenue?.rank, blcktecPreviousRevenue?.rank)
     const blcktecUnitsDelta = rankDelta(blcktecCurrentUnits?.rank, blcktecPreviousUnits?.rank)
-    const innovaRevenueMoM = metricMoM(innovaCurrentRevenue?.monthly, innovaPreviousRevenue?.monthly)
-    const innovaUnitsMoM = metricMoM(innovaCurrentUnits?.monthly, innovaPreviousUnits?.monthly)
-    const blcktecRevenueMoM = metricMoM(blcktecCurrentRevenue?.monthly, blcktecPreviousRevenue?.monthly)
-    const blcktecUnitsMoM = metricMoM(blcktecCurrentUnits?.monthly, blcktecPreviousUnits?.monthly)
+    const innovaRevenueChange = metricMoM(
+      innovaCurrentRevenue?.grandTotal,
+      innovaPreviousRevenue?.grandTotal
+    )
+    const innovaUnitsChange = metricMoM(
+      innovaCurrentUnits?.grandTotal,
+      innovaPreviousUnits?.grandTotal
+    )
+    const blcktecRevenueChange = metricMoM(
+      blcktecCurrentRevenue?.grandTotal,
+      blcktecPreviousRevenue?.grandTotal
+    )
+    const blcktecUnitsChange = metricMoM(
+      blcktecCurrentUnits?.grandTotal,
+      blcktecPreviousUnits?.grandTotal
+    )
     const innovaRevenueMove = rankMovementBadge(innovaRevenueDelta)
     const innovaUnitsMove = rankMovementBadge(innovaUnitsDelta)
     const blcktecRevenueMove = rankMovementBadge(blcktecRevenueDelta)
@@ -630,10 +694,10 @@ function buildMetricCards(
         value: rankLabel(innovaCurrentRevenue?.rank),
         valueBadgeText: innovaRevenueMove.label,
         valueBadgeClassName: innovaRevenueMove.className,
-        secondaryValue: `Revenue ${formatCurrencyCompact(innovaCurrentRevenue?.monthly ?? 0)}`,
-        change: `Rev ${formatChangeLabel(innovaRevenueMoM)} MoM`,
-        changeClassName: metricDeltaClassName(innovaRevenueMoM),
-        isPositiveOutcome: (innovaRevenueMoM ?? 0) >= 0,
+        secondaryValue: `Revenue ${formatCodeReaderCurrencyCompact(innovaCurrentRevenue?.grandTotal ?? 0)}`,
+        change: `Rolling 12 ${formatChangeLabel(innovaRevenueChange)} vs prior snapshot`,
+        changeClassName: metricDeltaClassName(innovaRevenueChange),
+        isPositiveOutcome: (innovaRevenueChange ?? 0) >= 0,
         icon: DollarSign,
       },
       {
@@ -641,10 +705,10 @@ function buildMetricCards(
         value: rankLabel(innovaCurrentUnits?.rank),
         valueBadgeText: innovaUnitsMove.label,
         valueBadgeClassName: innovaUnitsMove.className,
-        secondaryValue: `Units ${formatNumberCompact(innovaCurrentUnits?.monthly ?? 0)}`,
-        change: `Units ${formatChangeLabel(innovaUnitsMoM)} MoM`,
-        changeClassName: metricDeltaClassName(innovaUnitsMoM),
-        isPositiveOutcome: (innovaUnitsMoM ?? 0) >= 0,
+        secondaryValue: `Units ${formatCodeReaderUnitsCompact(innovaCurrentUnits?.grandTotal ?? 0)}`,
+        change: `Rolling 12 ${formatChangeLabel(innovaUnitsChange)} vs prior snapshot`,
+        changeClassName: metricDeltaClassName(innovaUnitsChange),
+        isPositiveOutcome: (innovaUnitsChange ?? 0) >= 0,
         icon: Package,
       },
       {
@@ -652,10 +716,10 @@ function buildMetricCards(
         value: rankLabel(blcktecCurrentRevenue?.rank),
         valueBadgeText: blcktecRevenueMove.label,
         valueBadgeClassName: blcktecRevenueMove.className,
-        secondaryValue: `Revenue ${formatCurrencyCompact(blcktecCurrentRevenue?.monthly ?? 0)}`,
-        change: `Rev ${formatChangeLabel(blcktecRevenueMoM)} MoM`,
-        changeClassName: metricDeltaClassName(blcktecRevenueMoM),
-        isPositiveOutcome: (blcktecRevenueMoM ?? 0) >= 0,
+        secondaryValue: `Revenue ${formatCodeReaderCurrencyCompact(blcktecCurrentRevenue?.grandTotal ?? 0)}`,
+        change: `Rolling 12 ${formatChangeLabel(blcktecRevenueChange)} vs prior snapshot`,
+        changeClassName: metricDeltaClassName(blcktecRevenueChange),
+        isPositiveOutcome: (blcktecRevenueChange ?? 0) >= 0,
         icon: DollarSign,
       },
       {
@@ -663,10 +727,10 @@ function buildMetricCards(
         value: rankLabel(blcktecCurrentUnits?.rank),
         valueBadgeText: blcktecUnitsMove.label,
         valueBadgeClassName: blcktecUnitsMove.className,
-        secondaryValue: `Units ${formatNumberCompact(blcktecCurrentUnits?.monthly ?? 0)}`,
-        change: `Units ${formatChangeLabel(blcktecUnitsMoM)} MoM`,
-        changeClassName: metricDeltaClassName(blcktecUnitsMoM),
-        isPositiveOutcome: (blcktecUnitsMoM ?? 0) >= 0,
+        secondaryValue: `Units ${formatCodeReaderUnitsCompact(blcktecCurrentUnits?.grandTotal ?? 0)}`,
+        change: `Rolling 12 ${formatChangeLabel(blcktecUnitsChange)} vs prior snapshot`,
+        changeClassName: metricDeltaClassName(blcktecUnitsChange),
+        isPositiveOutcome: (blcktecUnitsChange ?? 0) >= 0,
         icon: Package,
       },
     ]
@@ -737,6 +801,61 @@ type CodeReaderMarketPoint = {
   label: string
   revenue: number
   units: number
+}
+
+function buildCodeReaderBrandPerformance(
+  snapshot: SnapshotSummary | undefined,
+  brand: BrandPerformanceBrand
+) {
+  const revenueMetric = snapshot?.rolling12?.revenue
+  const unitsMetric = snapshot?.rolling12?.units
+  const revenueRow = findRollingRank(snapshot, "revenue", brand)
+  const unitsRow = findRollingRank(snapshot, "units", brand)
+  const labels = revenueMetric?.monthLabels ?? []
+  const revenueSeries = revenueRow?.monthlySeries ?? []
+  const unitsSeries = unitsRow?.monthlySeries ?? []
+  const unitLabels = unitsMetric?.monthLabels ?? []
+
+  const seriesAreAligned =
+    labels.length > 0 &&
+    labels.length === revenueSeries.length &&
+    labels.length === unitsSeries.length &&
+    labels.length === unitLabels.length &&
+    labels.every((label, index) => label === unitLabels[index])
+
+  if (!seriesAreAligned) {
+    return {
+      data: [],
+      revenueChange: null,
+      unitsChange: null,
+    }
+  }
+
+  const startIndex = Math.max(0, labels.length - 12)
+  const data = labels.slice(startIndex).map((label, index) => {
+    const sourceIndex = startIndex + index
+    return {
+      label: formatRollingMonthLabel(label),
+      revenue: revenueSeries[sourceIndex] ?? 0,
+      units: unitsSeries[sourceIndex] ?? 0,
+    }
+  })
+
+  const current = data[data.length - 1]
+  const previous = data[data.length - 2]
+  return {
+    data,
+    revenueChange: current && previous ? percentChange(current.revenue, previous.revenue) : null,
+    unitsChange: current && previous ? percentChange(current.units, previous.units) : null,
+  }
+}
+
+function formatRollingMonthLabel(label: string) {
+  const normalized = label.trim().replace(/'/g, "")
+  const match = normalized.match(/^([A-Za-z]+)\s+(\d{2}|\d{4})$/)
+  if (!match) return label
+  const year = match[2].length === 4 ? match[2].slice(-2) : match[2]
+  return `${match[1].slice(0, 3)} ${year}`
 }
 
 function buildCodeReaderMarketSeries(
@@ -824,7 +943,7 @@ function findRollingRank(
     : snapshot?.rolling12?.units?.brands
 
   if (!brands?.length) return undefined
-  return brands.find((brand) => brand.brand.toLowerCase() === brandKey)
+  return brands.find((brand) => brand.brand.trim().toLowerCase() === brandKey)
 }
 
 function buildPriceScopeOptions(snapshot: SnapshotSummary | undefined) {

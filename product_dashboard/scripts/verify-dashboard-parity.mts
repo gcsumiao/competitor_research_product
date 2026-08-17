@@ -32,7 +32,6 @@ const CODE_READER_GRAND_TOTAL_EXPECTATIONS = [
   },
 ] as const
 
-const CODE_READER_ROLLING12_PARITY_START_DATE = "2026-05-31"
 const IMAGE_COVERAGE_START_DATE = "2026-07-31"
 const IMAGE_COVERAGE_MIN = 0.75
 
@@ -154,10 +153,7 @@ function compareSnapshot(
     mismatches
   )
 
-  if (
-    categoryId === "code_reader_scanner" &&
-    fileSnapshot.date >= CODE_READER_ROLLING12_PARITY_START_DATE
-  ) {
+  if (categoryId === "code_reader_scanner") {
     compareRolling12Metric(scope, "revenue", fileSnapshot, postgresSnapshot, mismatches)
     compareRolling12Metric(scope, "units", fileSnapshot, postgresSnapshot, mismatches)
   }
@@ -206,6 +202,12 @@ function compareRolling12Metric(
       `${fileRow.brand}.grandTotal`,
       fileRow.grandTotal,
       postgresRow.grandTotal,
+      mismatches
+    )
+    compareNumberLists(
+      `${rowScope}.${fileRow.brand}.monthlySeries`,
+      fileRow.monthlySeries ?? [],
+      postgresRow.monthlySeries ?? [],
       mismatches
     )
   }
@@ -316,6 +318,25 @@ function compareNumber(scope: string, field: string, left: number, right: number
     scope,
     message: `${field} mismatch: file=${left} postgres=${right}`,
   })
+}
+
+function compareNumberLists(scope: string, left: number[], right: number[], mismatches: Mismatch[]) {
+  if (left.length !== right.length) {
+    mismatches.push({
+      scope,
+      message: `Length mismatch: file=${left.length} postgres=${right.length}`,
+    })
+    return
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (Math.abs(left[index] - right[index]) <= 0.01) continue
+    mismatches.push({
+      scope,
+      message: `Item ${index} mismatch: file=${left[index]} postgres=${right[index]}`,
+    })
+    return
+  }
 }
 
 function compareStringLists(scope: string, left: string[], right: string[], mismatches: Mismatch[]) {

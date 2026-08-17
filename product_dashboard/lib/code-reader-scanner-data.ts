@@ -1109,6 +1109,7 @@ function toRollingMetric(section: ParsedRollingSection | undefined): Rolling12Me
       monthly: row.monthly,
       grandTotal: row.grandTotal,
       rank: index + 1,
+      monthlySeries: row.values,
     }))
 
   const marketSeries = section.totalMarketRow

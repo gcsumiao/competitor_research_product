@@ -458,7 +458,7 @@ async function insertRolling12(
           JSON.stringify(metric.marketSeries ?? []),
           safeNullableNumber(metric.marketTotalMonthly),
           safeNullableNumber(metric.overallTotalMonthly),
-          JSON.stringify({}),
+          JSON.stringify({ monthlySeries: brandRow.monthlySeries ?? [] }),
         ]
       )
     }

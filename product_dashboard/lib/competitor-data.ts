@@ -86,6 +86,7 @@ export type Rolling12BrandRank = {
   monthly: number
   grandTotal: number
   rank: number
+  monthlySeries?: number[]
 }
 
 export type Rolling12Metric = {

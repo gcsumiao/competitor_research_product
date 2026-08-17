@@ -1,6 +1,6 @@
 "use client"
 
-import type { ReactNode } from "react"
+import { useId, type ReactNode } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 
@@ -21,6 +21,8 @@ interface CustomerOrdersProps {
   isRankChart?: boolean
   yMin?: number
   yMax?: number
+  valueFormatter?: (value: number) => string
+  color?: string
 }
 
 export function CustomerOrders({
@@ -35,7 +37,12 @@ export function CustomerOrders({
   isRankChart = false,
   yMin,
   yMax,
+  valueFormatter,
+  color = "#6366f1",
 }: CustomerOrdersProps) {
+  const gradientId = `market-trend-${useId().replace(/:/g, "")}`
+  const formatValue = valueFormatter ?? ((value: number) => value.toLocaleString())
+
   return (
     <Card className="bg-card border-border h-full">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -62,9 +69,9 @@ export function CustomerOrders({
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data}>
               <defs>
-                <linearGradient id="orderGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={color} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#737373" }} />
@@ -88,11 +95,17 @@ export function CustomerOrders({
                 labelStyle={{ color: "#fff" }}
                 itemStyle={{ color: "#fff" }}
                 formatter={(value: number) => [
-                  isRankChart ? `Rank #${Math.round(value)}` : value.toLocaleString(),
+                  isRankChart ? `Rank #${Math.round(value)}` : formatValue(value),
                   totalLabel,
                 ]}
               />
-              <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} fill="url(#orderGradient)" />
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke={color}
+                strokeWidth={2}
+                fill={`url(#${gradientId})`}
+              />
             </AreaChart>
           </ResponsiveContainer>
         </div>

@@ -51,6 +51,26 @@ export function formatNumberCompact(value: number) {
   return `${value < 0 ? "-" : ""}${formatCompactMagnitude(Math.abs(value))}`
 }
 
+export function formatCodeReaderCurrencyCompact(value: number) {
+  if (!Number.isFinite(value)) return "$0"
+  const absoluteValue = Math.abs(value)
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: absoluteValue >= 1_000 ? "compact" : "standard",
+    minimumFractionDigits: absoluteValue >= 1_000 ? 1 : 0,
+    maximumFractionDigits: absoluteValue >= 1_000 ? 1 : 0,
+  }).format(value)
+}
+
+export function formatCodeReaderUnitsCompact(value: number) {
+  if (!Number.isFinite(value)) return "0"
+  return new Intl.NumberFormat("en-US", {
+    notation: Math.abs(value) >= 1_000 ? "compact" : "standard",
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
 export function formatPercent(value: number, decimals = 1) {
   return new Intl.NumberFormat("en-US", {
     style: "percent",
