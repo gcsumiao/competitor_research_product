@@ -5,6 +5,15 @@ import {
 import { findBiggestCompetitors } from "@/lib/chatbot/competitor-engine"
 import { resolveEntities } from "@/lib/chatbot/entity-resolver"
 import { routeIntent, type AnalyzerId } from "@/lib/chatbot/intent-router"
+import {
+  formatCompactCurrency,
+  formatCompactNumber,
+  formatIntegerPrice,
+  formatSignedIntegerPrice,
+  formatSignedPercentagePoints,
+  formatSignedPercent,
+  formatUnsignedPercent,
+} from "@/lib/chatbot/number-format"
 import { parseQuery, type ParsedQuery } from "@/lib/chatbot/query-parser"
 import { displayProductName, stripDisplayNameSuffix } from "@/lib/chatbot/product-name"
 import { withFinalizedAnswer } from "@/lib/chatbot/response-finalization"
@@ -290,7 +299,7 @@ function runAnalyzer(
       return {
         answer: `${productLabel(mart, target)}'s recent revenue trend is ${history?.windows["3m"].trend ?? "flat"}.`,
         bullets: [
-          `Latest month: ${formatCurrency(target.revenue)} revenue, ${formatNumber(target.units)} units, ASP ${formatCurrency(target.price)}.`,
+          `Latest month: ${formatCurrency(target.revenue)} revenue, ${formatNumber(target.units)} units, ASP ${formatIntegerPrice(target.price)}.`,
           window3
             ? `3M: ${formatCurrency(window3.revenue)} revenue, ${formatNumber(window3.units)} units, growth ${formatPercent(window3.revenueGrowthWindow)}.`
             : "3-month history is unavailable.",
@@ -373,7 +382,7 @@ function runAnalyzer(
       return {
         answer: `${stats.brand} is ${toArchetypeLabel(archetype)} this month.`,
         bullets: [
-          `${stats.brand} revenue ${formatCurrency(stats.revenue)} with ${formatNumber(stats.units)} units (ASP ${formatCurrency(stats.asp)}).`,
+          `${stats.brand} revenue ${formatCurrency(stats.revenue)} with ${formatNumber(stats.units)} units (ASP ${formatIntegerPrice(stats.asp)}).`,
           `Revenue share ${formatPercent(stats.revenueShare)} vs unit share ${formatPercent(stats.unitShare)}.`,
           ...topContributors.map(
             (item) =>
@@ -384,7 +393,7 @@ function runAnalyzer(
           ...baseEvidence(mart.snapshot),
           { label: "Brand", value: stats.brand },
           { label: "Archetype", value: toArchetypeLabel(archetype) },
-          { label: "ASP", value: formatCurrency(stats.asp) },
+          { label: "ASP", value: formatIntegerPrice(stats.asp) },
         ],
         confidence: 0.84,
         assumptions: ["Archetype classification uses deterministic percentile thresholds on ASP and unit/revenue mix."],
@@ -441,7 +450,7 @@ function runAnalyzer(
     const priceDifference = target.price > 0
       ? (top.product.price - target.price) / target.price
       : null
-    const priceBandLabel = `${formatCurrency(result.priceBand.min)}-${formatCurrency(result.priceBand.max)}`
+    const priceBandLabel = `${formatIntegerPrice(result.priceBand.min)}-${formatIntegerPrice(result.priceBand.max)}`
     const criterion = result.widenedPriceBand
       ? `the largest same-type rival after widening beyond the empty ${priceBandLabel} price band`
       : `the largest same-type rival in the ${priceBandLabel} price band`
@@ -454,7 +463,7 @@ function runAnalyzer(
           : `${competitorName} is the only qualifying rival in the comparison set this month.`,
         priceDifference === null
           ? `A meaningful price comparison is unavailable for ${competitorName} and ${targetName}.`
-          : `${competitorName} sells at ${formatCurrency(top.product.price)} versus ${targetName}'s ${formatCurrency(target.price)} (${formatAbsolutePercent(priceDifference)} ${priceDifference < 0 ? "cheaper" : "more expensive"}).`,
+          : `${competitorName} sells at ${formatIntegerPrice(top.product.price)} versus ${targetName}'s ${formatIntegerPrice(target.price)} (${formatAbsolutePercent(priceDifference)} ${priceDifference < 0 ? "cheaper" : "more expensive"}).`,
         ...(top.product.rating > 0 && target.rating > 0
           ? [top.product.reviews > 0 && target.reviews > 0
               ? `${competitorName} is rated ${top.product.rating.toFixed(1)}★ versus ${targetName}'s ${target.rating.toFixed(1)}★, based on ${formatNumber(top.product.reviews)} versus ${formatNumber(target.reviews)} reviews.`
@@ -695,7 +704,7 @@ function runAnalyzer(
         singleBrand
           ? `${singleBrand.brand} rank is #${revenueRank ?? "n/a"} by revenue and #${unitsRank ?? "n/a"} by units.`
           : `Current scope includes ${currentRows.length} brands in this snapshot.`,
-        `Average price is ${formatCurrency(currentAsp)} (${formatPercent(ratio(currentAsp, prevAsp))} MoM). This scope is currently ${strategyLabel}.`,
+        `Average price is ${formatIntegerPrice(currentAsp)} (${formatPercent(ratio(currentAsp, prevAsp))} MoM). This scope is currently ${strategyLabel}.`,
         `Revenue movement is mainly driven by ${primaryDriver}: units effect ${formatCurrency(unitEffect)}, price effect ${formatCurrency(priceEffect)}.`,
         ...currentRows.slice(0, 2).map(
           (row) => `${row.brand}: ${formatCurrency(row.revenue)} revenue, ${formatNumber(row.units)} units, ${formatPercent(row.share)} share.`
@@ -707,7 +716,7 @@ function runAnalyzer(
         { label: "Scope", value: labelForScope(params.scope) },
         { label: "Revenue", value: formatCurrency(currentRevenue) },
         { label: "Units", value: formatNumber(currentUnits) },
-        { label: "Avg Price", value: formatCurrency(currentAsp) },
+        { label: "Avg Price", value: formatIntegerPrice(currentAsp) },
         { label: "Share", value: formatPercent(currentShare) },
         ...(singleBrand && rolling12Current
           ? [
@@ -904,7 +913,7 @@ function runAnalyzer(
     return {
       answer: `The ${mart.snapshot.label || mart.snapshot.date} market totaled ${formatCurrency(mart.snapshot.totals.revenue)} revenue and ${formatNumber(mart.snapshot.totals.units)} units across ${formatNumber(mart.snapshot.totals.asinCount)} ASINs.`,
       bullets: [
-        `Average market price: ${formatCurrency(mart.snapshot.totals.avgPrice)}.`,
+        `Average market price: ${formatIntegerPrice(mart.snapshot.totals.avgPrice)}.`,
         `Top 3 brand share: ${formatPercent(mart.snapshot.totals.top3Share)}.`,
         `Tracked brands: ${formatNumber(mart.snapshot.totals.brandCount)}.`,
       ],
@@ -1040,7 +1049,7 @@ function analyzeSkuThreat(params: AnalyzerParams): AnalyzerOutput {
     return {
       answer: `${productLabel(mart, ownTopSku)} is the top own product, but this snapshot contains no competitor products to score against it.`,
       bullets: [
-        `Defended SKU: ${formatCurrency(ownTopSku.revenue)} revenue, rank #${ownTopSku.rankRevenue}, price ${formatCurrency(ownTopSku.price)}.`,
+        `Defended SKU: ${formatCurrency(ownTopSku.revenue)} revenue, rank #${ownTopSku.rankRevenue}, price ${formatIntegerPrice(ownTopSku.price)}.`,
         "Recommendation: restore competitor-ASIN coverage before making a product-defense decision.",
       ],
       evidence: [
@@ -1141,7 +1150,7 @@ function analyzeSkuThreat(params: AnalyzerParams): AnalyzerOutput {
       },
       {
         label: "Price Pair",
-        value: `${formatCurrency(topThreat.product.price)} vs ${formatCurrency(ownTopSku.price)}`,
+        value: `${formatIntegerPrice(topThreat.product.price)} vs ${formatIntegerPrice(ownTopSku.price)}`,
       },
       ...(topThreat.rankStart !== null
         ? [
@@ -1341,7 +1350,7 @@ function formatThreatBullet(threat: ThreatCandidate, ownTopSku: IndexedProduct, 
     ? `rank #${threat.rankStart} to #${threat.rankCurrent}`
     : `current rank #${threat.rankCurrent}`
   const priceText = threat.priceUndercut !== null
-    ? `${Math.abs(threat.priceUndercut * 100).toFixed(0)}% ${threat.priceUndercut >= 0 ? "below" : "above"} our ${formatCurrency(ownTopSku.price)} price`
+    ? `${Math.abs(threat.priceUndercut * 100).toFixed(0)}% ${threat.priceUndercut >= 0 ? "below" : "above"} our ${formatIntegerPrice(ownTopSku.price)} price`
     : "price comparison unavailable"
   return `${threat.product.displayName} ranks #${rank} for threat at ${formatThreatScore(threat)}, with ${rankText}, a price ${priceText}, and revenue growth of ${formatPercent(threat.product.revenueMoM)} MoM versus ${formatPercent(ownTopSku.revenueMoM)} for ${ownTopSku.displayName}.`
 }
@@ -2057,7 +2066,7 @@ function analyzeGrowthDriver(
       bullets: [
         `${stats.brand} monthly revenue ${formatCurrency(stats.revenue)}, monthly units ${formatNumber(stats.units)}.`,
         `${stats.brand} rank: #${revenueRank ?? "n/a"} by revenue, #${unitsRank ?? "n/a"} by units.`,
-        `ASP ${formatCurrency(stats.asp)} and profile is ${toArchetypeLabel(archetype)}.`,
+        `ASP ${formatIntegerPrice(stats.asp)} and profile is ${toArchetypeLabel(archetype)}.`,
         `Driver split: unit effect ${formatCurrency(driver.unitEffect)}, price effect ${formatCurrency(driver.priceEffect)}.`,
       ],
       evidence: [
@@ -2231,9 +2240,9 @@ function analyzeBrandComparison(params: AnalyzerParams): AnalyzerOutput {
       leftRolling12 && rightRolling12
         ? `Rolling 12 totals: ${left.brand} ${formatCurrency(leftRolling12.revenueGrandTotal)} / ${formatNumber(leftRolling12.unitsGrandTotal)} units vs ${right.brand} ${formatCurrency(rightRolling12.revenueGrandTotal)} / ${formatNumber(rightRolling12.unitsGrandTotal)} units.`
         : "Rolling 12 grand totals are unavailable for one or both brands.",
-      `${left.brand}: rank #${leftRank ?? "n/a"}, ${formatCurrency(left.revenue)} revenue, ${formatNumber(left.units)} units, ASP ${formatCurrency(left.asp)}.`,
-      `${right.brand}: rank #${rightRank ?? "n/a"}, ${formatCurrency(right.revenue)} revenue, ${formatNumber(right.units)} units, ASP ${formatCurrency(right.asp)}.`,
-      `Gap summary: units ${formatSignedNumber(unitsGap)}, ASP ${formatSignedCurrencyRaw(aspGap)}.`,
+      `${left.brand}: rank #${leftRank ?? "n/a"}, ${formatCurrency(left.revenue)} revenue, ${formatNumber(left.units)} units, ASP ${formatIntegerPrice(left.asp)}.`,
+      `${right.brand}: rank #${rightRank ?? "n/a"}, ${formatCurrency(right.revenue)} revenue, ${formatNumber(right.units)} units, ASP ${formatIntegerPrice(right.asp)}.`,
+      `Gap summary: units ${formatSignedNumber(unitsGap)}, ASP ${formatSignedIntegerPrice(aspGap)}.`,
       `${left.brand} share ${formatPercent(left.revenueShare)} vs ${right.brand} share ${formatPercent(right.revenueShare)}.`,
     ],
     evidence: [
@@ -2415,7 +2424,7 @@ function analyzeFeatureAnalysis(params: AnalyzerParams): AnalyzerOutput {
       "An exact feature premium cannot be measured from this snapshot because feature columns are inconsistent; the best available directional proxy is type and price tier.",
     bullets: [
       topTier
-        ? `Highest-weight proxy tier: ${topTier.label} (${formatPercent(topTier.revenueShare)} revenue share, avg price ${formatCurrency(topTier.avgPrice)}).`
+        ? `Highest-weight proxy tier: ${topTier.label} (${formatPercent(topTier.revenueShare)} revenue share, avg price ${formatIntegerPrice(topTier.avgPrice)}).`
         : "No detailed tier-level proxy was available this month.",
       "For exact feature premium (for example Wi-Fi, true RMS, articulation), we need explicit feature columns in the source workbook.",
       "You can still compare premium vs volume posture through ASP, units, and revenue movement by type scope.",
@@ -2918,24 +2927,15 @@ function safe(value: unknown) {
 }
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(safe(value))
+  return formatCompactCurrency(safe(value))
 }
 
 function formatNumber(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(safe(value))
+  return formatCompactNumber(safe(value))
 }
 
 function formatPercent(value: number | null) {
-  if (value === null || Number.isNaN(value)) return "n/a"
-  return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)}%`
+  return formatSignedPercent(value)
 }
 
 function formatAbsolutePercent(value: number) {
@@ -2943,11 +2943,11 @@ function formatAbsolutePercent(value: number) {
 }
 
 function formatSharePercent(value: number) {
-  return `${(safe(value) * 100).toFixed(1)}%`
+  return formatUnsignedPercent(safe(value))
 }
 
 function signedPoints(value: number) {
-  return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)}pt`
+  return formatSignedPercentagePoints(value)
 }
 
 function formatSignedCurrencyRaw(value: number) {

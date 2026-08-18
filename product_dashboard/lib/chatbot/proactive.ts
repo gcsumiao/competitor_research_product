@@ -1,6 +1,7 @@
 import type { ProactiveSuggestion } from "@/lib/chatbot/types"
 import type { ChatAnalysis } from "@/lib/chatbot/insights"
 import type { NormalizedCategoryData } from "@/lib/chatbot/category-normalizers"
+import { formatCompactCurrency, formatSignedPercent } from "@/lib/chatbot/number-format"
 import type { SnapshotSummary } from "@/lib/competitor-data"
 
 function severityForRisk(score: number): "info" | "watch" | "risk" {
@@ -154,7 +155,7 @@ export function buildFrameworkProactiveSuggestions(
       id: "price_quality_misalignment",
       title: "Brand Price-Quality Misalignment",
       summary:
-        `${misaligned.brand} is priced above category average but trails rating average (${fixed(misaligned.avgRating, 2)} vs ${fixed(ratingAvg, 2)}).`,
+        `${misaligned.brand} is priced above category average but trails rating average (${fixed(misaligned.avgRating, 1)} vs ${fixed(ratingAvg, 1)}).`,
       severity: "watch",
       confidence: 0.74,
       score: 54,
@@ -211,17 +212,11 @@ function priceBucket(price: number) {
 }
 
 function currencyCompact(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)
+  return formatCompactCurrency(value)
 }
 
 function signedPercent(value: number) {
-  const sign = value > 0 ? "+" : ""
-  return `${sign}${(value * 100).toFixed(1)}%`
+  return formatSignedPercent(value)
 }
 
 function fixed(value: number, digits: number) {
