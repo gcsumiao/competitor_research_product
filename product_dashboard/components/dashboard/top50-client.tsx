@@ -3,12 +3,13 @@
 import { useMemo, useState } from "react"
 import { Calendar, Download, ListOrdered } from "lucide-react"
 
+import { ExportPdfButton } from "@/components/dashboard/export-pdf-button"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { PageHeader } from "@/components/dashboard/page-header"
 import { CustomerOrders } from "@/components/dashboard/customer-orders"
 import { TopProducts } from "@/components/dashboard/top-products"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   DropdownMenu,
@@ -194,10 +195,10 @@ export function Top50Client({ data }: { data: DashboardData }) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button variant="outline" className="flex items-center gap-2 bg-transparent">
+        <ExportPdfButton>
           <Download className="w-4 h-4" />
           Export Top 50
-        </Button>
+        </ExportPdfButton>
       </PageHeader>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

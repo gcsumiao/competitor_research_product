@@ -37,7 +37,7 @@ export function Header({ user }: { user: DashboardUser }) {
   }
 
   return (
-    <header className="flex items-center justify-between mb-8">
+    <header data-print-hidden className="flex items-center justify-between mb-8">
       <Link href="/" className="flex items-center gap-2">
         <div className="flex flex-col gap-1">
           <div className="w-5 h-0.5 bg-foreground" />

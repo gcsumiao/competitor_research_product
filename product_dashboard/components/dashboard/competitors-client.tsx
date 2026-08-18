@@ -105,6 +105,10 @@ const AVAILABLE_BRAND_LOGO_KEYS = new Set([
   "xtool",
 ])
 
+const BRAND_LOGO_OVERRIDES: Record<string, string> = {
+  topdon: "/brand-logos/topdon-logo.webp",
+}
+
 function normalizeBrand(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "")
 }
@@ -125,7 +129,16 @@ function colorForBrand(brand: string) {
 
 function resolveBrandLogo(brand: string) {
   const key = normalizeBrand(brand)
+  const override = BRAND_LOGO_OVERRIDES[key]
+  if (override) return override
   return AVAILABLE_BRAND_LOGO_KEYS.has(key) ? `/brand-logos/${key}.png` : null
+}
+
+function titleCaseBrand(brand: string) {
+  return brand
+    .split(/\s+/g)
+    .map((word) => (word ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : word))
+    .join(" ")
 }
 
 function BrandLogo({ brand, size = "md" }: { brand?: string; size?: "sm" | "md" }) {
@@ -450,8 +463,8 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
         <div className={cn(isCodeReader ? "" : "lg:col-span-2")}>
           <ProfitChart
             data={brandChartData}
-            totalLabel="Brand leaders"
-            totalValue={formatCurrencyCompact(brandTotals[0]?.revenue ?? 0)}
+            totalLabel="Monthly brand leaders"
+            totalValue={`${brandTotals[0] ? titleCaseBrand(brandTotals[0].brand) : "n/a"} ${formatCurrencyCompact(brandTotals[0]?.revenue ?? 0)}`}
             changeLabel={formatChangeLabel(
               percentChange(activeSnapshot?.totals.revenue ?? 0, previousSnapshot?.totals.revenue ?? 0)
             )}

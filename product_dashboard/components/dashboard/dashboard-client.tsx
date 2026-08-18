@@ -16,13 +16,14 @@ import {
   BrandPerformanceChart,
   type BrandPerformanceBrand,
 } from "@/components/dashboard/brand-performance-chart"
+import { ExportPdfButton } from "@/components/dashboard/export-pdf-button"
 import { MetricCard, type MetricCardLogo } from "@/components/dashboard/metric-card"
 import { PageHeader } from "@/components/dashboard/page-header"
 import { ProfitChart } from "@/components/dashboard/profit-chart"
 import { CustomerOrders } from "@/components/dashboard/customer-orders"
 import { TopProducts } from "@/components/dashboard/top-products"
 import { SalesMap } from "@/components/dashboard/sales-map"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   DropdownMenu,
@@ -364,10 +365,10 @@ export function DashboardClient({ data }: { data: DashboardData }) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button variant="outline" className="flex items-center gap-2 bg-transparent">
+        <ExportPdfButton>
           <Upload className="w-4 h-4" />
           Export Report
-        </Button>
+        </ExportPdfButton>
       </PageHeader>
 
       {isCodeReader ? (
