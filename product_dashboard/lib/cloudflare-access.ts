@@ -99,7 +99,7 @@ function localDevelopmentUser(): DashboardUser {
   return {
     id: "local-development",
     email,
-    displayName: process.env.DASHBOARD_DEV_USER_NAME?.trim() || "Local Developer",
+    displayName: process.env.DASHBOARD_DEV_USER_NAME?.trim() || "Local User",
     role,
   }
 }

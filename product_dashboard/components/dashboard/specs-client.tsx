@@ -61,6 +61,7 @@ import {
   percentChange,
   truncateLabel,
 } from "@/lib/dashboard-format"
+import { REVENUE_CHART_COLOR, UNITS_CHART_COLOR } from "@/lib/chart-colors"
 
 const SPEC_COLORS = ["#3b82f6", "#22c55e", "#8b5cf6", "#f97316", "#0ea5e9", "#14b8a6"]
 
@@ -618,6 +619,7 @@ export function SpecsClient({
                 changeValueLabel=""
                 data={typeTrend}
                 valueFormatter={formatCurrencyCompact}
+                color={REVENUE_CHART_COLOR}
               />
             </div>
             <div className="lg:col-span-2 h-full">
@@ -744,6 +746,7 @@ export function SpecsClient({
               changeValueLabel=""
               data={typeTrend}
               valueFormatter={formatCurrencyCompact}
+              color={REVENUE_CHART_COLOR}
             />
           </div>
           <Card className="bg-card border border-border xl:col-span-2">
@@ -825,10 +828,10 @@ export function SpecsClient({
 
 function ShareBar({ value, tone }: { value: number; tone: "units" | "revenue" }) {
   const width = Math.max(0, Math.min(100, value * 100))
-  const bg = tone === "units" ? "bg-emerald-500/80" : "bg-blue-500/80"
+  const color = tone === "units" ? UNITS_CHART_COLOR : REVENUE_CHART_COLOR
   return (
     <span className="inline-flex items-center w-20 h-2 rounded-full bg-muted overflow-hidden">
-      <span className={cn("h-full rounded-full", bg)} style={{ width: `${width}%` }} />
+      <span className="h-full rounded-full" style={{ width: `${width}%`, backgroundColor: color }} />
     </span>
   )
 }
@@ -879,8 +882,8 @@ function DualMetricTrendCard({
                 ]}
               />
               <Legend />
-              <Line yAxisId="left" type="monotone" dataKey="units" name="Quantity/Mo" stroke="#10b981" strokeWidth={2} dot={false} />
-              <Line yAxisId="right" type="monotone" dataKey="revenue" name="Revenue/Mo" stroke="#3b82f6" strokeWidth={2} dot={false} />
+              <Line yAxisId="left" type="monotone" dataKey="units" name="Quantity/Mo" stroke={UNITS_CHART_COLOR} strokeWidth={2} dot={false} />
+              <Line yAxisId="right" type="monotone" dataKey="revenue" name="Revenue/Mo" stroke={REVENUE_CHART_COLOR} strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>

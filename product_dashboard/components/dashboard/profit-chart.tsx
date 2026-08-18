@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts"
 
 import { formatCurrencyCompact, formatNumberCompact } from "@/lib/dashboard-format"
+import { REVENUE_CHART_COLOR, UNITS_CHART_COLOR } from "@/lib/chart-colors"
 
 export type ProfitChartDatum = {
   label: string
@@ -46,11 +47,17 @@ export function ProfitChart({
       <CardContent>
         <div className="flex items-center gap-6 mb-4">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[var(--color-chart-gray)]" />
+            <div
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: UNITS_CHART_COLOR }}
+            />
             <span className="text-xs text-muted-foreground">Total Units</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[var(--color-chart-orange)]" />
+            <div
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: REVENUE_CHART_COLOR }}
+            />
             <span className="text-xs text-muted-foreground">Total Revenue</span>
           </div>
           {leaders && leaders.length > 0 ? (
@@ -119,7 +126,8 @@ export function ProfitChart({
                 {data.map((entry, index) => (
                   <Cell
                     key={`sales-${index}`}
-                    fill={index === highlightIndex ? "#d4d4d4" : "#e5e5e5"}
+                    fill={UNITS_CHART_COLOR}
+                    fillOpacity={index === highlightIndex ? 1 : 0.55}
                   />
                 ))}
               </Bar>
@@ -127,7 +135,8 @@ export function ProfitChart({
                 {data.map((entry, index) => (
                   <Cell
                     key={`revenue-${index}`}
-                    fill={index === highlightIndex ? "#f97316" : "#fdba74"}
+                    fill={REVENUE_CHART_COLOR}
+                    fillOpacity={index === highlightIndex ? 1 : 0.55}
                   />
                 ))}
               </Bar>

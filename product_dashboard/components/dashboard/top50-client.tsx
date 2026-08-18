@@ -1,29 +1,23 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Calendar, Download, ListOrdered } from "lucide-react"
 
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { PageHeader } from "@/components/dashboard/page-header"
-import { ProfitChart } from "@/components/dashboard/profit-chart"
+import { CustomerOrders } from "@/components/dashboard/customer-orders"
 import { TopProducts } from "@/components/dashboard/top-products"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { DashboardData, SnapshotSummary } from "@/lib/competitor-data"
+import type { DashboardData, ProductSummary, SnapshotSummary } from "@/lib/competitor-data"
+import { REVENUE_CHART_COLOR, UNITS_CHART_COLOR } from "@/lib/chart-colors"
 import { cn } from "@/lib/utils"
 import { averagePriceForCategory } from "@/lib/jump-starters-classification"
 import { formatSnapshotDateFull, formatSnapshotLabelMonthEnd } from "@/lib/snapshot-date"
@@ -55,26 +49,49 @@ export function Top50Client({ data }: { data: DashboardData }) {
   const activeSnapshot = selectedSnapshot
   const activeIndex = snapshots.findIndex((snapshot) => snapshot.date === activeSnapshot?.date)
   const previousSnapshot = activeIndex > 0 ? snapshots[activeIndex - 1] : undefined
-  const isCodeReader = selectedCategory?.id === "code_reader_scanner"
 
-  const [mode, setMode] = useState<Top50Mode>("revenue")
-  const resolvedMode: Top50Mode = isCodeReader ? mode : "revenue"
+  const [trendModeRaw, setTrendMode] = useState<Top50Mode>("revenue")
+  const [topProductsModeRaw, setTopProductsMode] = useState<Top50Mode>("revenue")
+  const [listModeRaw, setListMode] = useState<Top50Mode>("revenue")
 
-  const activeTop50 = selectTop50(activeSnapshot, resolvedMode)
-  const previousTop50 = selectTop50(previousSnapshot, resolvedMode)
+  const hasUnitsRanking = (activeSnapshot?.top50ByUnits?.length ?? 0) > 0
+  const trendMode = hasUnitsRanking ? trendModeRaw : "revenue"
+  const topProductsMode = hasUnitsRanking ? topProductsModeRaw : "revenue"
+  const listMode = hasUnitsRanking ? listModeRaw : "revenue"
 
-  const activeTotals = summarizeTop50(activeTop50, activeSnapshot, selectedCategory?.id)
-  const previousTotals = summarizeTop50(previousTop50, previousSnapshot, selectedCategory?.id)
+  const activeRevenueTop50 = selectTop50(activeSnapshot, "revenue")
+  const previousRevenueTop50 = selectTop50(previousSnapshot, "revenue")
+
+  const activeTotals = summarizeTop50(activeRevenueTop50, activeSnapshot, selectedCategory?.id)
+  const previousTotals = summarizeTop50(previousRevenueTop50, previousSnapshot, selectedCategory?.id)
+
+  const activeTrendTotals = summarizeTop50(
+    selectTop50(activeSnapshot, trendMode),
+    activeSnapshot,
+    selectedCategory?.id
+  )
+  const previousTrendTotals = summarizeTop50(
+    selectTop50(previousSnapshot, trendMode),
+    previousSnapshot,
+    selectedCategory?.id
+  )
 
   const top50Trend = snapshots.map((snapshot) => {
-    const selectedTop = selectTop50(snapshot, resolvedMode)
+    const selectedTop = selectTop50(snapshot, trendMode)
     const summary = summarizeTop50(selectedTop, snapshot, selectedCategory?.id)
     return {
       label: formatSnapshotLabelMonthEnd(snapshot.date),
-      sales: summary.units,
-      revenue: summary.revenue,
+      value: trendMode === "revenue" ? summary.revenue : summary.units,
     }
   })
+
+  const productImageFallbacks = useMemo(
+    () => buildProductImageFallbacks(selectedCategory?.snapshots ?? []),
+    [selectedCategory]
+  )
+
+  const topProductsSource = selectTop50(activeSnapshot, topProductsMode)
+  const listTop50 = selectTop50(activeSnapshot, listMode)
 
   const metricCards = [
     {
@@ -86,7 +103,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
       icon: ListOrdered,
     },
     {
-      title: "Top 50 Units",
+      title: hasUnitsRanking ? "Top 50 Units (revenue-ranked)" : "Top 50 Units",
       value: formatNumberCompact(activeTotals.units),
       change: formatChangeLabel(percentChange(activeTotals.units, previousTotals.units)),
       changeSuffix: previousSnapshot ? "MoM" : "",
@@ -113,12 +130,12 @@ export function Top50Client({ data }: { data: DashboardData }) {
     },
   ]
 
-  const topProductsCard = activeTop50.slice(0, 4).map((product) => ({
+  const topProductsCard = topProductsSource.slice(0, 4).map((product) => ({
     asin: product.asin,
     name: truncateLabel(product.title, 36),
     brand: product.brand,
     priceLabel: product.price ? formatCurrency(product.price) : "n/a",
-    revenueLabel: resolvedMode === "revenue"
+    revenueLabel: topProductsMode === "revenue"
       ? formatCurrencyCompact(product.revenue)
       : `${formatNumberCompact(product.units)} units`,
     image: product.imageUrl,
@@ -177,18 +194,6 @@ export function Top50Client({ data }: { data: DashboardData }) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {isCodeReader ? (
-          <Select value={resolvedMode} onValueChange={(value) => setMode(value as Top50Mode)}>
-            <SelectTrigger className="min-w-[164px] bg-transparent">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="revenue">Monthly Revenue</SelectItem>
-              <SelectItem value="units">Monthly Units</SelectItem>
-            </SelectContent>
-          </Select>
-        ) : null}
-
         <Button variant="outline" className="flex items-center gap-2 bg-transparent">
           <Download className="w-4 h-4" />
           Export Top 50
@@ -211,32 +216,40 @@ export function Top50Client({ data }: { data: DashboardData }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <div className="lg:col-span-2">
-          <ProfitChart
+          <CustomerOrders
             data={top50Trend}
-            totalLabel={`Top 50 trend (${resolvedMode === "revenue" ? "Revenue" : "Units"})`}
-            totalValue={resolvedMode === "revenue"
-              ? formatCurrencyCompact(activeTotals.revenue)
-              : formatNumberCompact(activeTotals.units)}
-            changeLabel={resolvedMode === "revenue"
-              ? formatChangeLabel(percentChange(activeTotals.revenue, previousTotals.revenue))
-              : formatChangeLabel(percentChange(activeTotals.units, previousTotals.units))}
-            highlightIndex={activeIndex >= 0 ? activeIndex : undefined}
+            title="Top 50 trend"
+            subtitle={trendMode === "revenue" ? "Revenue trend across snapshots" : "Units trend across snapshots"}
+            totalLabel={trendMode === "revenue" ? "Top 50 revenue" : "Top 50 units"}
+            totalValue={trendMode === "revenue"
+              ? formatCurrencyCompact(activeTrendTotals.revenue)
+              : formatNumberCompact(activeTrendTotals.units)}
+            changeLabel={trendMode === "revenue"
+              ? formatChangeLabel(percentChange(activeTrendTotals.revenue, previousTrendTotals.revenue))
+              : formatChangeLabel(percentChange(activeTrendTotals.units, previousTrendTotals.units))}
+            changeValueLabel={previousSnapshot ? "vs previous snapshot" : ""}
+            valueFormatter={trendMode === "revenue" ? formatCurrencyCompact : formatNumberCompact}
+            color={trendMode === "revenue" ? REVENUE_CHART_COLOR : UNITS_CHART_COLOR}
+            headerRight={hasUnitsRanking ? <MetricToggle value={trendMode} onChange={setTrendMode} /> : undefined}
           />
         </div>
         <div>
           <TopProducts
             products={topProductsCard}
+            imageFallbacks={productImageFallbacks}
             title="Top 4 from Top 50"
-            subtitle={resolvedMode === "revenue" ? "Highest revenue ASINs" : "Highest units ASINs"}
+            subtitle={topProductsMode === "revenue" ? "Highest revenue ASINs" : "Highest units ASINs"}
+            headerRight={hasUnitsRanking ? <MetricToggle value={topProductsMode} onChange={setTopProductsMode} /> : undefined}
           />
         </div>
       </div>
 
       <Card className="bg-card border border-border">
-        <CardHeader className="pb-2">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-base font-medium">
-            Top 50 list ({resolvedMode === "revenue" ? "Revenue" : "Units"})
+            Top 50 list ({listMode === "revenue" ? "Revenue" : "Units"})
           </CardTitle>
+          {hasUnitsRanking ? <MetricToggle value={listMode} onChange={setListMode} /> : null}
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -248,14 +261,20 @@ export function Top50Client({ data }: { data: DashboardData }) {
                   <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Title</th>
                   <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Brand</th>
                   <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Price</th>
-                  <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Revenue</th>
-                  <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Units</th>
+                  <th className={cn(
+                    "text-right py-3 px-2 text-xs font-medium",
+                    listMode === "revenue" ? "text-foreground" : "text-muted-foreground"
+                  )}>Revenue</th>
+                  <th className={cn(
+                    "text-right py-3 px-2 text-xs font-medium",
+                    listMode === "units" ? "text-foreground" : "text-muted-foreground"
+                  )}>Units</th>
                   <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Reviews</th>
                   <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Rating</th>
                 </tr>
               </thead>
               <tbody>
-                {activeTop50.map((product, index) => (
+                {listTop50.map((product, index) => (
                   <tr key={product.asin} className="border-b border-border last:border-0">
                     <td className="py-3 px-2 text-xs text-muted-foreground">{index + 1}</td>
                     <td className="py-3 px-2 text-xs font-medium">
@@ -274,8 +293,14 @@ export function Top50Client({ data }: { data: DashboardData }) {
                     <td className="py-3 px-2 text-xs text-right">
                       {product.price ? formatCurrency(product.price) : "n/a"}
                     </td>
-                    <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(product.revenue)}</td>
-                    <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(product.units)}</td>
+                    <td className={cn(
+                      "py-3 px-2 text-xs text-right",
+                      listMode === "revenue" ? "font-semibold text-foreground" : "text-muted-foreground"
+                    )}>{formatCurrencyCompact(product.revenue)}</td>
+                    <td className={cn(
+                      "py-3 px-2 text-xs text-right",
+                      listMode === "units" ? "font-semibold text-foreground" : "text-muted-foreground"
+                    )}>{formatNumberCompact(product.units)}</td>
                     <td className="py-3 px-2 text-xs text-right">{formatInteger(product.reviewCount)}</td>
                     <td className="py-3 px-2 text-xs text-right">
                       {product.rating ? formatRating(product.rating) : "n/a"}
@@ -291,12 +316,67 @@ export function Top50Client({ data }: { data: DashboardData }) {
   )
 }
 
+function MetricToggle({
+  value,
+  onChange,
+}: {
+  value: Top50Mode
+  onChange: (value: Top50Mode) => void
+}) {
+  return (
+    <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
+      {(["revenue", "units"] as const).map((option) => (
+        <button
+          key={option}
+          type="button"
+          aria-pressed={value === option}
+          onClick={() => onChange(option)}
+          className={cn(
+            "px-2.5 py-1 text-[11px] font-medium rounded-full transition-colors",
+            value === option
+              ? "bg-[var(--color-accent)] text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {option === "revenue" ? "Revenue" : "Units"}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function selectTop50(snapshot: SnapshotSummary | undefined, mode: Top50Mode) {
   if (!snapshot) return []
   if (mode === "units") {
     return (snapshot.top50ByUnits ?? snapshot.topProducts).slice(0, 50)
   }
   return snapshot.topProducts.slice(0, 50)
+}
+
+function buildProductImageFallbacks(snapshots: SnapshotSummary[]): Map<string, string> {
+  const fallbacks = new Map<string, string>()
+
+  for (let index = snapshots.length - 1; index >= 0; index -= 1) {
+    const snapshot = snapshots[index]
+    if (!snapshot) continue
+
+    const groups: ProductSummary[][] = [
+      snapshot.topProducts ?? [],
+      snapshot.top50ByUnits ?? [],
+      ...(snapshot.brandListings ?? []).map((listing) => listing.products ?? []),
+    ]
+
+    for (const products of groups) {
+      for (const product of products) {
+        const asin = product.asin?.trim().toUpperCase()
+        const imageUrl = product.imageUrl?.trim()
+        if (!asin || !imageUrl || fallbacks.has(asin)) continue
+        fallbacks.set(asin, imageUrl)
+      }
+    }
+  }
+
+  return fallbacks
 }
 
 function summarizeTop50(
