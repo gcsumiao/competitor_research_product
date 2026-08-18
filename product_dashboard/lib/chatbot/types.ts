@@ -58,6 +58,8 @@ export type ChatRequest = {
 export type ChatResponse = {
   intent: ChatIntent | string
   answer: string
+  headline?: string
+  answerRest?: string
   bullets: string[]
   evidence: EvidenceItem[]
   proactive: ProactiveSuggestion[]

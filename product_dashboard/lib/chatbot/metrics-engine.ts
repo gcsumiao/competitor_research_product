@@ -7,6 +7,7 @@ import { resolveEntities } from "@/lib/chatbot/entity-resolver"
 import { routeIntent, type AnalyzerId } from "@/lib/chatbot/intent-router"
 import { parseQuery, type ParsedQuery } from "@/lib/chatbot/query-parser"
 import { displayProductName, stripDisplayNameSuffix } from "@/lib/chatbot/product-name"
+import { withFinalizedAnswer } from "@/lib/chatbot/response-finalization"
 import { buildSynthesisSummary } from "@/lib/chatbot/synthesis-engine"
 import { getBrandRolling12GrandTotals } from "@/lib/code-reader-brand-rolling12"
 import type { TimeResolution } from "@/lib/chatbot/time-resolver"
@@ -35,6 +36,8 @@ type BuildParams = {
 
 type AnalyzerOutput = {
   answer: string
+  headline?: string
+  answerRest?: string
   bullets: string[]
   evidence: EvidenceItem[]
   confidence: number
@@ -172,13 +175,11 @@ export function buildCodeReaderBrainResponse({
         : explicitlyRequestsYoY
           ? windowToLabel("12m")
           : undefined
-  const snapshotPrefix = buildSnapshotPrefix(mart.snapshot.date, compareSnapshotUsed, windowUsed)
-
   return {
     intent: routed.analyzer,
-    answer: output.answer.startsWith("(Snapshot used:")
-      ? output.answer
-      : `${snapshotPrefix} ${output.answer}`,
+    answer: output.answer,
+    headline: output.headline,
+    answerRest: output.answerRest,
     bullets: output.bullets,
     evidence: output.evidence,
     proactive,
@@ -206,19 +207,6 @@ function windowToLabel(value: HistoricalWindow) {
   if (value === "6m") return "Last 6 months"
   if (value === "12m") return "Last 12 months"
   return "Full history"
-}
-
-function buildSnapshotPrefix(
-  snapshot: string,
-  compareSnapshot?: string,
-  window?: string
-) {
-  const context = [
-    `Snapshot used: ${snapshot}`,
-    compareSnapshot ? `compared with: ${compareSnapshot}` : "",
-    window ? `window: ${window}` : "",
-  ].filter(Boolean)
-  return `(${context.join("; ")})`
 }
 
 function shouldBuildProactiveSynthesis(
@@ -2636,12 +2624,12 @@ function finalizeAnalyzerOutput(
     )
     .slice(0, 5)
 
-  return {
+  return withFinalizedAnswer({
     ...output,
     bullets: output.bullets.map(ensureSentence).slice(0, 4),
     evidence,
     suggestedQuestions: finalizeSuggestedQuestions(output.suggestedQuestions),
-  }
+  })
 }
 
 function isMarketLevelAnalyzer(

@@ -10,6 +10,7 @@ import {
 import { categorySuggestedQuestions } from "@/lib/chatbot/question-bank"
 import { displayProductName } from "@/lib/chatbot/product-name"
 import { buildFrameworkProactiveSuggestions, buildProactiveSuggestions } from "@/lib/chatbot/proactive"
+import { withFinalizedAnswer } from "@/lib/chatbot/response-finalization"
 import type { TimeResolution } from "@/lib/chatbot/time-resolver"
 import { resolveCategorySourceWorkbook } from "@/lib/chatbot/category-sources"
 import {
@@ -91,7 +92,7 @@ export async function buildDeterministicChatResponse(params: BuildParams): Promi
       "Where can we grow with lower competitive density?",
     ])
   ).slice(0, 3)
-  return {
+  return withFinalizedAnswer({
     ...response,
     bullets: response.bullets.slice(0, 4),
     evidence: response.evidence.slice(0, 5),
@@ -100,7 +101,7 @@ export async function buildDeterministicChatResponse(params: BuildParams): Promi
         ? response.proactive
         : [],
     suggestedQuestions: suggestions,
-  }
+  })
 }
 
 async function buildDeterministicChatResponseRaw({
