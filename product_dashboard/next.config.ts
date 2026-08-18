@@ -11,6 +11,12 @@ const nextConfig: NextConfig = {
       "./data/code_reader_scanner/**/manifest.json",
       "./data/non_code_categories/**/*",
     ],
+    // Consult Me seed deliverables. Scoped to the routes that touch the files
+    // (download streams them; history/status stat them) so the "/*" bundle stays lean.
+    "/api/consult-me/download": ["./data/consult-me-reports/**/*"],
+    "/api/consult-me/history": ["./data/consult-me-reports/**/*"],
+    "/api/consult-me/status": ["./data/consult-me-reports/**/*"],
+    "/api/consult-me/public-status": ["./data/consult-me-reports/**/*"],
   },
   images: {
     remotePatterns: [

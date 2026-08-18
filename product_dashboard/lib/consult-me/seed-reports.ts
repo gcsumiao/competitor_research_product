@@ -1,14 +1,16 @@
 import { access, readFile, stat } from "fs/promises"
 import path from "path"
-import { URL } from "url"
 
 import type {
   DeliverableFile,
   DeliverableType,
   ResearchSource,
 } from "@/lib/consult-me/types"
+import { resolveAppRoot } from "@/lib/dashboard-runtime"
 
-const SEED_ROOT = "/Users/sumiaoc/competitor_research_product/market_deep_research"
+// Deliverables ship with the app (product_dashboard/data/consult-me-reports/**) so the
+// Consult Me routes work on a deployed instance, not just on the authoring machine.
+const SEED_ROOT = path.join(resolveAppRoot(), "data", "consult-me-reports")
 
 type SeedReportConfig = {
   seedId: string
@@ -66,10 +68,7 @@ export async function listSeedReports() {
   for (const seed of SEED_REPORTS) {
     const deliverables = await resolveSeedDeliverables(seed)
     if (!deliverables.length) continue
-    const pdfFile = deliverables.find((item) => item.type === "pdf")
-    const sources = pdfFile?.localPath
-      ? await extractSourcesFromPdf(pdfFile.localPath, seed.sourcesFound)
-      : []
+    const sources = await readSeedSources(seed.companyKey)
     const latestModified =
       deliverables
         .map((item) => Date.parse(item.modifiedAt))
@@ -135,6 +134,38 @@ async function resolveSeedDeliverables(seed: SeedReportConfig) {
   return entries
 }
 
+/**
+ * Research sources are precomputed offline into <company>/sources.json instead of being
+ * re-extracted from the report PDF on every request. Results are cached for the process;
+ * a missing or malformed file degrades to an empty list rather than throwing.
+ */
+const seedSourcesCache = new Map<string, ResearchSource[]>()
+
+async function readSeedSources(companyKey: string): Promise<ResearchSource[]> {
+  const cached = seedSourcesCache.get(companyKey)
+  if (cached) return cached
+
+  let sources: ResearchSource[] = []
+  try {
+    const raw = await readFile(path.join(SEED_ROOT, companyKey, "sources.json"), "utf8")
+    const parsed: unknown = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      sources = parsed.filter(
+        (item): item is ResearchSource =>
+          Boolean(item) &&
+          typeof item === "object" &&
+          typeof (item as ResearchSource).url === "string" &&
+          (item as ResearchSource).url.length > 0
+      )
+    }
+  } catch {
+    sources = []
+  }
+
+  seedSourcesCache.set(companyKey, sources)
+  return sources
+}
+
 async function fileExists(filePath: string) {
   try {
     await access(filePath)
@@ -149,101 +180,4 @@ function deliverableTitle(type: DeliverableType) {
   if (type === "csv") return "Data & Comparisons"
   if (type === "docx") return "Executive Summary"
   return "Presentation"
-}
-
-async function extractSourcesFromPdf(filePath: string, limit: number): Promise<ResearchSource[]> {
-  try {
-    const raw = await readFile(filePath)
-    const text = raw.toString("latin1")
-    const urlPattern = /https?:\/\/[^\s<>"'`\\)]+/gi
-    const unique: ResearchSource[] = []
-    const seen = new Set<string>()
-    let match: RegExpExecArray | null
-    while ((match = urlPattern.exec(text)) !== null) {
-      const original = match[0]
-      const cleaned = normalizeExtractedUrl(original)
-      if (!cleaned) continue
-      if (seen.has(cleaned)) continue
-      seen.add(cleaned)
-      const around = extractContextWindow(text, match.index, original.length)
-      unique.push({
-        title: sourceTitleFromUrl(cleaned, around),
-        snippet: sourceSnippetFromContext(around, cleaned),
-        url: cleaned,
-      })
-      if (unique.length >= Math.max(1, limit)) break
-    }
-    return unique
-  } catch {
-    return []
-  }
-}
-
-function normalizeExtractedUrl(value: string) {
-  const trimmed = value.trim().replace(/[)\],.;]+$/g, "")
-  try {
-    const url = new URL(trimmed)
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null
-    return url.toString()
-  } catch {
-    return null
-  }
-}
-
-function sourceTitleFromUrl(value: string, context?: string) {
-  const contextTitle = extractContextTitle(context)
-  if (contextTitle) return contextTitle
-  try {
-    const parsed = new URL(value)
-    const hostname = parsed.hostname.replace(/^www\./, "")
-    const segments = parsed.pathname
-      .split("/")
-      .map((item) => item.trim())
-      .filter(Boolean)
-    const last = segments[segments.length - 1]
-    if (!last) return hostname
-    const slug = decodeURIComponent(last)
-      .replace(/[-_]+/g, " ")
-      .replace(/\.[a-z0-9]+$/i, "")
-      .trim()
-    if (!slug) return hostname
-    return `${hostname} - ${slug}`
-  } catch {
-    return value
-  }
-}
-
-function extractContextWindow(text: string, index: number, size: number) {
-  const start = Math.max(0, index - 220)
-  const end = Math.min(text.length, index + size + 260)
-  return text.slice(start, end)
-}
-
-function cleanText(value: string) {
-  return value
-    .replace(/https?:\/\/[^\s<>"'`\\)]+/gi, " ")
-    .replace(/[\x00-\x1F\x7F]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-}
-
-function extractContextTitle(value?: string) {
-  if (!value) return ""
-  const cleaned = cleanText(value)
-  if (!cleaned) return ""
-  const chunks = cleaned
-    .split(/[.!?;|]/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .sort((a, b) => b.length - a.length)
-  const best = chunks.find((item) => item.length >= 24 && item.length <= 120)
-  return best ?? ""
-}
-
-function sourceSnippetFromContext(value: string, url: string) {
-  const cleaned = cleanText(value)
-  if (!cleaned) return ""
-  const withoutUrl = cleaned.replace(url, " ").replace(/\s+/g, " ").trim()
-  if (!withoutUrl) return ""
-  return withoutUrl.length > 220 ? `${withoutUrl.slice(0, 217)}...` : withoutUrl
 }
