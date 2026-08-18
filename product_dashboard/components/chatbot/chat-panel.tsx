@@ -16,6 +16,7 @@ type ChatPanelProps = {
   quickActions?: string[]
   onClose: () => void
   onInputChange: (value: string) => void
+  onStartOver: () => void
   onSubmit: () => void
   onQuickAction: (prompt: string) => void
 }
@@ -28,6 +29,7 @@ export function ChatPanel({
   quickActions,
   onClose,
   onInputChange,
+  onStartOver,
   onSubmit,
   onQuickAction,
 }: ChatPanelProps) {
@@ -48,9 +50,14 @@ export function ChatPanel({
           <p className="text-sm font-semibold text-foreground">Stakeholder Copilot</p>
           <p className="text-[11px] text-muted-foreground">Category-aware intelligence chat</p>
         </div>
-        <Button type="button" variant="ghost" size="icon" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button type="button" size="xs" onClick={onStartOver}>
+            Start over
+          </Button>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <div ref={scrollRef} className="max-h-[62vh] space-y-3 overflow-y-auto px-3 py-3">
