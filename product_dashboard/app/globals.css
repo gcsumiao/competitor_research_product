@@ -156,3 +156,51 @@
   font-family: var(--font-display);
   letter-spacing: -0.015em;
 }
+
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@media print {
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  [data-print-hidden],
+  [data-print-actions],
+  [data-slot="dropdown-menu-trigger"],
+  [data-slot="dropdown-menu-content"],
+  [data-slot="dropdown-menu-portal"],
+  .fixed[class*="z-"] {
+    display: none !important;
+  }
+
+  .min-h-screen {
+    min-height: auto !important;
+    padding: 0 !important;
+  }
+
+  .grid {
+    display: block !important;
+  }
+
+  .grid > * {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-bottom: 1rem;
+  }
+
+  [data-slot="card"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .recharts-responsive-container {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

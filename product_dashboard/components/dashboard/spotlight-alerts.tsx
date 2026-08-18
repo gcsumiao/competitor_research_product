@@ -66,7 +66,7 @@ export function SpotlightAlerts() {
   if (!alerts.length) return null
 
   return (
-    <div className="mb-6">
+    <div data-print-hidden className="mb-6">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
         <p className="text-sm font-medium">This Month Spotlight</p>
