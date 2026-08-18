@@ -2,7 +2,7 @@
 
 import { MessageSquare } from "lucide-react"
 import { usePathname, useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { ChatPanel } from "@/components/chatbot/chat-panel"
 import type { ChatPanelMessage } from "@/components/chatbot/chat-message"
@@ -29,7 +29,8 @@ export function DashboardChatbot() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  const categoryId = searchParams.get("category") ?? "code_reader_scanner"
+  const resolvedCategoryId = searchParams.get("category")?.trim() ?? ""
+  const categoryId = resolvedCategoryId || "code_reader_scanner"
   const snapshotDate = normalizeSnapshotDate(searchParams.get("snapshot") ?? "")
   const selectedBrand = searchParams.get("brand")?.trim() ?? ""
   const quickActions = useMemo(() => {
@@ -51,38 +52,50 @@ export function DashboardChatbot() {
     ]
   }, [categoryId])
 
-  const storageKey = useMemo(
-    () => `dashboard-chat:${categoryId}:${snapshotDate || "unspecified"}`,
-    [categoryId, snapshotDate]
-  )
-
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [inputValue, setInputValue] = useState("")
   const [messages, setMessages] = useState<ChatPanelMessage[]>([buildGreetingMessage()])
   const [pendingSelectionMode, setPendingSelectionMode] = useState<PendingSelectionMode>(null)
+  const conversationIdRef = useRef(0)
+  const lastCategoryIdRef = useRef("")
+  const lastSnapshotDateRef = useRef("")
+
+  const resetConversation = useCallback(() => {
+    conversationIdRef.current += 1
+    setMessages([buildGreetingMessage()])
+    setPendingSelectionMode(null)
+    setInputValue("")
+    setIsLoading(false)
+  }, [])
 
   useEffect(() => {
-    const raw = window.sessionStorage.getItem(storageKey)
-    if (!raw) {
-      setMessages([buildGreetingMessage()])
-      setPendingSelectionMode(null)
-      return
+    let shouldReset = false
+
+    if (resolvedCategoryId) {
+      if (
+        lastCategoryIdRef.current &&
+        lastCategoryIdRef.current !== resolvedCategoryId
+      ) {
+        shouldReset = true
+      }
+      lastCategoryIdRef.current = resolvedCategoryId
     }
 
-    try {
-      const parsed = JSON.parse(raw) as ChatPanelMessage[]
-      setMessages(Array.isArray(parsed) && parsed.length > 0 ? parsed : [buildGreetingMessage()])
-      setPendingSelectionMode(null)
-    } catch {
-      setMessages([buildGreetingMessage()])
-      setPendingSelectionMode(null)
+    if (snapshotDate) {
+      if (
+        lastSnapshotDateRef.current &&
+        lastSnapshotDateRef.current !== snapshotDate
+      ) {
+        shouldReset = true
+      }
+      lastSnapshotDateRef.current = snapshotDate
     }
-  }, [storageKey])
 
-  useEffect(() => {
-    window.sessionStorage.setItem(storageKey, JSON.stringify(messages))
-  }, [messages, storageKey])
+    if (shouldReset) {
+      resetConversation()
+    }
+  }, [resolvedCategoryId, resetConversation, snapshotDate])
 
   const appendMessage = (message: ChatPanelMessage) => {
     setMessages((current) => [...current, message])
@@ -180,6 +193,7 @@ export function DashboardChatbot() {
       content: text,
     })
 
+    const conversationId = conversationIdRef.current
     setInputValue("")
     setIsLoading(true)
 
@@ -210,6 +224,7 @@ export function DashboardChatbot() {
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null
+        if (conversationId !== conversationIdRef.current) return
         appendMessage({
           id: createMessageId(),
           role: "assistant",
@@ -220,6 +235,7 @@ export function DashboardChatbot() {
       }
 
       const payload = (await response.json()) as ChatResponse
+      if (conversationId !== conversationIdRef.current) return
       if (text === BRAND_ROLLING12_ACTION && !targetBrand && payload.suggestedQuestions.length > 0) {
         setPendingSelectionMode("rolling12_brand")
       }
@@ -230,13 +246,16 @@ export function DashboardChatbot() {
         response: payload,
       })
     } catch {
+      if (conversationId !== conversationIdRef.current) return
       appendMessage({
         id: createMessageId(),
         role: "assistant",
         content: "Network error while contacting chat service. Please retry.",
       })
     } finally {
-      setIsLoading(false)
+      if (conversationId === conversationIdRef.current) {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -250,6 +269,7 @@ export function DashboardChatbot() {
         quickActions={quickActions}
         onClose={() => setOpen(false)}
         onInputChange={setInputValue}
+        onStartOver={resetConversation}
         onSubmit={() => void sendMessage()}
         onQuickAction={(prompt) => void sendMessage(prompt)}
       />
