@@ -276,7 +276,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
               </thead>
               <tbody>
                 {listTop50.map((product, index) => (
-                  <tr key={product.asin} className="border-b border-border last:border-0">
+                  <tr key={product.asin} className="border-b border-border last:border-0 even:bg-muted/30">
                     <td className="py-3 px-2 text-xs text-muted-foreground">{index + 1}</td>
                     <td className="py-3 px-2 text-xs font-medium">
                       {product.url ? (

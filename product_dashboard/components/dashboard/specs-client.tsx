@@ -631,7 +631,11 @@ function CodeReaderTypesPage({
     const scopeRows = selectScopeRows(rows, resolvedScope)
     const scopeMetric = findPrimaryScopeMetric(rows, resolvedScope)
     const previousScopeMetric = findPrimaryScopeMetric(previousRows, resolvedScope)
-    const metricCards = buildCodeReaderMetricCards(scopeMetric, previousScopeMetric)
+    const metricCards = buildCodeReaderMetricCards(
+      resolvedScopeLabel,
+      scopeMetric,
+      previousScopeMetric
+    )
     const productTypeRows = selectProductTypeRows(rows, resolvedScope)
     const typeChartData = productTypeRows.map((row) => ({
       label: truncateLabel(row.label, 22),
@@ -731,7 +735,7 @@ function CodeReaderTypesPage({
             <DropdownMenuTrigger
               className={cn(
                 buttonVariants({ variant: "outline", size: "lg" }),
-                "min-w-44 justify-between border-2 border-foreground/20 bg-card px-4 shadow-sm"
+                "min-w-44 justify-between border-2 border-[var(--color-accent)] bg-[var(--color-accent)]/30 px-4 shadow-sm hover:bg-[var(--color-accent)]/40"
               )}
             >
               <span className="flex items-center gap-2">
@@ -836,12 +840,13 @@ function CodeReaderTypesPage({
           }
           items={view.typeShareItems}
           topLabel={view.topMixRow?.label ?? "n/a"}
+          topDisplayOrder="label-first"
           topValue={
             typeMixMetric === "revenue"
               ? formatCurrencyCompact(view.topMixRow?.revenue ?? 0)
               : formatNumberCompact(view.topMixRow?.units ?? 0)
           }
-          growthLabel="Top share"
+          growthLabel={typeMixMetric === "revenue" ? "Rev share" : "Units share"}
           growthValue={
             view.topMixRow
               ? formatPercent(
@@ -851,7 +856,12 @@ function CodeReaderTypesPage({
                 )
               : "n/a"
           }
-          totalLabel={typeMixMetric === "revenue" ? "Scope revenue" : "Scope units"}
+          growthSubLabel=""
+          totalLabel={
+            typeMixMetric === "revenue"
+              ? `${resolvedScopeLabel} revenue`
+              : `${resolvedScopeLabel} units`
+          }
           totalValue={
             typeMixMetric === "revenue"
               ? formatCurrencyCompact(view.scopeMetric?.revenue ?? 0)
@@ -996,22 +1006,36 @@ function TypeScopeBreakdown({ rows }: { rows: TypeBreakdownMetric[] }) {
             </thead>
             <tbody>
               {rows.length ? (
-                rows.map((row) => (
-                  <tr key={`${row.scopeKey}-${row.label}`} className="border-b border-border last:border-0">
-                    <td className="py-3 px-2 text-xs font-medium">{row.label}</td>
-                    <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice)}</td>
-                    <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(row.units)}</td>
-                    <td className="py-3 px-2 text-xs text-right">{formatPercent(row.unitsShare)}</td>
-                    <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(row.revenue)}</td>
-                    <td className="py-3 px-2 text-xs text-right">{formatPercent(row.revenueShare)}</td>
-                    <td className="py-3 px-2 text-xs text-right">
-                      {formatChangeLabel(percentFromRatio(row.revenueMoM))}
-                    </td>
-                    <td className="py-3 px-2 text-xs text-right">
-                      {formatChangeLabel(percentFromRatio(row.revenueYoY))}
-                    </td>
-                  </tr>
-                ))
+                rows.map((row) => {
+                  const key = row.label.trim().toLowerCase()
+                  const isGrand = key === "total"
+                  const isTotal = key.startsWith("total")
+
+                  return (
+                    <tr
+                      key={`${row.scopeKey}-${row.label}`}
+                      className={cn(
+                        "border-b border-border last:border-0",
+                        !isTotal && "even:bg-muted/30",
+                        isTotal && !isGrand && "bg-[var(--color-accent)]/20",
+                        isGrand && "bg-[var(--color-accent)]/45 font-semibold"
+                      )}
+                    >
+                      <td className="py-3 px-2 text-xs font-medium">{row.label}</td>
+                      <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice)}</td>
+                      <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(row.units)}</td>
+                      <td className="py-3 px-2 text-xs text-right">{formatPercent(row.unitsShare)}</td>
+                      <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(row.revenue)}</td>
+                      <td className="py-3 px-2 text-xs text-right">{formatPercent(row.revenueShare)}</td>
+                      <td className="py-3 px-2 text-xs text-right">
+                        {formatChangeLabel(percentFromRatio(row.revenueMoM))}
+                      </td>
+                      <td className="py-3 px-2 text-xs text-right">
+                        {formatChangeLabel(percentFromRatio(row.revenueYoY))}
+                      </td>
+                    </tr>
+                  )
+                })
               ) : (
                 <tr>
                   <td colSpan={8} className="py-6 text-center text-xs text-muted-foreground">
@@ -1135,22 +1159,36 @@ function ScopedBrandRankings({
                     </tr>
                   </thead>
                   <tbody>
-                    {brandRows.map((row) => (
-                      <tr key={`${row.scopeKey}-${row.brand}`} className="border-b border-border last:border-0">
-                        <td className="py-3 px-2 text-xs font-medium">{row.brand}</td>
-                        <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice)}</td>
-                        <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(row.units)}</td>
-                        <td className="py-3 px-2 text-xs text-right">{formatPercent(row.unitsShare)}</td>
-                        <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(row.revenue)}</td>
-                        <td className="py-3 px-2 text-xs text-right">{formatPercent(row.revenueShare)}</td>
-                        <td className="py-3 px-2 text-xs text-right">
-                          {formatChangeLabel(percentFromRatio(row.revenueMoM))}
-                        </td>
-                        <td className="py-3 px-2 text-xs text-right">
-                          {formatChangeLabel(percentFromRatio(row.revenueYoY))}
-                        </td>
-                      </tr>
-                    ))}
+                    {brandRows.map((row) => {
+                      const key = row.brand.trim().toLowerCase()
+                      const isGrand = key === "total"
+                      const isTotal = key.startsWith("total")
+
+                      return (
+                        <tr
+                          key={`${row.scopeKey}-${row.brand}`}
+                          className={cn(
+                            "border-b border-border last:border-0",
+                            !isTotal && "even:bg-muted/30",
+                            isTotal && !isGrand && "bg-[var(--color-accent)]/20",
+                            isGrand && "bg-[var(--color-accent)]/45 font-semibold"
+                          )}
+                        >
+                          <td className="py-3 px-2 text-xs font-medium">{row.brand}</td>
+                          <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice)}</td>
+                          <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(row.units)}</td>
+                          <td className="py-3 px-2 text-xs text-right">{formatPercent(row.unitsShare)}</td>
+                          <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(row.revenue)}</td>
+                          <td className="py-3 px-2 text-xs text-right">{formatPercent(row.revenueShare)}</td>
+                          <td className="py-3 px-2 text-xs text-right">
+                            {formatChangeLabel(percentFromRatio(row.revenueMoM))}
+                          </td>
+                          <td className="py-3 px-2 text-xs text-right">
+                            {formatChangeLabel(percentFromRatio(row.revenueYoY))}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1171,29 +1209,68 @@ function ScopedBrandRankings({
           <CardContent>
             {asinRows.length ? (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px] text-sm">
+                <table className="w-full min-w-[780px] text-sm">
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Rank</th>
+                      <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">ASIN</th>
                       <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Product</th>
                       <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Brand</th>
                       <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Price</th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Revenue</th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Units</th>
+                      <th
+                        className={cn(
+                          "text-right py-3 px-2 text-xs font-medium",
+                          asinMetric === "revenue" ? "text-foreground" : "text-muted-foreground"
+                        )}
+                      >
+                        Revenue
+                      </th>
+                      <th
+                        className={cn(
+                          "text-right py-3 px-2 text-xs font-medium",
+                          asinMetric === "units" ? "text-foreground" : "text-muted-foreground"
+                        )}
+                      >
+                        Units
+                      </th>
                       <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Rating</th>
                     </tr>
                   </thead>
                   <tbody>
                     {asinRows.map((row) => (
-                      <tr key={`${asinMetric}-${row.rank}-${row.asin}`} className="border-b border-border last:border-0">
-                        <td className="py-3 px-2 text-xs font-semibold">#{row.rank}</td>
-                        <td className="max-w-56 py-3 px-2 text-xs" title={row.title}>
+                      <tr key={`${asinMetric}-${row.rank}-${row.asin}`} className="border-b border-border last:border-0 even:bg-muted/30">
+                        <td className="py-3 px-2 text-xs text-muted-foreground">{row.rank}</td>
+                        <td className="py-3 px-2 text-xs font-medium">
+                          <a
+                            href={`https://www.amazon.com/dp/${row.asin}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-foreground hover:underline"
+                          >
+                            {row.asin}
+                          </a>
+                        </td>
+                        <td className="max-w-56 py-3 px-2 text-xs text-muted-foreground" title={row.title}>
                           {truncateLabel(row.title, 42)}
                         </td>
                         <td className="py-3 px-2 text-xs text-muted-foreground">{row.brand}</td>
                         <td className="py-3 px-2 text-xs text-right">{formatNullableCurrency(row.price)}</td>
-                        <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(row.revenue)}</td>
-                        <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(row.units)}</td>
+                        <td
+                          className={cn(
+                            "py-3 px-2 text-xs text-right",
+                            asinMetric === "revenue" ? "font-semibold text-foreground" : "text-muted-foreground"
+                          )}
+                        >
+                          {formatCurrencyCompact(row.revenue)}
+                        </td>
+                        <td
+                          className={cn(
+                            "py-3 px-2 text-xs text-right",
+                            asinMetric === "units" ? "font-semibold text-foreground" : "text-muted-foreground"
+                          )}
+                        >
+                          {formatNumberCompact(row.units)}
+                        </td>
                         <td className="py-3 px-2 text-xs text-right">{formatNullableRating(row.rating)}</td>
                       </tr>
                     ))}
@@ -1513,6 +1590,7 @@ function formatNullableRating(value: number | null) {
 }
 
 function buildCodeReaderMetricCards(
+  scopeLabel: string,
   current: TypeBreakdownMetric | undefined,
   previous: TypeBreakdownMetric | undefined
 ): SpecsMetricCard[] {
@@ -1521,7 +1599,7 @@ function buildCodeReaderMetricCards(
 
   return [
     {
-      title: "Scope Revenue",
+      title: `${scopeLabel} Revenue`,
       value: current ? formatCurrencyCompact(current.revenue) : "n/a",
       secondaryValue: current ? `Share ${formatPercent(current.revenueShare)}` : undefined,
       change: formatChangeLabel(revenueChange),
@@ -1530,7 +1608,7 @@ function buildCodeReaderMetricCards(
       icon: Layers,
     },
     {
-      title: "Scope Units",
+      title: `${scopeLabel} Units`,
       value: current ? formatNumberCompact(current.units) : "n/a",
       secondaryValue: current ? `Share ${formatPercent(current.unitsShare)}` : undefined,
       change: formatChangeLabel(unitsChange),
