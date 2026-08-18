@@ -4,6 +4,7 @@ import type {
   SnapshotSummary,
   TypeBreakdownMetric,
 } from "@/lib/competitor-data"
+import { formatIntegerPrice } from "@/lib/chatbot/number-format"
 import { displayProductName } from "@/lib/chatbot/product-name"
 
 export type ProductHistoryPoint = {
@@ -288,7 +289,7 @@ function disambiguateProductDisplayNames(products: IndexedProduct[]) {
     for (const product of matches) {
       const label =
         typeof product.price === "number" && Number.isFinite(product.price) && product.price > 0
-          ? `($${product.price % 1 === 0 ? product.price.toFixed(0) : product.price.toFixed(2)})`
+          ? `(${formatIntegerPrice(product.price)})`
           : null
       priceLabels.set(product, label)
       if (label) priceLabelCounts.set(label, (priceLabelCounts.get(label) ?? 0) + 1)

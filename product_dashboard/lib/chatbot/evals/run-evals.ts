@@ -122,6 +122,26 @@ export async function runGoldenEvals() {
     if (response.answer.startsWith("(Snapshot used:")) {
       failures.push("answer must not start with (Snapshot used:")
     }
+    const displayText = [
+      response.answer,
+      response.headline ?? "",
+      response.answerRest ?? "",
+      ...response.bullets,
+      ...response.evidence.flatMap((item) => [item.label, item.value]),
+      ...response.warnings,
+      ...response.suggestedQuestions,
+      ...(response.assumptions ?? []),
+      ...response.proactive.flatMap((item) => [item.title, item.summary]),
+    ].join("\n")
+    if (/[+-]?\d[\d,]*\.\d+%/.test(displayText)) {
+      failures.push("chat display percentages must be integer-rounded")
+    }
+    if (/[+-]0%/.test(displayText)) {
+      failures.push("chat display zero percentages must be unsigned")
+    }
+    if (/\$\d[\d,]*\.\d+(?![KMB])/i.test(displayText)) {
+      failures.push("chat display prices and ASP must be integer dollars")
+    }
     for (const pattern of item.mustMatch) {
       const regex = compileRegex(pattern)
       if (!regex.test(assertionText)) {
@@ -176,6 +196,17 @@ export async function runGoldenEvals() {
     }
     const mart = buildCodeReaderDataMart(category, snapshot.date)
     if (mart && category.id === "code_reader_scanner") {
+      const displayNameCounts = new Map<string, number>()
+      for (const product of mart.products) {
+        const key = product.displayName.toLocaleLowerCase()
+        displayNameCounts.set(key, (displayNameCounts.get(key) ?? 0) + 1)
+      }
+      const duplicateDisplayNames = Array.from(displayNameCounts.values()).filter(
+        (count) => count > 1
+      ).length
+      if (duplicateDisplayNames > 0) {
+        failures.push(`duplicate product display names ${duplicateDisplayNames}`)
+      }
       for (const suggestion of response.suggestedQuestions) {
         const suggestedQuery = parseQuery(suggestion, category.id)
         const suggestedEntities = resolveEntities(suggestion, mart, {

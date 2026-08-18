@@ -1,4 +1,5 @@
 import type { CodeReaderDataMart } from "@/lib/chatbot/code-reader-index"
+import { formatCompactCurrency, formatSignedPercent } from "@/lib/chatbot/number-format"
 import type { ProactiveSuggestion } from "@/lib/chatbot/types"
 
 const OWN_BRANDS = new Set(["innova", "blcktec"])
@@ -77,7 +78,7 @@ export function buildSynthesisSummary(mart: CodeReaderDataMart): SynthesisSummar
   watchlist.push(
     ...rising.map(
       (item) =>
-        `${item.displayName} is rising (+${((item.revenueMoM ?? 0) * 100).toFixed(1)}% MoM, rank #${item.rankRevenue}).`
+        `${item.displayName} is rising (${formatPercent(item.revenueMoM ?? 0)} MoM, rank #${item.rankRevenue}).`
     )
   )
 
@@ -92,16 +93,11 @@ export function buildSynthesisSummary(mart: CodeReaderDataMart): SynthesisSummar
 }
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)
+  return formatCompactCurrency(value)
 }
 
 function formatPercent(value: number) {
-  return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)}%`
+  return formatSignedPercent(value)
 }
 
 function normalize(value: string | null | undefined) {

@@ -1,4 +1,11 @@
 import type { CategorySummary, SnapshotSummary } from "@/lib/competitor-data"
+import {
+  formatCompactCurrency,
+  formatCompactNumber,
+  formatIntegerPrice,
+  formatSignedPercent,
+  formatUnsignedPercent,
+} from "@/lib/chatbot/number-format"
 import { displayProductName } from "@/lib/chatbot/product-name"
 import { withFinalizedAnswer } from "@/lib/chatbot/response-finalization"
 
@@ -616,45 +623,27 @@ function trendLine(value: number | null, label: string) {
 }
 
 function formatPercentChange(value: number | null) {
-  if (value === null || Number.isNaN(value)) return "n/a"
-  const sign = value > 0 ? "+" : ""
-  return `${sign}${(value * 100).toFixed(1)}%`
+  return formatSignedPercent(value)
 }
 
 function signedPercent(value: number) {
-  const sign = value > 0 ? "+" : ""
-  return `${sign}${(value * 100).toFixed(1)}%`
+  return formatSignedPercent(value)
 }
 
 function currency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(value)
+  return formatIntegerPrice(value)
 }
 
 function currencyCompact(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)
+  return formatCompactCurrency(value)
 }
 
 function numberCompact(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)
+  return formatCompactNumber(value)
 }
 
 function percent(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "percent",
-    maximumFractionDigits: 1,
-  }).format(value)
+  return formatUnsignedPercent(value)
 }
 
 function buildProductDisplayNames(products: NormalizedProduct[]) {

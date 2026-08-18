@@ -1,6 +1,14 @@
 import { getClarification } from "@/lib/chatbot/clarifications"
 import { detectIntent, suggestedQuestionsForIntent } from "@/lib/chatbot/intents"
 import { buildCodeReaderBrainResponse } from "@/lib/chatbot/metrics-engine"
+import {
+  formatCompactCurrency,
+  formatCompactNumber,
+  formatIntegerPrice,
+  formatSignedPercentagePoints,
+  formatSignedPercent,
+  formatUnsignedPercent,
+} from "@/lib/chatbot/number-format"
 import { queryDb } from "@/lib/db/client"
 import {
   buildCategoryIntentResponse,
@@ -611,7 +619,7 @@ function buildRiskSignals(
       title: "Rating Erosion Risk",
       summary:
         ownRating !== null && marketRating !== null
-          ? `Own rating ${fixed(ownRating, 2)} vs market ${fixed(marketRating, 2)}; gap ${fixed(ratingGap, 2)}.`
+          ? `Own rating ${fixed(ownRating, 1)} vs market ${fixed(marketRating, 1)}; gap ${fixed(ratingGap, 1)}.`
           : "Insufficient rating coverage for robust erosion scoring.",
       score: ratingScore,
     },
@@ -869,48 +877,31 @@ function fixed(value: number, digits: number) {
 }
 
 function currency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(value)
+  return formatIntegerPrice(value)
 }
 
 function currencyCompact(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)
+  return formatCompactCurrency(value)
 }
 
 function numberCompact(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)
+  return formatCompactNumber(value)
 }
 
 function percent(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "percent",
-    maximumFractionDigits: 1,
-  }).format(value)
+  return formatUnsignedPercent(value)
 }
 
 function formatPercentChange(value: number | null) {
-  if (value === null || Number.isNaN(value)) return "n/a"
-  return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)}%`
+  return formatSignedPercent(value)
 }
 
 function signedPercentPoints(delta: number) {
-  const points = delta * 100
-  return `${points >= 0 ? "+" : ""}${points.toFixed(1)}pt`
+  return formatSignedPercentagePoints(delta)
 }
 
 function formatSignedCurrency(value: number) {
-  const absValue = currency(Math.abs(value))
+  const absValue = currencyCompact(Math.abs(value))
   return `${value >= 0 ? "+" : "-"}${absValue}`
 }
 
