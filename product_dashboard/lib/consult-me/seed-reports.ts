@@ -18,6 +18,9 @@ type SeedReportConfig = {
   companyLabel: string
   researchSubject: string
   sourcesFound: number
+  // Original research completion time on the authoring machine. File mtimes are
+  // rewritten by git checkout on deploy, so the stamp must be pinned here.
+  createdAt: string
   deliverables: Partial<Record<DeliverableType, string>>
 }
 
@@ -42,6 +45,7 @@ const SEED_REPORTS: SeedReportConfig[] = [
     companyLabel: "Ancel",
     researchSubject: "Ancel vehicle diagnostic",
     sourcesFound: 19,
+    createdAt: "2026-02-10T23:34:47.000Z",
     deliverables: {
       pdf: "ancel/ancel_research-report.pdf",
       csv: "ancel/ancel - Competitor Comparison Matrix with key metr.csv",
@@ -55,6 +59,7 @@ const SEED_REPORTS: SeedReportConfig[] = [
     companyLabel: "Topdon",
     researchSubject: "Topdon vehicle diagnostic",
     sourcesFound: 51,
+    createdAt: "2026-02-10T23:35:00.000Z",
     deliverables: {
       pdf: "topdon/topdon_research-report.pdf",
       csv: "topdon/topdon - Competitor Comparison Matrix with key met.csv",
@@ -69,12 +74,7 @@ export async function listSeedReports() {
     const deliverables = await resolveSeedDeliverables(seed)
     if (!deliverables.length) continue
     const sources = await readSeedSources(seed.companyKey)
-    const latestModified =
-      deliverables
-        .map((item) => Date.parse(item.modifiedAt))
-        .filter((value) => Number.isFinite(value))
-        .sort((a, b) => b - a)[0] ?? Date.now()
-    const stamp = new Date(latestModified).toISOString()
+    const stamp = seed.createdAt
     outputs.push({
       taskId: seed.seedId,
       seedId: seed.seedId,

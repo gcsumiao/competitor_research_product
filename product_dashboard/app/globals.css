@@ -158,8 +158,8 @@
 }
 
 @page {
-  size: A4 portrait;
-  margin: 12mm;
+  size: A4 landscape;
+  margin: 8mm;
 }
 
 @media print {
@@ -168,6 +168,43 @@
   *::after {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  /* Scale the desktop layout to the printable width so the exported PDF keeps
+     the on-screen landscape composition instead of reflowing to one card per
+     page. zoom shrinks CSS px so ~1360px of layout fits the A4-landscape page
+     box, but it also shrinks the width media queries evaluate against, so the
+     desktop grid shapes are forced below by class instead of by breakpoint. */
+  html {
+    zoom: 0.78;
+  }
+
+  [class*="sm:grid-cols-2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  [class*="lg:grid-cols-3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  [class*="lg:grid-cols-4"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  [class*="xl:grid-cols-12"] {
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  }
+
+  [class*="lg:col-span-2"] {
+    grid-column: span 2 / span 2 !important;
+  }
+
+  [class*="xl:col-span-8"] {
+    grid-column: span 8 / span 8 !important;
+  }
+
+  [class*="xl:col-span-4"] {
+    grid-column: span 4 / span 4 !important;
   }
 
   [data-print-hidden],
@@ -184,23 +221,14 @@
     padding: 0 !important;
   }
 
-  .grid {
-    display: block !important;
-  }
-
-  .grid > * {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-bottom: 1rem;
-  }
-
   [data-slot="card"] {
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
-  .recharts-responsive-container {
-    width: 100% !important;
+  .recharts-responsive-container,
+  .recharts-wrapper,
+  .recharts-wrapper svg {
     max-width: 100% !important;
   }
 }
