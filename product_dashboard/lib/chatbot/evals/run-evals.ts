@@ -30,6 +30,8 @@ type EvalResult = {
   ok: boolean
   failures: string[]
   answer: string
+  headline: string
+  answerRest: string
   bullets: string[]
   warnings: string[]
   evidenceCount: number
@@ -53,6 +55,8 @@ export async function runGoldenEvals() {
         ok: false,
         failures: ["No category or snapshot found."],
         answer: "Missing category or snapshot.",
+        headline: "",
+        answerRest: "",
         bullets: [],
         warnings: ["No snapshot found for eval case."],
         evidenceCount: 0,
@@ -74,6 +78,8 @@ export async function runGoldenEvals() {
         ok: false,
         failures: ["No snapshot found."],
         answer: "Missing snapshot.",
+        headline: "",
+        answerRest: "",
         bullets: [],
         warnings: ["No snapshot found for eval case."],
         evidenceCount: 0,
@@ -99,9 +105,23 @@ export async function runGoldenEvals() {
       resolvedTime: timeResolution,
     })
 
-    const answer = stripSnapshotPrefix(response.answer)
+    const answer = response.answer
     const assertionText = [answer, ...response.bullets].join("\n")
     const failures: string[] = []
+    const headline = response.headline?.trim() ?? ""
+    if (!headline) {
+      failures.push("headline must be non-empty")
+    } else {
+      if (headline.startsWith("(")) {
+        failures.push("headline must not start with (")
+      }
+      if (/Snapshot used/i.test(headline)) {
+        failures.push("headline must not contain Snapshot used")
+      }
+    }
+    if (response.answer.startsWith("(Snapshot used:")) {
+      failures.push("answer must not start with (Snapshot used:")
+    }
     for (const pattern of item.mustMatch) {
       const regex = compileRegex(pattern)
       if (!regex.test(assertionText)) {
@@ -182,6 +202,8 @@ export async function runGoldenEvals() {
       ok: failures.length === 0,
       failures,
       answer: response.answer,
+      headline,
+      answerRest: response.answerRest ?? "",
       bullets: response.bullets,
       warnings: response.warnings,
       evidenceCount: response.evidence.length,
@@ -205,10 +227,6 @@ function compileRegex(pattern: string) {
   } catch (error) {
     throw new Error(`Invalid golden eval regex ${JSON.stringify(pattern)}: ${String(error)}`)
   }
-}
-
-function stripSnapshotPrefix(answer: string) {
-  return answer.replace(/^\(Snapshot used: [^)]+\)\s*/, "")
 }
 
 async function main() {

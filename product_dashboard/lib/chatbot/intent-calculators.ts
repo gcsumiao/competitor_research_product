@@ -1,5 +1,6 @@
 import type { CategorySummary, SnapshotSummary } from "@/lib/competitor-data"
 import { displayProductName } from "@/lib/chatbot/product-name"
+import { withFinalizedAnswer } from "@/lib/chatbot/response-finalization"
 
 import type {
   ChatIntent,
@@ -485,13 +486,13 @@ function finalizeCategoryIntentResponse(response: ChatResponse): ChatResponse {
     if (suggestedQuestions.length === 3) break
   }
 
-  return {
+  return withFinalizedAnswer({
     ...response,
     bullets: response.bullets.map(ensureSentence).slice(0, 4),
     evidence,
     proactive: [],
     suggestedQuestions,
-  }
+  })
 }
 
 function computeTrendContext(snapshot: SnapshotSummary, snapshots: SnapshotSummary[]): TrendContext {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { buildDeterministicChatResponse } from "@/lib/chatbot/insights"
 import { detectIntent } from "@/lib/chatbot/intents"
+import { withFinalizedAnswer } from "@/lib/chatbot/response-finalization"
 import type { ChatRequest, ChatResponse } from "@/lib/chatbot/types"
 import { resolveSnapshotTimeRange } from "@/lib/chatbot/time-resolver"
 import { loadDashboardDataForCategory } from "@/lib/competitor-data"
@@ -103,11 +104,11 @@ export async function POST(request: Request) {
     const enhanced = process.env.OPENAI_API_KEY
       ? await maybeEnhanceWithLlm(message, deterministicWithTime)
       : null
-    const finalResponse = addSnapshotPrefix(enhanced ?? deterministicWithTime)
+    const finalResponse = withFinalizedAnswer(enhanced ?? deterministicWithTime)
     return NextResponse.json(toClientResponse(finalResponse))
   } catch {
     return NextResponse.json(
-      {
+      withFinalizedAnswer({
         intent: "unknown",
         answer: "I could not process that request safely. Please retry with a shorter question.",
         bullets: [],
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
           "What should I be worried about?",
         ],
         warnings: ["The chat service encountered an unexpected parsing error."],
-      } satisfies ChatResponse,
+      } satisfies ChatResponse),
       { status: 200 }
     )
   }
@@ -336,18 +337,4 @@ function windowToLabel(value: "1m" | "3m" | "6m" | "12m" | "all") {
   if (value === "6m") return "Last 6 months"
   if (value === "12m") return "Last 12 months"
   return "Full history"
-}
-
-function addSnapshotPrefix(response: ChatResponse): ChatResponse {
-  if (!response.snapshotUsed) return response
-  if (response.answer.startsWith("(Snapshot used:")) return response
-  const context = [
-    `Snapshot used: ${response.snapshotUsed}`,
-    response.compareSnapshotUsed ? `compared with: ${response.compareSnapshotUsed}` : "",
-    response.windowUsed ? `window: ${response.windowUsed}` : "",
-  ].filter(Boolean)
-  return {
-    ...response,
-    answer: `(${context.join("; ")}) ${response.answer}`,
-  }
 }
