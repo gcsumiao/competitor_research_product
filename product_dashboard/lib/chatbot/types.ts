@@ -1,6 +1,8 @@
 import type { CategoryId } from "@/lib/competitor-data"
 
 export type ChatIntent =
+  | "sku_threat"
+  | "competitive_density"
   | "fastest_mover"
   | "asin_history"
   | "brand_archetype"
@@ -75,6 +77,10 @@ export type ChatResponse = {
   windowUsed?: string
   snapshotUsed?: string
   compareSnapshotUsed?: string
+  /** Compact analyzer facts that an optional LLM may synthesize without rereading prose. */
+  factPack?: Record<string, unknown>
+  /** Opts judgment-heavy deterministic results into key-gated LLM synthesis. */
+  wantsLlmSynthesis?: boolean
 }
 
 export type IntentDetection = {

@@ -3,6 +3,8 @@ import type { EntityResolution } from "@/lib/chatbot/entity-resolver"
 import type { ChatIntent } from "@/lib/chatbot/types"
 
 export type AnalyzerId =
+  | "sku_threat"
+  | "competitive_density"
   | "fastest_growth"
   | "fastest_rank_mover"
   | "type_growth"
@@ -38,12 +40,20 @@ export type IntentRoute = {
 }
 
 export function routeIntent(parsed: ParsedQuery, resolution: EntityResolution): IntentRoute {
+  if (parsed.plan.intent === "sku_threat") {
+    return { analyzer: "sku_threat" }
+  }
+
   if (parsed.plan.intent === "top_products") {
     return { analyzer: "top_products" }
   }
 
   if (isPriceTierGrowthQuestion(parsed.normalized)) {
     return { analyzer: "price_range" }
+  }
+
+  if (parsed.plan.intent === "competitive_density") {
+    return { analyzer: "competitive_density" }
   }
 
   if (isGrowthDriverQuestion(parsed.normalized)) {
@@ -86,6 +96,8 @@ export function routeIntent(parsed: ParsedQuery, resolution: EntityResolution): 
 }
 
 function forceAnalyzer(intent: ChatIntent, normalized: string): AnalyzerId | null {
+  if (intent === "sku_threat") return "sku_threat"
+  if (intent === "competitive_density") return "competitive_density"
   if (
     /\b(price tier|price tiers|pricing tier|pricing tiers)\b/.test(normalized) &&
     /\b(fastest|grow|growth|rising|increase)\b/.test(normalized)
@@ -95,8 +107,8 @@ function forceAnalyzer(intent: ChatIntent, normalized: string): AnalyzerId | nul
   if (/\b(product should we prioritize|prioritize in this segment|prioritise in this segment)\b/.test(normalized)) {
     return "opportunity_signal"
   }
-  if (/\b(lower competitive density|competitive density|lower competition)\b/.test(normalized)) {
-    return "competitive_gaps"
+  if (/\b(lower competitive density|competitive density|less crowded|room to grow|where can we grow|whitespace|under[ -]?served)\b/.test(normalized)) {
+    return "competitive_density"
   }
   if (
     /\b(strongest competitors|top competitors|main competitors)\b/.test(normalized) &&
@@ -174,6 +186,8 @@ function forceAnalyzer(intent: ChatIntent, normalized: string): AnalyzerId | nul
 }
 
 function mapIntentToAnalyzer(intent: ChatIntent): AnalyzerId {
+  if (intent === "sku_threat") return "sku_threat"
+  if (intent === "competitive_density") return "competitive_density"
   if (intent === "fastest_mover") return "fastest_growth"
   if (intent === "asin_history") return "asin_history"
   if (intent === "brand_archetype") return "brand_archetype"

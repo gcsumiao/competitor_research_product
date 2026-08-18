@@ -25,7 +25,8 @@
     "verify:code-reader-dashboard:postgres": "VERIFY_CODE_READER_POSTGRES=1 node -r dotenv/config --import tsx scripts/verify-code-reader-dashboard.mts dotenv_config_path=.env.local",
     "deploy:check-env": "node -r dotenv/config --import tsx scripts/check-deployment-env.mts dotenv_config_path=.env.local",
     "deploy:smoke": "node -r dotenv/config --import tsx scripts/smoke-dashboard-deployment.mts dotenv_config_path=.env.local",
-    "test:access": "node --import tsx --test tests/cloudflare-access-core.test.ts tests/cloudflare-pages-proxy.test.ts"
+    "test:access": "node --import tsx --test tests/cloudflare-access-core.test.ts tests/cloudflare-pages-proxy.test.ts",
+    "chat:evals": "node --import tsx lib/chatbot/evals/run-evals.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",

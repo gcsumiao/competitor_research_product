@@ -8,6 +8,20 @@ type IntentRule = {
 
 const INTENT_RULES: IntentRule[] = [
   {
+    intent: "sku_threat",
+    keywords: ["threatening our top sku", "threaten our top product", "attacking our best seller"],
+  },
+  {
+    intent: "competitive_density",
+    keywords: [
+      "lower competitive density",
+      "less crowded",
+      "where can we grow",
+      "room to grow",
+      "underserved segment",
+    ],
+  },
+  {
     intent: "fastest_mover",
     keywords: [
       "fastest mover",
@@ -56,6 +70,7 @@ const INTENT_RULES: IntentRule[] = [
       "median price",
       "asp range",
       "pricing band",
+      "price band",
     ],
   },
   {
@@ -86,7 +101,15 @@ const INTENT_RULES: IntentRule[] = [
   },
   {
     intent: "price_volume_tradeoff",
-    keywords: ["price volume", "tradeoff", "value segment", "volume share", "revenue share"],
+    keywords: [
+      "price volume",
+      "tradeoff",
+      "value segment",
+      "volume share",
+      "revenue share",
+      "dominating volume",
+      "lower-price products",
+    ],
   },
   {
     intent: "brand_comparison",
@@ -121,6 +144,7 @@ const INTENT_RULES: IntentRule[] = [
       "opportunity cluster",
       "under served",
       "low competition",
+      "lower competition",
       "opening",
     ],
   },
@@ -134,7 +158,7 @@ const INTENT_RULES: IntentRule[] = [
   },
   {
     intent: "market_concentration",
-    keywords: ["concentration", "fragmented", "top 3 share", "top 5 share", "dominance"],
+    keywords: ["concentration", "concentrated", "fragmented", "top 3 share", "top 5 share", "dominance"],
   },
   {
     intent: "self_assessment",
@@ -223,6 +247,16 @@ const INTENT_RULES: IntentRule[] = [
 ]
 
 const SUGGESTED_QUESTIONS: Record<ChatIntent, string[]> = {
+  sku_threat: [
+    "Which competitor is threatening our top SKU?",
+    "How did our top SKU perform vs last month?",
+    "Where can we grow with lower competitive density?",
+  ],
+  competitive_density: [
+    "Where can we grow with lower competitive density?",
+    "Which segment is our best growth opportunity?",
+    "Which price tier is growing fastest?",
+  ],
   fastest_mover: [
     "Who is the fastest growth brand this month (MoM)?",
     "Who is the fastest growth brand this month (YoY)?",
@@ -353,7 +387,7 @@ const SUGGESTED_QUESTIONS: Record<ChatIntent, string[]> = {
 
 const CATEGORY_KEYWORD_BOOSTS: Partial<Record<CategoryId, Array<{ intent: ChatIntent; terms: string[] }>>> = {
   dmm: [
-    { intent: "feature_analysis", terms: ["true rms", "auto ranging", "automotive targeted"] },
+    { intent: "feature_analysis", terms: ["true rms", "auto ranging", "automotive targeted", "rechargeable"] },
     { intent: "product_type_mix", terms: ["multimeter", "analyzer"] },
   ],
   borescope: [
@@ -413,6 +447,29 @@ export function detectIntent(message: string, categoryId?: CategoryId): IntentDe
   }
 
   // Heuristics for common stakeholder phrasing that can miss strict keyword matching.
+  if (/\b(concentrated|concentration|fragmented|top[- ]?3 share|top[- ]?5 share)\b/.test(normalized)) {
+    scores.set("market_concentration", (scores.get("market_concentration") ?? 0) + 5)
+  }
+  if (
+    /\b(asin|asins|sku|skus|product|products)\b/.test(normalized) &&
+    /\b(lead|leads|leading|rank first)\b/.test(normalized) &&
+    /\b(revenue|units|volume)\b/.test(normalized)
+  ) {
+    scores.set("top_products", (scores.get("top_products") ?? 0) + 5)
+  }
+  if (
+    /\bbrands?\b/.test(normalized) &&
+    /\b(lead|leads|leading)\b/.test(normalized) &&
+    /\b(share|revenue|units)\b/.test(normalized)
+  ) {
+    scores.set("market_leader", (scores.get("market_leader") ?? 0) + 5)
+  }
+  if (/\b(how much|what percentage).*\b(revenue|unit|market) share comes from\b/.test(normalized)) {
+    scores.set("product_type_mix", (scores.get("product_type_mix") ?? 0) + 5)
+  }
+  if (/\b(revenue|units?|demand|market) (is )?split across\b/.test(normalized)) {
+    scores.set("product_type_mix", (scores.get("product_type_mix") ?? 0) + 5)
+  }
   if (/\btop\b(?:\s*\d+)?\b/.test(normalized) && /\b(product|products|asin|asins|sku|scanner)\b/.test(normalized)) {
     scores.set("top_products", (scores.get("top_products") ?? 0) + 4)
   }

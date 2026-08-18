@@ -1,24 +1,33 @@
 import golden from "@/lib/chatbot/evals/golden-questions.json"
-import { buildLlmOnlyChatResponse } from "@/lib/chatbot/llm-brain"
+import { buildCodeReaderDataMart } from "@/lib/chatbot/code-reader-index"
+import { resolveEntities } from "@/lib/chatbot/entity-resolver"
+import { buildDeterministicChatResponse } from "@/lib/chatbot/insights"
+import { routeIntent } from "@/lib/chatbot/intent-router"
+import { parseQuery } from "@/lib/chatbot/query-parser"
+import { resolveSnapshotTimeRange } from "@/lib/chatbot/time-resolver"
 import { loadDashboardData } from "@/lib/competitor-data"
 
 type GoldenItem = {
   id: string
   categoryId: string
   question: string
-  checks: string[]
+  checks?: string[]
+  mustMatch: string[]
+  mustNotMatch: string[]
+  minBullets?: number
 }
 
 type EvalResult = {
   id: string
   categoryId: string
   question: string
-  checks: string[]
+  intent: string
   ok: boolean
+  failures: string[]
   answer: string
+  bullets: string[]
   warnings: string[]
   evidenceCount: number
-  sourcesUsedCount: number
 }
 
 export async function runGoldenEvals() {
@@ -27,48 +36,152 @@ export async function runGoldenEvals() {
   const results: EvalResult[] = []
 
   for (const item of cases) {
-    const category = dashboard.categories.find((c) => c.id === item.categoryId)
-    const snapshot = category?.snapshots[category.snapshots.length - 1]
-    if (!category || !snapshot) {
+    const category = dashboard.categories.find((candidate) => candidate.id === item.categoryId)
+    if (!category) {
       results.push({
         id: item.id,
         categoryId: item.categoryId,
         question: item.question,
-        checks: item.checks,
+        intent: "missing_snapshot",
         ok: false,
+        failures: ["No category or snapshot found."],
         answer: "Missing category or snapshot.",
+        bullets: [],
         warnings: ["No snapshot found for eval case."],
         evidenceCount: 0,
-        sourcesUsedCount: 0,
+      })
+      continue
+    }
+    const orderedSnapshots = category.snapshots
+      .slice()
+      .sort((a, b) => a.date.localeCompare(b.date))
+    const latestSnapshot = orderedSnapshots.at(-1)
+    if (!latestSnapshot) {
+      results.push({
+        id: item.id,
+        categoryId: item.categoryId,
+        question: item.question,
+        intent: "missing_snapshot",
+        ok: false,
+        failures: ["No snapshot found."],
+        answer: "Missing snapshot.",
+        bullets: [],
+        warnings: ["No snapshot found for eval case."],
+        evidenceCount: 0,
       })
       continue
     }
 
-    const response = await buildLlmOnlyChatResponse({
+    const timeResolution = resolveSnapshotTimeRange({
       message: item.question,
-      categoryId: item.categoryId,
-      snapshotDate: snapshot.date,
-      pathname: "/evals",
+      availableSnapshotDates: orderedSnapshots.map((snapshot) => snapshot.date),
+      fallbackSnapshotDate: latestSnapshot.date,
     })
+    const snapshot =
+      orderedSnapshots.find((candidate) => candidate.date === timeResolution.primarySnapshotDate) ??
+      latestSnapshot
+    const response = await buildDeterministicChatResponse({
+      message: item.question,
+      category,
+      snapshot,
+      snapshots: orderedSnapshots,
+      resolvedTime: timeResolution,
+    })
+
+    const answer = stripSnapshotPrefix(response.answer)
+    const assertionText = [answer, ...response.bullets].join("\n")
+    const failures: string[] = []
+    for (const pattern of item.mustMatch) {
+      const regex = compileRegex(pattern)
+      if (!regex.test(assertionText)) {
+        failures.push(`mustMatch /${pattern}/`)
+      }
+    }
+    for (const pattern of item.mustNotMatch) {
+      const regex = compileRegex(pattern)
+      if (regex.test(assertionText)) {
+        failures.push(`mustNotMatch /${pattern}/`)
+      }
+    }
+    if (item.minBullets !== undefined && response.bullets.length < item.minBullets) {
+      failures.push(`minBullets ${item.minBullets} (received ${response.bullets.length})`)
+    }
+    const mart = buildCodeReaderDataMart(category, snapshot.date)
+    if (mart && category.id === "code_reader_scanner") {
+      for (const suggestion of response.suggestedQuestions) {
+        const suggestedQuery = parseQuery(suggestion, category.id)
+        const suggestedEntities = resolveEntities(suggestion, mart, {
+          parsedQuery: suggestedQuery,
+        })
+        const suggestedRoute = routeIntent(suggestedQuery, suggestedEntities)
+        if (suggestedRoute.analyzer === "unknown") {
+          failures.push(`suggestedQuestion routes to unknown: ${JSON.stringify(suggestion)}`)
+        }
+      }
+    }
 
     results.push({
       id: item.id,
       categoryId: item.categoryId,
       question: item.question,
-      checks: item.checks,
-      ok: response.answer.trim().length > 0 && response.warnings.length < 3,
+      intent: response.intent,
+      ok: failures.length === 0,
+      failures,
       answer: response.answer,
+      bullets: response.bullets,
       warnings: response.warnings,
       evidenceCount: response.evidence.length,
-      sourcesUsedCount: response.sourcesUsed?.length ?? 0,
     })
   }
 
   return {
     generatedAt: new Date().toISOString(),
     total: results.length,
-    passed: results.filter((r) => r.ok).length,
-    failed: results.filter((r) => !r.ok).length,
+    passed: results.filter((result) => result.ok).length,
+    failed: results.filter((result) => !result.ok).length,
     results,
   }
+}
+
+function compileRegex(pattern: string) {
+  try {
+    return new RegExp(pattern, "im")
+  } catch (error) {
+    throw new Error(`Invalid golden eval regex ${JSON.stringify(pattern)}: ${String(error)}`)
+  }
+}
+
+function stripSnapshotPrefix(answer: string) {
+  return answer.replace(/^\(Snapshot used: [^)]+\)\s*/, "")
+}
+
+async function main() {
+  const summary = await runGoldenEvals()
+  console.table(
+    summary.results.map((result) => ({
+      id: result.id,
+      category: result.categoryId,
+      intent: result.intent,
+      bullets: result.bullets.length,
+      evidence: result.evidenceCount,
+      result: result.ok ? "PASS" : "FAIL",
+      failures: result.failures.join("; "),
+    }))
+  )
+  console.log(`Golden chatbot evals: ${summary.passed}/${summary.total} passed; ${summary.failed} failed.`)
+
+  for (const result of summary.results.filter((candidate) => !candidate.ok)) {
+    console.error(`\n[${result.id}] ${result.question}`)
+    console.error(result.answer)
+    for (const failure of result.failures) console.error(`- ${failure}`)
+  }
+
+  if (summary.failed > 0) process.exitCode = 1
+}
+
+if (process.argv[1]?.endsWith("run-evals.ts")) {
+  void main().catch((error) => {
+    console.error(error)
+    process.exitCode = 1
+  })
 }

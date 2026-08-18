@@ -100,6 +100,25 @@ export function parseQuery(
 function forceIntentFromPattern(
   normalized: string
 ): { intent: ChatIntent; confidence: number } | null {
+  const topSkuReference =
+    /\b((our\s+)?(top|best|number one|#1)\s*(sku|product|scanner)|best seller)\b/.test(
+      normalized
+    )
+  if (
+    topSkuReference &&
+    /\b(threat|threaten|threatening|attacking|coming after|challenging|closing in on)\b/.test(
+      normalized
+    )
+  ) {
+    return { intent: "sku_threat", confidence: 0.98 }
+  }
+  if (
+    /\b(lower competitive density|competitive density|less crowded|where can we grow|room to grow|whitespace|under[ -]?served( segment)?|low competition)\b/.test(
+      normalized
+    )
+  ) {
+    return { intent: "competitive_density", confidence: 0.96 }
+  }
   if (/\b(rolling 12|rolling12|12 month|12-month|grand total)\b/.test(normalized)) {
     if (/\b(compare|vs|versus)\b/.test(normalized)) {
       return { intent: "brand_comparison", confidence: 0.93 }
@@ -123,7 +142,7 @@ function forceIntentFromPattern(
   }
   if (
     /\bmarket\b/.test(normalized) &&
-    /\b(revenue|units|sales|size|total)\b/.test(normalized)
+    /\b(revenue|units|sales|size|total|big|large)\b/.test(normalized)
   ) {
     return { intent: "market_size", confidence: 0.95 }
   }
@@ -136,8 +155,21 @@ function forceIntentFromPattern(
   if (/\b(product should we prioritize|prioritize in this segment|prioritise in this segment)\b/.test(normalized)) {
     return { intent: "opportunity_signal", confidence: 0.88 }
   }
-  if (/\b(lower competitive density|competitive density|lower competition)\b/.test(normalized)) {
-    return { intent: "competitive_gaps", confidence: 0.86 }
+  if (
+    /\b(our revenue|our units|our share|our market share)\b/.test(normalized) &&
+    /\b(trend|last [0-9]+|months?|mom|yoy)\b/.test(normalized)
+  ) {
+    return { intent: "brand_health", confidence: 0.94 }
+  }
+  if (
+    /\b(which of our products|our (products|skus)).*\b(grew|growth|growing|declined|decline|declining)\b/.test(
+      normalized
+    )
+  ) {
+    return { intent: "trends_momentum", confidence: 0.94 }
+  }
+  if (/\bwhere (do|does) .+ rank in (revenue|units|revenue and units)\b/.test(normalized)) {
+    return { intent: "brand_health", confidence: 0.94 }
   }
   if (
     /\b(strongest competitors|top competitors|main competitors)\b/.test(normalized) &&
@@ -226,7 +258,7 @@ function forceIntentFromPattern(
   if (/\b(brand health|how did (innova|blcktec) do|our brand)\b/.test(normalized)) {
     return { intent: "brand_health", confidence: 0.88 }
   }
-  if (/\b(shift|moving|moved|who moved|market changed)\b/.test(normalized)) {
+  if (/\b(shift|moving|movements?|moved|who moved|market change|market changed|gained? .*share|lost .*share|share gain)\b/.test(normalized)) {
     return { intent: "market_shift", confidence: 0.8 }
   }
   if (/\b(risk|worried|threat|alert)\b/.test(normalized)) {
@@ -284,11 +316,12 @@ function inferHistoricalWindow(normalized: string): HistoricalWindow {
 }
 
 function inferTypeScope(normalized: string): ProductTypeScope | undefined {
-  if (/\btablet(s)?\b/.test(normalized)) return "tablet"
-  if (/\bhandheld(s)?\b/.test(normalized)) return "handheld"
-  if (/\bdongle(s)?\b/.test(normalized)) return "dongle"
-  if (/\bother tools?\b|\bother tool\b/.test(normalized)) return "other_tools"
-  return undefined
+  const matches: ProductTypeScope[] = []
+  if (/\btablet(s)?\b/.test(normalized)) matches.push("tablet")
+  if (/\bhandheld(s)?\b/.test(normalized)) matches.push("handheld")
+  if (/\bdongle(s)?\b/.test(normalized)) matches.push("dongle")
+  if (/\bother tools?\b|\bother tool\b/.test(normalized)) matches.push("other_tools")
+  return matches.length === 1 ? matches[0] : undefined
 }
 
 function inferTargetLevel(
@@ -296,6 +329,7 @@ function inferTargetLevel(
   params: { scopeBrands: string[]; typeScope?: ProductTypeScope }
 ): TargetLevel {
   if (params.typeScope) return "type"
+  if (/\b(product types?|type segment|segment|category)\b/.test(normalized)) return "type"
   if (/\bmarket|overall|across all brands|entire market\b/.test(normalized)) return "market"
   if (/\b[A-Z0-9]{8,10}\b/i.test(normalized) || /\b(asin|sku|model|product)\b/.test(normalized)) {
     return "asin"

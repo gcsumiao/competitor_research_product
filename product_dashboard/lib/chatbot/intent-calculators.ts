@@ -59,6 +59,22 @@ const CLARIFICATION_HINTS: Array<{ pattern: RegExp; answer: string; bullets: str
   },
 ]
 
+const HANDLED_INTENTS = new Set<ChatIntent>([
+  "data_clarification",
+  "market_size",
+  "market_leader",
+  "price_range",
+  "top_products",
+  "product_type_mix",
+  "price_volume_tradeoff",
+  "brand_comparison",
+  "feature_analysis",
+  "competitive_gaps",
+  "trends_momentum",
+  "rating_reviews",
+  "market_concentration",
+])
+
 export function detectCapabilities(data: NormalizedCategoryData): ChatIntent[] {
   const capabilities: ChatIntent[] = []
 
@@ -105,7 +121,9 @@ export function buildCategoryIntentResponse({
 }: BuildIntentParams): ChatResponse {
   const mappedIntent = mapLegacyIntent(intent)
   const capabilities = detectCapabilities(data)
-  const resolvedIntent = capabilities.includes(mappedIntent) ? mappedIntent : fallbackIntent(capabilities)
+  const resolvedIntent = HANDLED_INTENTS.has(mappedIntent)
+    ? mappedIntent
+    : fallbackIntent(capabilities)
   const trends = computeTrendContext(snapshot, snapshots)
   const evidenceBase = buildBaseEvidence(data, snapshot)
 
@@ -131,11 +149,13 @@ export function buildCategoryIntentResponse({
   }
 
   if (resolvedIntent === "market_size") {
+    const asksForLeader = /\b(who leads|who is leading|market leader|brand leads?)\b/i.test(message)
+    const leader = asksForLeader ? data.brands[0] : undefined
     return {
       intent: resolvedIntent,
       answer:
         `Current market size for ${category.label}: ${currencyCompact(data.marketRevenue)} revenue and ` +
-        `${numberCompact(data.marketUnits)} units.`,
+        `${numberCompact(data.marketUnits)} units.${leader ? ` ${leader.brand} leads with ${percent(leader.share)} revenue share.` : ""}`,
       bullets: [
         `Annualized run-rate from current month: ${currencyCompact(data.marketRevenue * 12)}.`,
         trendLine(trends.prevRevenueDelta, "Revenue vs prior snapshot"),
@@ -190,16 +210,35 @@ export function buildCategoryIntentResponse({
   }
 
   if (resolvedIntent === "top_products") {
-    const prefersUnits = /(units|volume|sold)/i.test(message)
+    const asksRevenue = /\b(revenue|sales)\b/i.test(message)
+    const asksUnits = /\b(units|volume|sold)\b/i.test(message)
+    const asksBoth = asksRevenue && asksUnits
+    const prefersUnits = asksUnits && !asksRevenue
     const source = prefersUnits ? data.topByUnits : data.topByRevenue
+    const topRevenue = data.topByRevenue[0]
+    const topUnits = data.topByUnits[0]
+    const rankedBullets = asksBoth
+      ? [
+          ...data.topByRevenue.slice(0, 3).map(
+            (item, index) =>
+              `Revenue #${index + 1} ${item.brand} ${truncate(item.title, 64)}: ${currencyCompact(item.revenue)} and ${numberCompact(item.units)} units.`
+          ),
+          ...data.topByUnits.slice(0, 3).map(
+            (item, index) =>
+              `Units #${index + 1} ${item.brand} ${truncate(item.title, 64)}: ${numberCompact(item.units)} units and ${currencyCompact(item.revenue)} revenue.`
+          ),
+        ]
+      : source.slice(0, 6).map((item, index) => {
+          return `#${index + 1} ${item.brand} ${truncate(item.title, 80)}: ${currencyCompact(item.revenue)} and ${numberCompact(item.units)} units.`
+        })
     return {
       intent: resolvedIntent,
-      answer: prefersUnits
-        ? "Top products by monthly units are listed below."
-        : "Top products by monthly revenue are listed below.",
-      bullets: source.slice(0, 6).map((item, index) => {
-        return `#${index + 1} ${item.brand} ${truncate(item.title, 80)} - ${currencyCompact(item.revenue)} / ${numberCompact(item.units)} units`
-      }),
+      answer: asksBoth
+        ? `${topRevenue ? `${topRevenue.brand} ${truncate(topRevenue.title, 56)} leads revenue at ${currencyCompact(topRevenue.revenue)}` : "The revenue leader is unavailable"}; ${topUnits ? `${topUnits.brand} ${truncate(topUnits.title, 56)} leads units at ${numberCompact(topUnits.units)}` : "the unit leader is unavailable"}.`
+        : source[0]
+          ? `${source[0].brand} ${truncate(source[0].title, 64)} leads monthly ${prefersUnits ? "units" : "revenue"} at ${prefersUnits ? `${numberCompact(source[0].units)} units` : currencyCompact(source[0].revenue)}.`
+          : `No product ranking is available by ${prefersUnits ? "units" : "revenue"}.`,
+      bullets: rankedBullets,
       evidence: [
         ...evidenceBase,
         { label: "Top SKU", value: source[0] ? truncate(source[0].title, 42) : "n/a" },
@@ -213,9 +252,12 @@ export function buildCategoryIntentResponse({
   }
 
   if (resolvedIntent === "product_type_mix") {
+    const leadingType = [...data.typeMix].sort((a, b) => b.revenueShare - a.revenueShare)[0]
     return {
       intent: resolvedIntent,
-      answer: "Type-level market mix is shown from the highest-coverage summary available in this category workbook.",
+      answer: leadingType
+        ? `${leadingType.type} is the largest product type at ${percent(leadingType.revenueShare)} revenue share and ${percent(leadingType.unitShare)} unit share.`
+        : "No type-level demand split is available in the current category workbook.",
       bullets: data.typeMix.slice(0, 6).map((row) => {
         return `${row.type}: ${percent(row.revenueShare)} revenue share and ${percent(row.unitShare)} unit share.`
       }),
@@ -250,11 +292,14 @@ export function buildCategoryIntentResponse({
 
   if (resolvedIntent === "brand_comparison") {
     const compared = selectComparedBrands(message, data.brands)
+    const [left, right] = compared
     return {
       intent: resolvedIntent,
       answer:
-        compared.length >= 2
-          ? `Brand comparison: ${compared[0].brand} vs ${compared[1].brand}.`
+        left && right
+          ? left.revenue >= right.revenue
+            ? `${left.brand} leads ${right.brand} by ${currencyCompact(left.revenue - right.revenue)} revenue (${percent(left.share)} vs ${percent(right.share)} share); average prices are ${currency(left.avgPrice)} vs ${currency(right.avgPrice)}.`
+            : `${right.brand} leads ${left.brand} by ${currencyCompact(right.revenue - left.revenue)} revenue (${percent(right.share)} vs ${percent(left.share)} share); average prices are ${currency(right.avgPrice)} vs ${currency(left.avgPrice)}.`
           : "Brand comparison requires at least two brands with measurable coverage.",
       bullets: compared.slice(0, 4).map((brand) => {
         return `${brand.brand}: ${currencyCompact(brand.revenue)} revenue, ${numberCompact(brand.units)} units, ${percent(brand.share)} share.`
@@ -269,15 +314,22 @@ export function buildCategoryIntentResponse({
   }
 
   if (resolvedIntent === "feature_analysis") {
-    const topFeature = data.featurePremiums[0]
+    const normalizedMessage = normalize(message)
+    const topFeature =
+      data.featurePremiums.find((feature) => normalizedMessage.includes(normalize(feature.feature))) ??
+      data.featurePremiums[0]
     return {
       intent: resolvedIntent,
       answer: topFeature
-        ? `${topFeature.feature} has a ${signedPercent(topFeature.premiumPct)} price premium in this dataset.`
+        ? `${topFeature.feature} has a ${signedPercent(topFeature.premiumPct)} price premium and represents ${percent(topFeature.withFeatureRevenueShare)} of revenue in this dataset.`
         : "Feature premium analysis is unavailable for this snapshot.",
       bullets: data.featurePremiums.slice(0, 5).map((feature) => {
         return `${feature.feature}: with-feature avg ${currency(feature.withFeatureAvgPrice)} vs without-feature avg ${currency(feature.withoutFeatureAvgPrice)} (${signedPercent(feature.premiumPct)}).`
-      }),
+      }).concat(
+        data.featurePremiums.length
+          ? []
+          : ["The current source does not expose a normalized with-feature versus without-feature comparison."]
+      ),
       evidence: evidenceBase,
       proactive,
       suggestedQuestions,
@@ -329,8 +381,9 @@ export function buildCategoryIntentResponse({
       .slice(0, 5)
     return {
       intent: resolvedIntent,
-      answer:
-        "Rating/review quality snapshot highlights products and brands combining strong ratings with meaningful revenue.",
+      answer: topRated[0]
+        ? `${topRated[0].brand} ${truncate(topRated[0].title, 64)} is the strongest rated product in the covered revenue leaders at ${topRated[0].rating.toFixed(1)}★, ${numberCompact(topRated[0].reviews)} reviews, and ${currencyCompact(topRated[0].revenue)} revenue.`
+        : "No rated product has enough coverage for a rating/revenue conclusion.",
       bullets: topRated.map((row) => {
         return `${row.brand} ${truncate(row.title, 64)}: ${row.rating.toFixed(1)}★, ${numberCompact(row.reviews)} reviews, ${currencyCompact(row.revenue)} revenue.`
       }),
@@ -345,7 +398,10 @@ export function buildCategoryIntentResponse({
 
   if (resolvedIntent === "market_concentration") {
     const top3Revenue = data.brands.slice(0, 3).reduce((sum, row) => sum + row.revenue, 0)
-    const top3Share = data.marketRevenue > 0 ? top3Revenue / data.marketRevenue : 0
+    const top3Share =
+      data.marketRevenue > 0 && top3Revenue > 0
+        ? top3Revenue / data.marketRevenue
+        : snapshot.totals.top3Share
     const concentrationLabel =
       top3Share >= 0.7 ? "highly concentrated" : top3Share >= 0.45 ? "moderately concentrated" : "fragmented"
     return {
@@ -439,6 +495,10 @@ function selectComparedBrands(message: string, brands: NormalizedBrandSummary[])
     normalized.includes(normalize(brand.brand))
   )
   if (explicit.length >= 2) return explicit.slice(0, 2)
+  if (explicit.length === 1) {
+    const benchmark = brands.find((brand) => normalize(brand.brand) !== normalize(explicit[0].brand))
+    return benchmark ? [explicit[0], benchmark] : explicit
+  }
   return brands.slice(0, 2)
 }
 
