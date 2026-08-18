@@ -235,6 +235,26 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
   const listingAnnotationStyle = listingAnnotation ? annotationToneClasses(listingAnnotation) : null
   const rolling12GrandTotals = getBrandRolling12GrandTotals(activeSnapshot, resolvedSelectedBrand)
   const previousRolling12GrandTotals = getBrandRolling12GrandTotals(previousSnapshot, resolvedSelectedBrand)
+  const hasRolling12Presence = Boolean(
+    rolling12GrandTotals &&
+      (rolling12GrandTotals.revenueGrandTotal > 0 ||
+        rolling12GrandTotals.revenueMonthly > 0 ||
+        rolling12GrandTotals.unitsGrandTotal > 0 ||
+        rolling12GrandTotals.unitsMonthly > 0)
+  )
+  const selectedBrandTotal = activeSnapshot?.brandTotals.find(
+    (brand) => normalizeBrandKey(brand.brand) === normalizeBrandKey(resolvedSelectedBrand)
+  )
+  const listingsMonthlyTotals = (selectedBrandListing?.products ?? []).reduce(
+    (totals, product) => ({
+      revenue: totals.revenue + product.revenue,
+      units: totals.units + product.units,
+    }),
+    { revenue: 0, units: 0 }
+  )
+  const selectedBrandMonthlyTotals = selectedBrandTotal
+    ? { revenue: selectedBrandTotal.revenue, units: selectedBrandTotal.units, fromListings: false }
+    : { ...listingsMonthlyTotals, fromListings: true }
   const rolling12Trend = buildBrandRolling12Trend(snapshots, resolvedSelectedBrand).filter(
     (row) =>
       row.revenueMonthly > 0 ||
@@ -529,52 +549,90 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                   <div className="rounded-xl border border-border p-4">
                     <p className="text-xs text-muted-foreground">Rolling 12 Grand Total Revenue</p>
                     <p className="mt-2 text-3xl font-semibold">
-                      {formatCurrencyCompact(rolling12GrandTotals?.revenueGrandTotal ?? 0)}
+                      {hasRolling12Presence
+                        ? formatCurrencyCompact(rolling12GrandTotals?.revenueGrandTotal ?? 0)
+                        : "n/a"}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Current month {formatCurrencyCompact(rolling12GrandTotals?.revenueMonthly ?? 0)} | {formatChangeLabel(rolling12RevenueChange)} vs previous snapshot
+                      {hasRolling12Presence
+                        ? <>Current month {formatCurrencyCompact(rolling12GrandTotals?.revenueMonthly ?? 0)} | {formatChangeLabel(rolling12RevenueChange)} vs previous snapshot</>
+                        : "Not in Rolling-12 top 25"}
                     </p>
                   </div>
                   <div className="rounded-xl border border-border p-4">
                     <p className="text-xs text-muted-foreground">Rolling 12 Grand Total Units</p>
                     <p className="mt-2 text-3xl font-semibold">
-                      {formatNumberCompact(rolling12GrandTotals?.unitsGrandTotal ?? 0)}
+                      {hasRolling12Presence
+                        ? formatNumberCompact(rolling12GrandTotals?.unitsGrandTotal ?? 0)
+                        : "n/a"}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Current month {formatNumberCompact(rolling12GrandTotals?.unitsMonthly ?? 0)} | {formatChangeLabel(rolling12UnitsChange)} vs previous snapshot
+                      {hasRolling12Presence
+                        ? <>Current month {formatNumberCompact(rolling12GrandTotals?.unitsMonthly ?? 0)} | {formatChangeLabel(rolling12UnitsChange)} vs previous snapshot</>
+                        : "Not in Rolling-12 top 25"}
                     </p>
                   </div>
                 </div>
+                {!hasRolling12Presence ? (
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="rounded-xl border border-border bg-muted/20 p-4">
+                      <p className="text-xs text-muted-foreground">
+                        {selectedBrandMonthlyTotals.fromListings
+                          ? "Monthly revenue (listings)"
+                          : "Monthly revenue"}
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold">
+                        {formatCurrencyCompact(selectedBrandMonthlyTotals.revenue)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-muted/20 p-4">
+                      <p className="text-xs text-muted-foreground">
+                        {selectedBrandMonthlyTotals.fromListings
+                          ? "Monthly units (listings)"
+                          : "Monthly units"}
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold">
+                        {formatNumberCompact(selectedBrandMonthlyTotals.units)}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <TrendLineCard
-                  title="Rolling 12 months Revenue Trend"
-                  subtitle={selectedBrandListing ? `${selectedBrandListing.brand} monthly revenue across snapshots` : "Selected brand monthly revenue trend"}
-                  totalLabel="Current monthly revenue"
-                  totalValue={formatCurrencyCompact(rolling12GrandTotals?.revenueMonthly ?? 0)}
-                  changeLabel={formatChangeLabel(rolling12RevenueMonthlyChange)}
-                  changeValueLabel="vs previous snapshot"
-                  data={rolling12RevenueTrend}
-                  color={REVENUE_CHART_COLOR}
-                  formatter={formatCurrencyCompact}
-                  axisFormatter={(value) => formatCurrencyCompact(value)}
-                  compactSummary
-                />
-                <TrendLineCard
-                  title="Rolling 12 months Units Trend"
-                  subtitle={selectedBrandListing ? `${selectedBrandListing.brand} monthly units across snapshots` : "Selected brand monthly units trend"}
-                  totalLabel="Current monthly units"
-                  totalValue={formatNumberCompact(rolling12GrandTotals?.unitsMonthly ?? 0)}
-                  changeLabel={formatChangeLabel(rolling12UnitsMonthlyChange)}
-                  changeValueLabel="vs previous snapshot"
-                  data={rolling12UnitsTrend}
-                  color={UNITS_CHART_COLOR}
-                  formatter={formatNumberCompact}
-                  axisFormatter={(value) => formatNumberCompact(value)}
-                  compactSummary
-                />
-              </div>
+              {hasRolling12Presence ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <TrendLineCard
+                    title="Rolling 12 months Revenue Trend"
+                    subtitle={selectedBrandListing ? `${selectedBrandListing.brand} monthly revenue across snapshots` : "Selected brand monthly revenue trend"}
+                    totalLabel="Current monthly revenue"
+                    totalValue={formatCurrencyCompact(rolling12GrandTotals?.revenueMonthly ?? 0)}
+                    changeLabel={formatChangeLabel(rolling12RevenueMonthlyChange)}
+                    changeValueLabel="vs previous snapshot"
+                    data={rolling12RevenueTrend}
+                    color={REVENUE_CHART_COLOR}
+                    formatter={formatCurrencyCompact}
+                    axisFormatter={(value) => formatCurrencyCompact(value)}
+                    compactSummary
+                  />
+                  <TrendLineCard
+                    title="Rolling 12 months Units Trend"
+                    subtitle={selectedBrandListing ? `${selectedBrandListing.brand} monthly units across snapshots` : "Selected brand monthly units trend"}
+                    totalLabel="Current monthly units"
+                    totalValue={formatNumberCompact(rolling12GrandTotals?.unitsMonthly ?? 0)}
+                    changeLabel={formatChangeLabel(rolling12UnitsMonthlyChange)}
+                    changeValueLabel="vs previous snapshot"
+                    data={rolling12UnitsTrend}
+                    color={UNITS_CHART_COLOR}
+                    formatter={formatNumberCompact}
+                    axisFormatter={(value) => formatNumberCompact(value)}
+                    compactSummary
+                  />
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                  Rolling-12 history is tracked for the top 25 market brands only
+                </div>
+              )}
 
               <Card className="bg-card border border-border">
                 <CardHeader className="pb-2">
@@ -660,35 +718,37 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                 </CardContent>
               </Card>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <CustomerOrders
-                  title="Rolling 12mon Revenue Rank"
-                  subtitle={selectedBrandListing ? `${selectedBrandListing.brand} rank movement` : "Selected brand rank movement"}
-                  totalLabel="Current rank"
-                  totalValue={currentRevenueRank ? `#${currentRevenueRank}` : "n/a"}
-                  changeLabel={revenueRankChange === null ? "n/a" : `${formatSigned(revenueRankChange, 0)} rank`}
-                  changeValueLabel="vs previous snapshot"
-                  data={revenueRankTrend}
-                  isRankChart
-                  yMin={1}
-                  yMax={rankYMax}
-                  color={REVENUE_CHART_COLOR}
-                />
+              {hasRolling12Presence ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <CustomerOrders
+                    title="Rolling 12mon Revenue Rank"
+                    subtitle={selectedBrandListing ? `${selectedBrandListing.brand} rank movement` : "Selected brand rank movement"}
+                    totalLabel="Current rank"
+                    totalValue={currentRevenueRank ? `#${currentRevenueRank}` : "n/a"}
+                    changeLabel={revenueRankChange === null ? "n/a" : `${formatSigned(revenueRankChange, 0)} rank`}
+                    changeValueLabel="vs previous snapshot"
+                    data={revenueRankTrend}
+                    isRankChart
+                    yMin={1}
+                    yMax={rankYMax}
+                    color={REVENUE_CHART_COLOR}
+                  />
 
-                <CustomerOrders
-                  title="Rolling 12mon Units Rank"
-                  subtitle={selectedBrandListing ? `${selectedBrandListing.brand} rank movement` : "Selected brand rank movement"}
-                  totalLabel="Current rank"
-                  totalValue={currentUnitsRank ? `#${currentUnitsRank}` : "n/a"}
-                  changeLabel={unitsRankChange === null ? "n/a" : `${formatSigned(unitsRankChange, 0)} rank`}
-                  changeValueLabel="vs previous snapshot"
-                  data={unitsRankTrend}
-                  isRankChart
-                  yMin={1}
-                  yMax={rankYMax}
-                  color={UNITS_CHART_COLOR}
-                />
-              </div>
+                  <CustomerOrders
+                    title="Rolling 12mon Units Rank"
+                    subtitle={selectedBrandListing ? `${selectedBrandListing.brand} rank movement` : "Selected brand rank movement"}
+                    totalLabel="Current rank"
+                    totalValue={currentUnitsRank ? `#${currentUnitsRank}` : "n/a"}
+                    changeLabel={unitsRankChange === null ? "n/a" : `${formatSigned(unitsRankChange, 0)} rank`}
+                    changeValueLabel="vs previous snapshot"
+                    data={unitsRankTrend}
+                    isRankChart
+                    yMin={1}
+                    yMax={rankYMax}
+                    color={UNITS_CHART_COLOR}
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
 

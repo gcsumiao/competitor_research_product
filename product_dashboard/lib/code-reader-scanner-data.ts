@@ -10,6 +10,10 @@ import type {
   ProductSummary,
   Rolling12Metric,
   SnapshotSummary,
+  SummaryBrandRankRow,
+  SummaryBrandRanks,
+  TierAsinRankRow,
+  TierAsinRankSection,
   TypeBreakdownMetric,
   TypeBreakdownSummary,
 } from "@/lib/competitor-data"
@@ -57,6 +61,7 @@ type ParsedRolling = {
 
 type ParsedReport = {
   summaryRows: SummaryRow[]
+  summaryBrandRanks?: SummaryBrandRanks
   top50ByRevenue: ProductSummary[]
   top50ByUnits: ProductSummary[]
   rolling12: ParsedRolling
@@ -67,7 +72,19 @@ type ParsedTypeBreakdowns = {
   allAsins: TypeBreakdownMetric[]
   top50: TypeBreakdownMetric[]
   categoryBrandMix: CategoryBrandMixMetric[]
+  tierAsinRanks: TierAsinRankSection[]
   source: "analysis" | "summary" | "fallback"
+}
+
+type CategoryBrandMixBlock = {
+  scopeKey: string
+  rows: CategoryBrandMixMetric[]
+  fromDedicatedTab: boolean
+}
+
+type MixDedupeEntry = {
+  row: CategoryBrandMixMetric
+  fromDedicatedTab: boolean
 }
 
 const RESERVED_SHEETS = new Set(
@@ -86,13 +103,25 @@ const RESERVED_SHEETS = new Set(
     "handheld $75-",
     "dongle",
     "other tools",
-  ].map((value) => normalizeText(value))
+  ].map((value) => normalizeSheetName(value))
 )
 
 const DETAILED_PRICE_TIER_KEYS = new Set([
   "tablet_800_plus",
   "tablet_400_800",
   "tablet_under_400",
+  "handheld_75_plus",
+  "handheld_under_75",
+  "total_dongle",
+  "total_other_tools",
+])
+
+const TIER_SCOPE_KEYS = new Set([
+  "total_tablet",
+  "tablet_800_plus",
+  "tablet_400_800",
+  "tablet_under_400",
+  "total_handheld",
   "handheld_75_plus",
   "handheld_under_75",
   "total_dongle",
@@ -237,7 +266,11 @@ async function parseReportWorkbook(reportPath: string, issues: DataQualityIssue[
     })
   }
 
-  const summaryRows = summarySheet ? parseSummaryRows(sheetRows(summarySheet)) : []
+  const summarySheetRows = summarySheet ? sheetRows(summarySheet) : []
+  const summaryRows = summarySheet ? parseSummaryRows(summarySheetRows) : []
+  const summaryBrandRanks = summarySheet
+    ? parseSummaryBrandRankTables(summarySheetRows)
+    : undefined
   const rolling12 = rollingSheet ? parseRollingSheet(sheetRows(rollingSheet), issues) : {}
   const { revenueProducts, unitsProducts } = top50Sheet
     ? parseDualProductTables(sheetRows(top50Sheet), issues)
@@ -247,6 +280,7 @@ async function parseReportWorkbook(reportPath: string, issues: DataQualityIssue[
 
   return {
     summaryRows,
+    summaryBrandRanks,
     top50ByRevenue: revenueProducts,
     top50ByUnits: unitsProducts,
     rolling12,
@@ -503,7 +537,7 @@ function parseBrandSheetListings(
   const output: Array<{ brand: string; products: ProductSummary[] }> = []
 
   for (const sheetName of workbook.SheetNames) {
-    if (RESERVED_SHEETS.has(normalizeText(sheetName))) continue
+    if (RESERVED_SHEETS.has(normalizeSheetName(sheetName))) continue
 
     const sheet = workbook.Sheets[sheetName]
     if (!sheet) continue
@@ -579,16 +613,18 @@ function parseAnalysisTypeBreakdowns(workbook: XLSX.WorkBook): ParsedTypeBreakdo
   const allAsins = summarySheet ? parseScopeMetricTable(sheetRows(summarySheet)) : []
   const top50 = top50Sheet ? parseScopeMetricTable(sheetRows(top50Sheet)) : []
 
-  const categoryBrandMix: CategoryBrandMixMetric[] = []
+  const brandMixBlocks: CategoryBrandMixBlock[] = []
+  const tierAsinRanks: TierAsinRankSection[] = []
   for (const sheetName of KNOWN_TYPE_SHEETS) {
     const sheet = findSheet(workbook, sheetName)
     if (!sheet) continue
-    categoryBrandMix.push(
-      ...parseCategoryBrandMixTable(sheetRows(sheet), sheetName)
-    )
+    const rows = sheetRows(sheet)
+    brandMixBlocks.push(...parseCategoryBrandMixBlocks(rows, sheetName))
+    tierAsinRanks.push(...parseTierAsinRankSections(rows, toScopeKey(sheetName)))
   }
+  const categoryBrandMix = dedupeCategoryBrandMixRows(brandMixBlocks)
 
-  if (!allAsins.length && !top50.length && !categoryBrandMix.length) {
+  if (!allAsins.length && !top50.length && !categoryBrandMix.length && !tierAsinRanks.length) {
     return undefined
   }
 
@@ -596,6 +632,7 @@ function parseAnalysisTypeBreakdowns(workbook: XLSX.WorkBook): ParsedTypeBreakdo
     allAsins,
     top50,
     categoryBrandMix,
+    tierAsinRanks,
     source: "analysis",
   }
 }
@@ -654,6 +691,7 @@ function parseRawSummaryBreakdowns(workbook: XLSX.WorkBook): ParsedTypeBreakdown
     allAsins,
     top50,
     categoryBrandMix,
+    tierAsinRanks: [],
     source: "summary",
   }
 }
@@ -690,19 +728,60 @@ function parseScopeMetricTable(rows: string[][]): TypeBreakdownMetric[] {
   return output
 }
 
-function parseCategoryBrandMixTable(rows: string[][], scopeLabel: string): CategoryBrandMixMetric[] {
-  const headerIndex = findHeaderRow(rows, [["avgprice"], ["quantitymo"], ["revenuemo"]])
-  if (headerIndex < 0) return []
+/**
+ * Tier tabs stack 1-4 brand-mix blocks (e.g. "Tablet Total" repeats its three sub-tiers
+ * below the overall block). Every block is parsed and attributed to the scope key derived
+ * from the block's own label row, not from the containing tab.
+ */
+function parseCategoryBrandMixBlocks(rows: string[][], sheetName: string): CategoryBrandMixBlock[] {
+  const headerIndices = findCategoryBrandMixHeaderRows(rows)
+  if (!headerIndices.length) return []
 
+  const tabScopeKey = toScopeKey(sheetName)
+  const blocks: CategoryBrandMixBlock[] = []
+
+  for (let position = 0; position < headerIndices.length; position += 1) {
+    const headerIndex = headerIndices[position]
+    const nextHeaderIndex = headerIndices[position + 1] ?? -1
+    // Stop one row short of the next header so its label row is not read as a brand.
+    const endExclusive = nextHeaderIndex > 0 ? nextHeaderIndex - 1 : rows.length
+
+    const blockLabel = resolveBlockScopeLabel(rows, headerIndex, sheetName)
+    const scopeKey = toScopeKey(blockLabel)
+    const blockRows = parseCategoryBrandMixBlockRows(
+      rows,
+      headerIndex,
+      endExclusive,
+      scopeKey,
+      blockLabel
+    )
+    if (!blockRows.length) continue
+
+    blocks.push({
+      scopeKey,
+      rows: blockRows,
+      fromDedicatedTab: scopeKey === tabScopeKey,
+    })
+  }
+
+  return blocks
+}
+
+function parseCategoryBrandMixBlockRows(
+  rows: string[][],
+  headerIndex: number,
+  endExclusive: number,
+  scopeKey: string,
+  scopeLabel: string
+): CategoryBrandMixMetric[] {
   const header = rows[headerIndex]
   const brandCol = findLabelColumn(header)
   if (brandCol < 0) return []
 
   const output: CategoryBrandMixMetric[] = []
-  const scopeKey = toScopeKey(scopeLabel)
-
   let blankRun = 0
-  for (let i = headerIndex + 1; i < rows.length; i += 1) {
+
+  for (let i = headerIndex + 1; i < Math.min(endExclusive, rows.length); i += 1) {
     const row = rows[i]
     if (row.every((cell) => cell.trim() === "")) {
       blankRun += 1
@@ -710,6 +789,8 @@ function parseCategoryBrandMixTable(rows: string[][], scopeLabel: string): Categ
       continue
     }
     blankRun = 0
+
+    if (normalizeText(row.join(" ")).includes("rankby")) break
 
     const brand = getCell(row, brandCol).trim()
     if (!brand || normalizeText(brand) === "brand" || normalizeText(brand) === "0") continue
@@ -723,7 +804,210 @@ function parseCategoryBrandMixTable(rows: string[][], scopeLabel: string): Categ
       unitsShare: readMetricShare(header, row, ["qtyby", "marketunitshare"]),
       revenue: readMetricCell(header, row, ["revenuemo", "monthlyrevenue"]),
       revenueShare: readMetricShare(header, row, ["revenueby", "marketrevshare"]),
+      revenueMoM: readMetricNullablePercent(header, row, ["revenuemom"]),
+      revenueYoY: readMetricNullablePercent(header, row, ["revenueyoy"]),
     })
+  }
+
+  return output
+}
+
+function findCategoryBrandMixHeaderRows(rows: string[][]): number[] {
+  const indices: number[] = []
+  for (let i = 0; i < rows.length; i += 1) {
+    const normalized = rows[i].map(normalizeText)
+    const has = (alias: string) => normalized.some((cell) => cell.includes(alias))
+    if (!has("avgprice")) continue
+    if (!has("quantitymo")) continue
+    if (!has("revenuemo")) continue
+    indices.push(i)
+  }
+  return indices
+}
+
+/**
+ * Block labels sit on the first non-empty row above the block header
+ * (e.g. "Tablet Overall", "Tablet $800+"). Anything that does not resolve to a known
+ * tier scope key falls back to the containing tab name.
+ */
+function resolveBlockScopeLabel(
+  rows: string[][],
+  headerIndex: number,
+  fallbackLabel: string
+): string {
+  for (let i = headerIndex - 1; i >= Math.max(0, headerIndex - 4); i -= 1) {
+    const cell = rows[i].find((value) => value.trim() !== "")
+    if (!cell) continue
+    return TIER_SCOPE_KEYS.has(toScopeKey(cell)) ? cell.trim() : fallbackLabel
+  }
+  return fallbackLabel
+}
+
+function dedupeCategoryBrandMixRows(blocks: CategoryBrandMixBlock[]): CategoryBrandMixMetric[] {
+  const order: string[] = []
+  const byKey = new Map<string, MixDedupeEntry>()
+
+  for (const block of blocks) {
+    for (const row of block.rows) {
+      const key = `${row.scopeKey}::${normalizeText(row.brand)}`
+      const existing = byKey.get(key)
+      if (!existing) {
+        byKey.set(key, { row, fromDedicatedTab: block.fromDedicatedTab })
+        order.push(key)
+        continue
+      }
+      if (!existing.fromDedicatedTab && block.fromDedicatedTab) {
+        byKey.set(key, { row, fromDedicatedTab: true })
+      }
+    }
+  }
+
+  const byBrand = order
+    .map((key) => byKey.get(key))
+    .filter((entry): entry is MixDedupeEntry => Boolean(entry))
+
+  return dropDuplicateValueRows(byBrand)
+}
+
+/**
+ * A few months name the same underlying row differently between the containing tab and the
+ * dedicated tab (Dec 2025 - Mar 2026 handheld $75-: "vdiagtool" vs "zmoon"), which the
+ * brand-keyed pass cannot merge. Collapse rows only when their ENTIRE numeric tuple is
+ * identical within a scope, keeping the dedicated tab's row and its brand name. Any
+ * difference in any field (including null vs 0) leaves both rows intact.
+ */
+function dropDuplicateValueRows(entries: MixDedupeEntry[]): CategoryBrandMixMetric[] {
+  const winnerIndexByValue = new Map<string, number>()
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index]
+    const valueKey = `${entry.row.scopeKey}::${categoryBrandMixValueKey(entry.row)}`
+    const currentIndex = winnerIndexByValue.get(valueKey)
+    if (currentIndex === undefined) {
+      winnerIndexByValue.set(valueKey, index)
+      continue
+    }
+    if (!entries[currentIndex].fromDedicatedTab && entry.fromDedicatedTab) {
+      winnerIndexByValue.set(valueKey, index)
+    }
+  }
+
+  const survivors = new Set(winnerIndexByValue.values())
+  return entries.filter((_, index) => survivors.has(index)).map((entry) => entry.row)
+}
+
+const MIX_VALUE_FIELDS = [
+  "avgPrice",
+  "units",
+  "unitsShare",
+  "revenue",
+  "revenueShare",
+  "revenueMoM",
+  "revenueYoY",
+] as const
+
+// Sentinel is non-numeric, so a null can never compare equal to any number's String() form.
+const MIX_VALUE_NULL_SENTINEL = "<null>"
+
+function categoryBrandMixValueKey(row: CategoryBrandMixMetric): string {
+  return MIX_VALUE_FIELDS.map((field) => {
+    const value = row[field]
+    return value === null ? MIX_VALUE_NULL_SENTINEL : String(value)
+  }).join("|")
+}
+
+/**
+ * Every tier tab carries "Rank By Monthly Revenue - <Mon> 'YY ONLY" and
+ * "Rank By Monthly Units - ..." sections (10 ASINs each). Missing sections are tolerated.
+ */
+function parseTierAsinRankSections(rows: string[][], scopeKey: string): TierAsinRankSection[] {
+  const sections: TierAsinRankSection[] = []
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const normalized = normalizeText(rows[i].join(" "))
+    if (!normalized.includes("rankby")) continue
+
+    const metric: "revenue" | "units" | null =
+      normalized.includes("monthlyunits") || normalized.includes("monthlysales")
+        ? "units"
+        : normalized.includes("monthlyrev")
+          ? "revenue"
+          : null
+    if (!metric) continue
+    if (sections.some((section) => section.metric === metric)) continue
+
+    const headerIndex = findAsinRankHeaderRow(rows, i)
+    if (headerIndex < 0) continue
+
+    const parsedRows = parseTierAsinRankRows(rows, headerIndex)
+    if (!parsedRows.length) continue
+
+    sections.push({ scopeKey, metric, rows: parsedRows })
+    i = headerIndex
+  }
+
+  return sections
+}
+
+function findAsinRankHeaderRow(rows: string[][], markerIndex: number): number {
+  for (let i = markerIndex + 1; i < Math.min(rows.length, markerIndex + 4); i += 1) {
+    const normalized = rows[i].map(normalizeText)
+    const has = (alias: string) => normalized.some((cell) => cell.includes(alias))
+    if (has("asin") && has("rank") && has("price")) return i
+  }
+  return -1
+}
+
+function parseTierAsinRankRows(rows: string[][], headerIndex: number): TierAsinRankRow[] {
+  const header = rows[headerIndex]
+  const rankCol = findColumn(header, ["ranking"])
+  const asinCol = findColumn(header, ["asin"])
+  const titleCol = findColumn(header, ["productname", "title"])
+  const brandCol = findColumn(header, ["brand"])
+  const typeCol = findColumn(header, ["type"])
+  const priceCol = findColumn(header, ["price"])
+  const revenueCol = findColumn(header, [
+    "estmonthlyretailrev",
+    "monthlyrevenue",
+    "monthlyrev",
+    "revenuemo",
+  ])
+  const unitsCol = findColumn(header, [
+    "estmonthlyunitssold",
+    "monthlyunits",
+    "monthlysales",
+    "quantitymo",
+  ])
+  const reviewsCol = findColumn(header, ["ofreviews", "reviewcount", "totalreviews", "reviews"])
+  const ratingCol = findColumn(header, ["avgrating", "toolrating", "rating"])
+
+  if (asinCol < 0 || revenueCol < 0 || unitsCol < 0) return []
+
+  const output: TierAsinRankRow[] = []
+
+  for (let i = headerIndex + 1; i < rows.length; i += 1) {
+    const row = rows[i]
+    if (row.every((cell) => cell.trim() === "")) break
+    if (normalizeText(row.join(" ")).includes("rankby")) break
+
+    const asin = getCell(row, asinCol).trim()
+    if (!asin || normalizeText(asin) === "asin") break
+
+    const parsedRank = rankCol >= 0 ? parseNumber(getCell(row, rankCol)) : 0
+    output.push({
+      rank: parsedRank > 0 ? parsedRank : output.length + 1,
+      asin,
+      title: titleCol >= 0 ? getCell(row, titleCol).trim() : "",
+      brand: brandCol >= 0 ? getCell(row, brandCol).trim() : "",
+      type: readNullableTextCell(row, typeCol),
+      price: readNullableNumberCell(row, priceCol),
+      revenue: parseNumber(getCell(row, revenueCol)),
+      units: parseNumber(getCell(row, unitsCol)),
+      reviews: readNullableNumberCell(row, reviewsCol),
+      rating: readNullableNumberCell(row, ratingCol),
+    })
+
+    if (output.length >= 50) break
   }
 
   return output
@@ -763,6 +1047,8 @@ function parseRawCategoryBrandMix(rows: string[][]): CategoryBrandMixMetric[] {
       unitsShare: readMetricShare(header, row, ["qtyby", "marketunitshare"]),
       revenue: readMetricCell(header, row, ["revenuemo", "monthlyrevenue"]),
       revenueShare: readMetricShare(header, row, ["revenueby", "marketrevshare"]),
+      revenueMoM: readMetricNullablePercent(header, row, ["revenuemom"]),
+      revenueYoY: readMetricNullablePercent(header, row, ["revenueyoy"]),
     })
   }
 
@@ -820,6 +1106,32 @@ function readMetricNullableShare(
   return Number.isFinite(value) ? value : null
 }
 
+function readMetricNullablePercent(
+  header: string[],
+  row: string[],
+  aliases: string[]
+): number | null {
+  const idx = findColumn(header, aliases)
+  if (idx < 0) return null
+  const cell = getCell(row, idx).trim()
+  if (!cell) return null
+  const value = parsePercentValue(cell)
+  return Number.isFinite(value) ? value : null
+}
+
+function readNullableNumberCell(row: string[], index: number): number | null {
+  if (index < 0) return null
+  const cell = getCell(row, index).trim()
+  if (!cell || cell.toLowerCase() === "n/a") return null
+  return parseNumber(cell)
+}
+
+function readNullableTextCell(row: string[], index: number): string | null {
+  if (index < 0) return null
+  const cell = getCell(row, index).trim()
+  return cell || null
+}
+
 function buildSnapshot(
   date: string,
   parsed: ParsedReport,
@@ -856,7 +1168,8 @@ function buildSnapshot(
     normalizedSummaryRows,
     parsed.rolling12,
     top50Revenue,
-    totalRevenue
+    totalRevenue,
+    parsed.summaryBrandRanks
   )
 
   const top3Share = totalRevenue
@@ -899,6 +1212,8 @@ function buildSnapshot(
 
   const priceTiers = buildPriceTierSummary(parsedType, top50Revenue, totalRevenue)
 
+  const tierAsinRanks = parsedType?.tierAsinRanks?.length ? parsedType.tierAsinRanks : undefined
+
   const fallbackTypeBreakdowns: TypeBreakdownSummary | undefined = parsedType
     ? {
         allAsins: parsedType.allAsins,
@@ -940,6 +1255,8 @@ function buildSnapshot(
       ...(rollingUnits ? { units: rollingUnits } : {}),
     },
     typeBreakdowns: fallbackTypeBreakdowns,
+    ...(parsed.summaryBrandRanks ? { summaryBrandRanks: parsed.summaryBrandRanks } : {}),
+    ...(tierAsinRanks ? { tierAsinRanks } : {}),
     qualityIssues: issues,
   }
 }
@@ -948,7 +1265,8 @@ function buildBrandTotals(
   summaryRows: SummaryRow[],
   rolling12: ParsedRolling,
   top50Revenue: ProductSummary[],
-  totalRevenue: number
+  totalRevenue: number,
+  summaryBrandRanks?: SummaryBrandRanks
 ): BrandSummary[] {
   const revenueRows = rolling12.revenue?.brandRows ?? []
   const unitRows = rolling12.units?.brandRows ?? []
@@ -958,7 +1276,7 @@ function buildBrandTotals(
       unitRows.map((row) => [normalizeText(row.brand), row.monthly])
     )
 
-    return revenueRows
+    const rollingTotals = revenueRows
       .map((row) => ({
         brand: row.brand,
         revenue: row.monthly,
@@ -966,6 +1284,14 @@ function buildBrandTotals(
         share: totalRevenue ? row.monthly / totalRevenue : 0,
       }))
       .sort((a, b) => b.revenue - a.revenue)
+
+    // Rolling 12 mo only tracks brands with a full trailing-12 history, so brands that
+    // appear in the Summary revenue table alone (e.g. bosch, gearwrench) are appended
+    // in summary order after the rolling brands rather than dropped.
+    return [
+      ...rollingTotals,
+      ...summaryOnlyBrandTotals(rollingTotals, summaryRows, summaryBrandRanks, totalRevenue),
+    ]
   }
 
   if (summaryRows.length) {
@@ -997,6 +1323,58 @@ function buildBrandTotals(
     .sort((a, b) => b.revenue - a.revenue)
 }
 
+/**
+ * Internal Innova splits are listing groupings, not market brands, so they never join
+ * brandTotals even when the Summary table lists them.
+ */
+const BRAND_TOTALS_EXCLUDED_KEYS = new Set(["innova1p", "innova3p"])
+
+function summaryOnlyBrandTotals(
+  existing: BrandSummary[],
+  summaryRows: SummaryRow[],
+  summaryBrandRanks: SummaryBrandRanks | undefined,
+  totalRevenue: number
+): BrandSummary[] {
+  const seen = new Set(existing.map((row) => normalizeText(row.brand)))
+  const output: BrandSummary[] = []
+
+  const rankRows = summaryBrandRanks?.revenue ?? []
+  const shareByBrand = new Map(
+    rankRows.map((row) => [normalizeText(row.brand), row.share] as const)
+  )
+
+  const candidates: Array<{ brand: string; revenue: number; units: number }> = rankRows.length
+    ? rankRows.map((row) => ({
+        brand: row.brand,
+        revenue: row.monthlyRevenue,
+        units: row.monthlyUnits,
+      }))
+    : summaryRows.map((row) => ({ brand: row.brand, revenue: row.revenue, units: row.units }))
+
+  for (const candidate of candidates) {
+    const key = normalizeText(candidate.brand)
+    if (!key || seen.has(key)) continue
+    if (BRAND_TOTALS_EXCLUDED_KEYS.has(key)) continue
+    if (key === "total" || key === "totalmarket") continue
+    seen.add(key)
+
+    const sheetShare = shareByBrand.get(key)
+    output.push({
+      brand: candidate.brand,
+      revenue: candidate.revenue,
+      units: candidate.units,
+      share:
+        sheetShare && Number.isFinite(sheetShare) && sheetShare > 0
+          ? sheetShare
+          : totalRevenue
+            ? candidate.revenue / totalRevenue
+            : 0,
+    })
+  }
+
+  return output
+}
+
 function buildBrandListings(
   brandTotals: BrandSummary[],
   brandSheetListings: Array<{ brand: string; products: ProductSummary[] }>,
@@ -1021,7 +1399,7 @@ function buildBrandListings(
       }
     }
 
-    return ordered
+    return groupInnovaSplitListings(ordered)
   }
 
   return brandTotals.slice(0, 12).map((brand) => ({
@@ -1030,6 +1408,24 @@ function buildBrandListings(
       .filter((product) => normalizeText(product.brand) === normalizeText(brand.brand))
       .sort((a, b) => b.revenue - a.revenue),
   }))
+}
+
+/**
+ * "Innova 1P" / "Innova 3P" are splits of the Innova listing set. They otherwise land at
+ * the tail (they never appear in brandTotals), so pull them up next to Innova, 1P first.
+ */
+function groupInnovaSplitListings<T extends { brand: string }>(entries: T[]): T[] {
+  const innovaIndex = entries.findIndex((entry) => normalizeText(entry.brand) === "innova")
+  if (innovaIndex < 0) return entries
+
+  const firstParty = entries.find((entry) => normalizeText(entry.brand) === "innova1p")
+  const thirdParty = entries.find((entry) => normalizeText(entry.brand) === "innova3p")
+  const splits = [firstParty, thirdParty].filter((entry): entry is T => Boolean(entry))
+  if (!splits.length) return entries
+
+  const rest = entries.filter((entry) => !splits.includes(entry))
+  const anchorIndex = rest.findIndex((entry) => normalizeText(entry.brand) === "innova")
+  return [...rest.slice(0, anchorIndex + 1), ...splits, ...rest.slice(anchorIndex + 1)]
 }
 
 function buildPriceTierSummary(
@@ -1387,6 +1783,98 @@ function parseSummaryRows(rows: string[][]): SummaryRow[] {
   return output
 }
 
+/**
+ * The Summary sheet stacks two brand tables: "<Mon> 'YY Monthly Summary - Revenue" and
+ * "<Mon> 'YY Summary - Units". parseSummaryRows only reads the first one; this reads both
+ * and preserves sheet order as rank 1..N (Total row excluded).
+ */
+function parseSummaryBrandRankTables(rows: string[][]): SummaryBrandRanks | undefined {
+  const ranks: SummaryBrandRanks = { revenue: [], units: [] }
+
+  for (let i = 0; i < rows.length; i += 1) {
+    if (!isSummaryBrandRankHeaderRow(rows[i])) continue
+    const metric = summaryBrandRankMetric(rows, i)
+    if (ranks[metric].length) continue
+    ranks[metric] = parseSummaryBrandRankRows(rows, i)
+  }
+
+  if (!ranks.revenue.length && !ranks.units.length) return undefined
+  return ranks
+}
+
+function isSummaryBrandRankHeaderRow(row: string[]): boolean {
+  const normalized = row.map(normalizeText)
+  if (!normalized.some((cell) => cell === "brand")) return false
+  if (!normalized.some((cell) => cell.includes("marketshare"))) return false
+  return (
+    normalized.some((cell) => cell.includes("monthlyrev")) &&
+    normalized.some((cell) => cell.includes("monthlyunit"))
+  )
+}
+
+function summaryBrandRankMetric(rows: string[][], headerIndex: number): "revenue" | "units" {
+  const normalized = rows[headerIndex].map(normalizeText)
+  if (normalized.some((cell) => cell.includes("unitmarketshare"))) return "units"
+  if (normalized.some((cell) => cell.includes("revmarketshare"))) return "revenue"
+
+  for (let i = headerIndex - 1; i >= Math.max(0, headerIndex - 3); i -= 1) {
+    const title = normalizeText(rows[i].join(" "))
+    if (!title) continue
+    return title.includes("units") ? "units" : "revenue"
+  }
+  return "revenue"
+}
+
+function parseSummaryBrandRankRows(rows: string[][], headerIndex: number): SummaryBrandRankRow[] {
+  const header = rows[headerIndex]
+  const brandCol = findStrictColumn(header, ["brand"])
+  const listingsCol = findColumn(header, ["oflistings", "listings"])
+  const revenueCol = findColumn(header, ["monthlyrev", "monthlyrevenue", "revenuemo"])
+  const unitsCol = findColumn(header, ["monthlyunits", "monthlysales", "quantitymo"])
+  const shareCol = findColumn(header, ["marketshare"])
+  const priceCol = findColumn(header, ["priceperunit", "avgprice"])
+  const reviewsCol = findColumn(header, ["reviews"])
+  const ratingCol = findColumn(header, ["avgrating", "reviewsrating"])
+
+  if (brandCol < 0 || revenueCol < 0 || unitsCol < 0) return []
+
+  const output: SummaryBrandRankRow[] = []
+  let blankRun = 0
+
+  for (let i = headerIndex + 1; i < rows.length; i += 1) {
+    const row = rows[i]
+    if (row.every((cell) => cell.trim() === "")) {
+      blankRun += 1
+      if (blankRun >= 2) break
+      continue
+    }
+    blankRun = 0
+
+    if (isSummaryBrandRankHeaderRow(row)) break
+
+    const brand = getCell(row, brandCol).trim()
+    if (!brand) continue
+
+    const normalizedBrand = normalizeText(brand)
+    if (normalizedBrand === "brand") continue
+    if (normalizedBrand === "total" || normalizedBrand === "totalmarket") break
+
+    output.push({
+      rank: output.length + 1,
+      brand,
+      listings: readNullableNumberCell(row, listingsCol),
+      monthlyRevenue: parseNumber(getCell(row, revenueCol)),
+      monthlyUnits: parseNumber(getCell(row, unitsCol)),
+      share: shareCol >= 0 ? parsePercentValue(getCell(row, shareCol)) : 0,
+      pricePerUnit: readNullableNumberCell(row, priceCol),
+      reviews: readNullableNumberCell(row, reviewsCol),
+      avgRating: readNullableNumberCell(row, ratingCol),
+    })
+  }
+
+  return output
+}
+
 function sheetRows(sheet: XLSX.WorkSheet): string[][] {
   const rows = XLSX.utils.sheet_to_json(sheet, {
     header: 1,
@@ -1398,10 +1886,27 @@ function sheetRows(sheet: XLSX.WorkSheet): string[][] {
 }
 
 function findSheet(workbook: XLSX.WorkBook, expectedName: string): XLSX.WorkSheet | undefined {
-  const normalizedExpected = normalizeText(expectedName)
-  const name = workbook.SheetNames.find((sheetName) => normalizeText(sheetName) === normalizedExpected)
+  const trimmedExpected = expectedName.trim().toLowerCase()
+  const exactName = workbook.SheetNames.find(
+    (sheetName) => sheetName.trim().toLowerCase() === trimmedExpected
+  )
+  if (exactName) return workbook.Sheets[exactName]
+
+  const normalizedExpected = normalizeSheetName(expectedName)
+  const name = workbook.SheetNames.find(
+    (sheetName) => normalizeSheetName(sheetName) === normalizedExpected
+  )
   if (!name) return undefined
   return workbook.Sheets[name]
+}
+
+/**
+ * Sheet-name canonicalizer that preserves price-tier signs. normalizeText() strips "+"/"-",
+ * which collapses "Handheld $75+" and "Handheld $75-" onto the same key and makes the
+ * under-$75 lookup return the plus-$75 sheet.
+ */
+function normalizeSheetName(value: string): string {
+  return normalizeText(value.replace(/\+/g, " plus ").replace(/-/g, " minus "))
 }
 
 function findHeaderRow(rows: string[][], requirements: string[][]): number {
@@ -1453,6 +1958,20 @@ function parseNumber(value: string): number {
   if (!cleaned || cleaned.toLowerCase() === "n/a") return 0
   const parsed = Number(cleaned)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+/**
+ * Percent cells that carry an explicit "%" are unambiguous and are always divided by 100.
+ * Bare numbers fall back to the legacy parseShare heuristic.
+ */
+function parsePercentValue(value: string): number {
+  const trimmed = value.trim()
+  if (!trimmed) return 0
+  if (trimmed.includes("%")) {
+    const parsed = parseNumber(trimmed)
+    return Number.isFinite(parsed) ? parsed / 100 : 0
+  }
+  return parseShare(trimmed)
 }
 
 function parseShare(value: string): number {

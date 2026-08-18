@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Calendar, Gauge, Layers, Lightbulb, Zap } from "lucide-react"
+import { useMemo, useState } from "react"
+import { Calendar, ChevronDown, Gauge, Layers, Lightbulb, Zap } from "lucide-react"
 import {
   CartesianGrid,
   Legend,
@@ -36,8 +36,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type {
+  CategoryBrandMixMetric,
   CategoryId,
   DashboardData,
+  SnapshotSummary,
+  SummaryBrandRankRow,
+  TierAsinRankRow,
   TypeBreakdownMetric,
 } from "@/lib/competitor-data"
 import {
@@ -50,7 +54,11 @@ import {
 import type { NonCodeCategoryId } from "@/lib/non-code-category-config"
 import type { CategoryTypeSummary } from "@/lib/type-summaries"
 import { cn } from "@/lib/utils"
-import { formatSnapshotDateFull, formatSnapshotLabelMonthEnd } from "@/lib/snapshot-date"
+import {
+  formatSnapshotDateFull,
+  formatSnapshotLabelMonthEnd,
+  normalizeSnapshotDate,
+} from "@/lib/snapshot-date"
 import {
   formatChangeLabel,
   formatCurrency,
@@ -71,6 +79,84 @@ type TypeScope =
   | "total_handheld"
   | "total_dongle"
   | "total_other_tools"
+
+type ResolvedTypeScope =
+  | TypeScope
+  | "tablet_800_plus"
+  | "tablet_400_800"
+  | "tablet_under_400"
+  | "handheld_75_plus"
+  | "handheld_under_75"
+
+type MetricMode = "revenue" | "units"
+
+const TYPE_SCOPE_OPTIONS: Array<{ value: TypeScope; label: string }> = [
+  { value: "all_asins", label: "All ASINs" },
+  { value: "total_tablet", label: "Total Tablet" },
+  { value: "total_handheld", label: "Total Handheld" },
+  { value: "total_dongle", label: "Total Dongle" },
+  { value: "total_other_tools", label: "Total Other Tools" },
+]
+
+const TABLET_TIER_OPTIONS: Array<{ value: ResolvedTypeScope; label: string }> = [
+  { value: "total_tablet", label: "All tablet tiers" },
+  { value: "tablet_800_plus", label: "Tablet $800+" },
+  { value: "tablet_400_800", label: "Tablet $400-$800" },
+  { value: "tablet_under_400", label: "Tablet $400-" },
+]
+
+const HANDHELD_TIER_OPTIONS: Array<{ value: ResolvedTypeScope; label: string }> = [
+  { value: "total_handheld", label: "All handheld tiers" },
+  { value: "handheld_75_plus", label: "Handheld $75+" },
+  { value: "handheld_under_75", label: "Handheld $75-" },
+]
+
+const TYPE_SCOPE_LABELS: Record<ResolvedTypeScope, string> = {
+  all_asins: "All ASINs",
+  total_tablet: "Total Tablet",
+  tablet_800_plus: "Tablet $800+",
+  tablet_400_800: "Tablet $400-$800",
+  tablet_under_400: "Tablet $400-",
+  total_handheld: "Total Handheld",
+  handheld_75_plus: "Handheld $75+",
+  handheld_under_75: "Handheld $75-",
+  total_dongle: "Total Dongle",
+  total_other_tools: "Total Other Tools",
+}
+
+const TYPE_SCOPE_ORDER: ResolvedTypeScope[] = [
+  "tablet_800_plus",
+  "tablet_400_800",
+  "tablet_under_400",
+  "total_tablet",
+  "handheld_75_plus",
+  "handheld_under_75",
+  "total_handheld",
+  "total_dongle",
+  "total_other_tools",
+]
+
+const ALL_SCOPE_BREAKDOWN_ORDER = [...TYPE_SCOPE_ORDER, "total"] as const
+
+const DETAILED_PRICE_TIER_KEYS = new Set<ResolvedTypeScope>([
+  "tablet_800_plus",
+  "tablet_400_800",
+  "tablet_under_400",
+  "handheld_75_plus",
+  "handheld_under_75",
+  "total_dongle",
+  "total_other_tools",
+])
+
+const PRICE_TIER_COLORS: Record<string, string> = {
+  tablet_800_plus: "var(--color-tier-tablet-800-plus)",
+  tablet_400_800: "var(--color-tier-tablet-400-800)",
+  tablet_under_400: "var(--color-tier-tablet-under-400)",
+  handheld_75_plus: "var(--color-tier-handheld-75-plus)",
+  handheld_under_75: "var(--color-tier-handheld-under-75)",
+  total_dongle: "var(--color-tier-total-dongle)",
+  total_other_tools: "var(--color-tier-total-other-tools)",
+}
 
 type SpecsMetricCard = {
   title: string
@@ -111,8 +197,6 @@ export function SpecsClient({
     ? `Snapshot ${formatSnapshotDateFull(activeSnapshot.date)}${summaryLabel}`
     : "No snapshot data available"
 
-  const [selectedScope, setSelectedScope] = useState<TypeScope>("all_asins")
-  const [typeMixMetric, setTypeMixMetric] = useState<"revenue" | "units">("revenue")
   const [selectedDimension, setSelectedDimension] = useState("")
   const [selectedDimensionValue, setSelectedDimensionValue] = useState("")
 
@@ -492,81 +576,236 @@ export function SpecsClient({
     )
   }
 
-  const isCodeReader = selectedCategory?.id === "code_reader_scanner"
-  const scopeOptions = buildScopeOptions(activeSnapshot?.typeBreakdowns?.allAsins ?? [])
-  const resolvedScope = scopeOptions.some((option) => option.value === selectedScope)
-    ? selectedScope
-    : (scopeOptions[0]?.value as TypeScope | undefined) ?? "all_asins"
+  return (
+    <CodeReaderTypesPage
+      activeSnapshot={activeSnapshot}
+      previousSnapshot={previousSnapshot}
+      snapshots={snapshots}
+      categories={categories}
+      selectedCategory={selectedCategory}
+      headerDescription={headerDescription}
+      setCategory={setCategory}
+      setSnapshot={setSnapshot}
+    />
+  )
+}
 
-  const scopeRows = selectScopeRows(activeSnapshot?.typeBreakdowns?.allAsins ?? [], resolvedScope)
-  const previousScopeRows = selectScopeRows(previousSnapshot?.typeBreakdowns?.allAsins ?? [], resolvedScope)
+function CodeReaderTypesPage({
+  activeSnapshot,
+  previousSnapshot,
+  snapshots,
+  categories,
+  selectedCategory,
+  headerDescription,
+  setCategory,
+  setSnapshot,
+}: {
+  activeSnapshot: SnapshotSummary | undefined
+  previousSnapshot: SnapshotSummary | undefined
+  snapshots: SnapshotSummary[]
+  categories: DashboardData["categories"]
+  selectedCategory: DashboardData["categories"][number] | undefined
+  headerDescription: string
+  setCategory: (id: string) => void
+  setSnapshot: (date: string) => void
+}) {
+  const [selectedScope, setSelectedScope] = useState<TypeScope>("all_asins")
+  const [tabletTier, setTabletTier] = useState<ResolvedTypeScope>("total_tablet")
+  const [handheldTier, setHandheldTier] = useState<ResolvedTypeScope>("total_handheld")
+  const [typeMixMetric, setTypeMixMetric] = useState<MetricMode>("revenue")
+  const [trendMetric, setTrendMetric] = useState<MetricMode>("revenue")
+  const [brandRankMetric, setBrandRankMetric] = useState<MetricMode>("revenue")
+  const [asinRankMetric, setAsinRankMetric] = useState<MetricMode>("revenue")
 
-  const selectedScopeMetric = findPrimaryScopeMetric(activeSnapshot?.typeBreakdowns?.allAsins ?? [], resolvedScope)
-  const previousScopeMetric = findPrimaryScopeMetric(previousSnapshot?.typeBreakdowns?.allAsins ?? [], resolvedScope)
+  const resolvedScope: ResolvedTypeScope =
+    selectedScope === "total_tablet"
+      ? tabletTier
+      : selectedScope === "total_handheld"
+        ? handheldTier
+        : selectedScope
+  const resolvedScopeLabel = TYPE_SCOPE_LABELS[resolvedScope]
 
-  const metricCards = isCodeReader
-    ? buildCodeReaderMetricCards(selectedScopeMetric, previousScopeMetric)
-    : buildDefaultMetricCards(activeSnapshot, previousSnapshot)
-
-  const typeChartData = scopeRows.slice(0, 6).map((row) => ({
-    label: truncateLabel(row.label, 22),
-    sales: row.units,
-    revenue: row.revenue,
-  }))
-
-  const scopeRowsForMix = [...scopeRows]
-    .sort((a, b) => (typeMixMetric === "units" ? b.units - a.units : b.revenue - a.revenue))
-    .slice(0, 6)
-
-  const typeShareItems = scopeRowsForMix.map((row, index) => ({
-    label: row.label,
-    value: typeMixMetric === "revenue" ? row.revenue : row.units,
-    color: SPEC_COLORS[index % SPEC_COLORS.length],
-    revenueShare: row.revenueShare,
-    unitsShare: row.unitsShare,
-  }))
-
-  const topScopeRow = scopeRows[0]
-  const topScopeRowForMix = scopeRowsForMix[0]
-  const previousTopScope = previousScopeRows.find((item) => item.scopeKey === topScopeRow?.scopeKey)
-
-  const topTypeProducts = (activeSnapshot?.topProducts ?? [])
-    .filter((product) => {
-      if (!topScopeRow) return true
-      if (resolvedScope === "total_tablet") return /tablet/i.test(product.subcategory ?? "")
-      if (resolvedScope === "total_handheld") return /handheld/i.test(product.subcategory ?? "")
-      if (resolvedScope === "total_dongle") return /dongle/i.test(product.subcategory ?? "")
-      if (resolvedScope === "total_other_tools") {
-        return !/tablet|handheld|dongle/i.test(product.subcategory ?? "")
-      }
-      return true
-    })
-    .slice(0, 4)
-    .map((product) => ({
-      asin: product.asin,
-      name: truncateLabel(product.title, 36),
-      brand: product.brand,
-      priceLabel: product.price ? formatCurrency(product.price) : "n/a",
-      revenueLabel: formatCurrencyCompact(product.revenue),
-      image: product.imageUrl,
-      url: product.url,
+  const view = useMemo(() => {
+    const rows = activeSnapshot?.typeBreakdowns?.allAsins ?? []
+    const previousRows = previousSnapshot?.typeBreakdowns?.allAsins ?? []
+    const scopeRows = selectScopeRows(rows, resolvedScope)
+    const scopeMetric = findPrimaryScopeMetric(rows, resolvedScope)
+    const previousScopeMetric = findPrimaryScopeMetric(previousRows, resolvedScope)
+    const metricCards = buildCodeReaderMetricCards(scopeMetric, previousScopeMetric)
+    const productTypeRows = selectProductTypeRows(rows, resolvedScope)
+    const typeChartData = productTypeRows.map((row) => ({
+      label: truncateLabel(row.label, 22),
+      sales: row.units,
+      revenue: row.revenue,
     }))
-
-  const typeTrend = snapshots.map((snapshot) => {
-    const rows = selectScopeRows(snapshot.typeBreakdowns?.allAsins ?? [], resolvedScope)
-    const revenue = rows.reduce((sum, row) => sum + row.revenue, 0)
-    return {
+    const mixRows = selectPriceTierMixRows(rows, resolvedScope)
+      .sort((a, b) =>
+        typeMixMetric === "units" ? b.units - a.units : b.revenue - a.revenue
+      )
+    const typeShareItems = mixRows.map((row, index) => ({
+      label: row.label,
+      value: typeMixMetric === "revenue" ? row.revenue : row.units,
+      color: PRICE_TIER_COLORS[row.scopeKey] ?? SPEC_COLORS[index % SPEC_COLORS.length],
+      revenueShare: row.revenueShare,
+      unitsShare: row.unitsShare,
+    }))
+    const topMixRow = mixRows[0]
+    const topTypeProducts = (activeSnapshot?.topProducts ?? [])
+      .filter((product) => productMatchesScope(product, resolvedScope))
+      .slice(0, 4)
+      .map((product) => ({
+        asin: product.asin,
+        name: truncateLabel(product.title, 36),
+        brand: product.brand,
+        priceLabel: product.price ? formatCurrency(product.price) : "n/a",
+        revenueLabel: formatCurrencyCompact(product.revenue),
+        image: product.imageUrl,
+        url: product.url,
+      }))
+    const trendRows = snapshots.map((snapshot) => ({
       label: formatSnapshotLabelMonthEnd(snapshot.date),
-      value: revenue,
+      value:
+        findPrimaryScopeMetric(snapshot.typeBreakdowns?.allAsins ?? [], resolvedScope)?.[
+          trendMetric
+        ] ?? 0,
+    }))
+    const currentTrendValue = findPrimaryScopeMetric(rows, resolvedScope)?.[trendMetric] ?? 0
+    const previousTrendValue =
+      findPrimaryScopeMetric(previousRows, resolvedScope)?.[trendMetric] ?? 0
+    const summaryRankRows = (activeSnapshot?.summaryBrandRanks?.[brandRankMetric] ?? []).slice(
+      0,
+      15
+    )
+    const brandMixRows = (activeSnapshot?.typeBreakdowns?.categoryBrandMix ?? [])
+      .filter((row) => row.scopeKey === resolvedScope)
+      .sort((a, b) => b.revenue - a.revenue)
+    const asinRankRows =
+      activeSnapshot?.tierAsinRanks?.find(
+        (section) => section.scopeKey === resolvedScope && section.metric === asinRankMetric
+      )?.rows ?? []
+
+    return {
+      scopeRows,
+      scopeMetric,
+      previousScopeMetric,
+      metricCards,
+      typeChartData,
+      typeShareItems,
+      topMixRow,
+      topTypeProducts,
+      trendRows,
+      currentTrendValue,
+      previousTrendValue,
+      summaryRankRows,
+      brandMixRows,
+      asinRankRows,
+      sourceTitle: activeSnapshot
+        ? formatSummaryRankSource(activeSnapshot.date, brandRankMetric)
+        : `Monthly Summary - ${brandRankMetric === "revenue" ? "Revenue" : "Units"}`,
     }
-  })
+  }, [
+    activeSnapshot,
+    asinRankMetric,
+    brandRankMetric,
+    previousSnapshot,
+    resolvedScope,
+    snapshots,
+    trendMetric,
+    typeMixMetric,
+  ])
+
+  const scopeRevenue = view.scopeMetric?.revenue ?? 0
+  const previousScopeRevenue = view.previousScopeMetric?.revenue ?? 0
+  const trendFormatter = trendMetric === "revenue" ? formatCurrencyCompact : formatNumberCompact
+  const mixFormatter = typeMixMetric === "revenue" ? formatCurrencyCompact : formatNumberCompact
 
   return (
     <>
-      {header}
+      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Types</h1>
+          <p className="text-sm text-muted-foreground">{headerDescription}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className={cn(
+                buttonVariants({ variant: "outline", size: "lg" }),
+                "min-w-44 justify-between border-2 border-foreground/20 bg-card px-4 shadow-sm"
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <Layers className="w-4 h-4" />
+                {TYPE_SCOPE_OPTIONS.find((option) => option.value === selectedScope)?.label}
+              </span>
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {TYPE_SCOPE_OPTIONS.map((option) => (
+                <DropdownMenuItem key={option.value} onClick={() => setSelectedScope(option.value)}>
+                  {option.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {selectedScope === "total_tablet" ? (
+            <TierDropdown
+              value={tabletTier}
+              options={TABLET_TIER_OPTIONS}
+              onChange={setTabletTier}
+            />
+          ) : null}
+          {selectedScope === "total_handheld" ? (
+            <TierDropdown
+              value={handheldTier}
+              options={HANDHELD_TIER_OPTIONS}
+              onChange={setHandheldTier}
+            />
+          ) : null}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "flex items-center gap-2 bg-transparent text-sm"
+              )}
+            >
+              <Layers className="w-4 h-4" />
+              {selectedCategory?.label ?? "Select category"}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {categories.map((category) => (
+                <DropdownMenuItem key={category.id} onClick={() => setCategory(category.id)}>
+                  {category.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "flex items-center gap-2 bg-transparent text-sm"
+              )}
+            >
+              <Calendar className="w-4 h-4" />
+              {activeSnapshot ? formatSnapshotDateFull(activeSnapshot.date) : "Snapshot"}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {snapshots.map((snapshot) => (
+                <DropdownMenuItem key={snapshot.date} onClick={() => setSnapshot(snapshot.date)}>
+                  {formatSnapshotDateFull(snapshot.date)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {metricCards.map((metric) => (
+        {view.metricCards.map((metric) => (
           <MetricCard
             key={metric.title}
             title={metric.title}
@@ -580,136 +819,325 @@ export function SpecsClient({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <div className="lg:col-span-2">
-          <ProfitChart
-            data={typeChartData}
-            totalLabel="Product type mix"
-            totalValue={formatCurrencyCompact(topScopeRow?.revenue ?? 0)}
-            changeLabel={formatChangeLabel(
-              percentChange(topScopeRow?.revenue ?? 0, previousTopScope?.revenue ?? 0)
-            )}
-            highlightIndex={0}
-          />
-        </div>
-        <div>
-          <TopProducts
-            products={topTypeProducts}
-            title={topScopeRow ? `${topScopeRow.label} leaders` : "Top ASINs"}
-            subtitle="Top listings in selected type scope"
-          />
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <ProfitChart
+          data={view.typeChartData}
+          totalLabel="Product type mix"
+          totalValue={formatCurrencyCompact(scopeRevenue)}
+          changeLabel={formatChangeLabel(percentChange(scopeRevenue, previousScopeRevenue))}
+          highlightIndex={0}
+        />
+        <SalesMap
+          title={typeMixMetric === "revenue" ? "Price tier mix" : "Units tier mix"}
+          subtitle={
+            typeMixMetric === "revenue"
+              ? "Revenue share by selected scope"
+              : "Units share by selected scope"
+          }
+          items={view.typeShareItems}
+          topLabel={view.topMixRow?.label ?? "n/a"}
+          topValue={
+            typeMixMetric === "revenue"
+              ? formatCurrencyCompact(view.topMixRow?.revenue ?? 0)
+              : formatNumberCompact(view.topMixRow?.units ?? 0)
+          }
+          growthLabel="Top share"
+          growthValue={
+            view.topMixRow
+              ? formatPercent(
+                  typeMixMetric === "revenue"
+                    ? view.topMixRow.revenueShare
+                    : view.topMixRow.unitsShare
+                )
+              : "n/a"
+          }
+          totalLabel={typeMixMetric === "revenue" ? "Scope revenue" : "Scope units"}
+          totalValue={
+            typeMixMetric === "revenue"
+              ? formatCurrencyCompact(view.scopeMetric?.revenue ?? 0)
+              : formatNumberCompact(view.scopeMetric?.units ?? 0)
+          }
+          valueFormatter={mixFormatter}
+          toggleControl={{
+            value: typeMixMetric,
+            onChange: (value) => setTypeMixMetric(value as MetricMode),
+            options: [
+              { value: "revenue", label: "Revenue" },
+              { value: "units", label: "Units" },
+            ],
+          }}
+        />
       </div>
 
-      {isCodeReader ? (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-            <div className="h-full">
-              <CustomerOrders
-                title="Scope trend"
-                subtitle="Revenue trend across snapshots"
-                totalLabel="Current scope revenue"
-                totalValue={formatCurrencyCompact(scopeRows.reduce((sum, row) => sum + row.revenue, 0))}
-                changeLabel={formatChangeLabel(
-                  percentChange(
-                    scopeRows.reduce((sum, row) => sum + row.revenue, 0),
-                    previousScopeRows.reduce((sum, row) => sum + row.revenue, 0)
-                  )
-                )}
-                changeValueLabel=""
-                data={typeTrend}
-                valueFormatter={formatCurrencyCompact}
-                color={REVENUE_CHART_COLOR}
-              />
-            </div>
-            <div className="lg:col-span-2 h-full">
-              <SalesMap
-                title={typeMixMetric === "revenue" ? "Price tier mix" : "Units tier mix"}
-                subtitle={
-                  typeMixMetric === "revenue"
-                    ? "Revenue share by selected scope"
-                    : "Units share by selected scope"
-                }
-                items={typeShareItems}
-                topLabel={topScopeRowForMix?.label ?? "n/a"}
-                topValue={
-                  typeMixMetric === "revenue"
-                    ? formatCurrencyCompact(topScopeRowForMix?.revenue ?? 0)
-                    : formatNumberCompact(topScopeRowForMix?.units ?? 0)
-                }
-                growthLabel="Top share"
-                growthValue={
-                  topScopeRowForMix
-                    ? formatPercent(
-                        typeMixMetric === "revenue"
-                          ? topScopeRowForMix.revenueShare
-                          : topScopeRowForMix.unitsShare
-                      )
-                    : "n/a"
-                }
-                totalLabel={typeMixMetric === "revenue" ? "Scope revenue" : "Scope units"}
-                totalValue={
-                  typeMixMetric === "revenue"
-                    ? formatCurrencyCompact(scopeRows.reduce((sum, row) => sum + row.revenue, 0))
-                    : formatNumberCompact(scopeRows.reduce((sum, row) => sum + row.units, 0))
-                }
-                valueFormatter={typeMixMetric === "revenue" ? formatCurrencyCompact : formatNumberCompact}
-                primaryControl={{
-                  value: resolvedScope,
-                  onChange: (value) => setSelectedScope(value as TypeScope),
-                  options: scopeOptions,
-                }}
-                toggleControl={{
-                  value: typeMixMetric,
-                  onChange: (value) => setTypeMixMetric(value as "revenue" | "units"),
-                  options: [
-                    { value: "revenue", label: "Revenue" },
-                    { value: "units", label: "Units" },
-                  ],
-                }}
-              />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <CustomerOrders
+          title="Scope trend"
+          subtitle={`${trendMetric === "revenue" ? "Revenue" : "Units"} trend across snapshots`}
+          totalLabel={trendMetric === "revenue" ? "Current scope revenue" : "Current scope units"}
+          totalValue={trendFormatter(view.currentTrendValue)}
+          changeLabel={formatChangeLabel(
+            percentChange(view.currentTrendValue, view.previousTrendValue)
+          )}
+          changeValueLabel=""
+          data={view.trendRows}
+          valueFormatter={trendFormatter}
+          color={trendMetric === "revenue" ? REVENUE_CHART_COLOR : UNITS_CHART_COLOR}
+          headerRight={<MetricToggle value={trendMetric} onChange={setTrendMetric} />}
+        />
+        <TopProducts
+          products={view.topTypeProducts}
+          title={`${resolvedScopeLabel} leaders`}
+          subtitle="Top listings in selected type scope"
+        />
+      </div>
+
+      <TypeScopeBreakdown rows={view.scopeRows} />
+
+      {resolvedScope === "all_asins" ? (
+        <SummaryBrandRankings
+          rows={view.summaryRankRows}
+          metric={brandRankMetric}
+          sourceTitle={view.sourceTitle}
+          onMetricChange={setBrandRankMetric}
+        />
+      ) : (
+        <ScopedBrandRankings
+          scopeLabel={resolvedScopeLabel}
+          brandRows={view.brandMixRows}
+          asinRows={view.asinRankRows}
+          asinMetric={asinRankMetric}
+          onAsinMetricChange={setAsinRankMetric}
+        />
+      )}
+    </>
+  )
+}
+
+function TierDropdown({
+  value,
+  options,
+  onChange,
+}: {
+  value: ResolvedTypeScope
+  options: Array<{ value: ResolvedTypeScope; label: string }>
+  onChange: (value: ResolvedTypeScope) => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={cn(
+          buttonVariants({ variant: "outline", size: "lg" }),
+          "min-w-48 justify-between rounded-full border-2 border-[var(--color-accent)] bg-[var(--color-accent)]/30 px-4 shadow-sm hover:bg-[var(--color-accent)]/45"
+        )}
+      >
+        {options.find((option) => option.value === value)?.label ?? TYPE_SCOPE_LABELS[value]}
+        <ChevronDown className="w-4 h-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        {options.map((option) => (
+          <DropdownMenuItem key={option.value} onClick={() => onChange(option.value)}>
+            {option.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function MetricToggle({
+  value,
+  onChange,
+}: {
+  value: MetricMode
+  onChange: (value: MetricMode) => void
+}) {
+  return (
+    <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
+      {(["revenue", "units"] as const).map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChange(option)}
+          aria-pressed={value === option}
+          className={cn(
+            "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+            value === option
+              ? "bg-[var(--color-accent)] text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {option === "revenue" ? "Revenue" : "Units"}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function TypeScopeBreakdown({ rows }: { rows: TypeBreakdownMetric[] }) {
+  return (
+    <Card className="bg-card border border-border mb-6">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base font-medium">Type scope breakdown</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Type Scope</th>
+                <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Avg Price</th>
+                <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Units</th>
+                <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Unit Share</th>
+                <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Revenue</th>
+                <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Rev Share</th>
+                <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Rev MoM</th>
+                <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Rev YoY</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length ? (
+                rows.map((row) => (
+                  <tr key={`${row.scopeKey}-${row.label}`} className="border-b border-border last:border-0">
+                    <td className="py-3 px-2 text-xs font-medium">{row.label}</td>
+                    <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice)}</td>
+                    <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(row.units)}</td>
+                    <td className="py-3 px-2 text-xs text-right">{formatPercent(row.unitsShare)}</td>
+                    <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(row.revenue)}</td>
+                    <td className="py-3 px-2 text-xs text-right">{formatPercent(row.revenueShare)}</td>
+                    <td className="py-3 px-2 text-xs text-right">
+                      {formatChangeLabel(percentFromRatio(row.revenueMoM))}
+                    </td>
+                    <td className="py-3 px-2 text-xs text-right">
+                      {formatChangeLabel(percentFromRatio(row.revenueYoY))}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={8} className="py-6 text-center text-xs text-muted-foreground">
+                    No type breakdown is available for this scope.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function SummaryBrandRankings({
+  rows,
+  metric,
+  sourceTitle,
+  onMetricChange,
+}: {
+  rows: SummaryBrandRankRow[]
+  metric: MetricMode
+  sourceTitle: string
+  onMetricChange: (value: MetricMode) => void
+}) {
+  const color = metric === "revenue" ? REVENUE_CHART_COLOR : UNITS_CHART_COLOR
+  const maxValue = Math.max(
+    ...rows.map((row) => (metric === "revenue" ? row.monthlyRevenue : row.monthlyUnits)),
+    1
+  )
+
+  return (
+    <Card className="bg-card border border-border mb-6">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <div>
+          <CardTitle className="text-base font-medium">Brand rankings</CardTitle>
+          <p className="text-xs text-muted-foreground">{sourceTitle}</p>
+        </div>
+        <MetricToggle value={metric} onChange={onMetricChange} />
+      </CardHeader>
+      <CardContent>
+        {rows.length ? (
+          <div className="overflow-x-auto">
+            <div className="min-w-[620px] space-y-2">
+              {rows.map((row) => {
+                const value = metric === "revenue" ? row.monthlyRevenue : row.monthlyUnits
+                return (
+                  <div
+                    key={`${metric}-${row.rank}-${row.brand}`}
+                    className="grid grid-cols-[2rem_10rem_minmax(10rem,1fr)_6rem_3.5rem] items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted/40"
+                  >
+                    <span className="text-xs font-semibold text-muted-foreground">#{row.rank}</span>
+                    <span className="truncate text-sm font-medium">{row.brand}</span>
+                    <span className="h-3 overflow-hidden rounded-full bg-muted">
+                      <span
+                        className="block h-full rounded-full"
+                        style={{ width: `${Math.max(1, (value / maxValue) * 100)}%`, backgroundColor: color }}
+                      />
+                    </span>
+                    <span className="text-right text-xs font-medium">
+                      {metric === "revenue"
+                        ? formatCurrencyCompact(value)
+                        : formatNumberCompact(value)}
+                    </span>
+                    <span className="text-right text-xs text-muted-foreground">
+                      {formatPercent(row.share)}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </div>
+        ) : (
+          <QuietEmptyState message="Brand rankings are not available for this snapshot." />
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
-          <Card className="bg-card border border-border mb-6">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium">Type scope breakdown</CardTitle>
-            </CardHeader>
-            <CardContent>
+function ScopedBrandRankings({
+  scopeLabel,
+  brandRows,
+  asinRows,
+  asinMetric,
+  onAsinMetricChange,
+}: {
+  scopeLabel: string
+  brandRows: CategoryBrandMixMetric[]
+  asinRows: TierAsinRankRow[]
+  asinMetric: MetricMode
+  onAsinMetricChange: (value: MetricMode) => void
+}) {
+  return (
+    <section className="mb-6">
+      <div className="mb-3">
+        <h2 className="text-lg font-semibold">Brand rankings</h2>
+        <p className="text-xs text-muted-foreground">Brand and ASIN leaders for {scopeLabel}</p>
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <Card className="bg-card border border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium">Brand mix</CardTitle>
+            <p className="text-xs text-muted-foreground">Monthly performance by brand</p>
+          </CardHeader>
+          <CardContent>
+            {brandRows.length ? (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[760px] text-sm">
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">
-                        Type Scope
-                      </th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">
-                        Avg Price
-                      </th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">
-                        Units
-                      </th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">
-                        Unit Share
-                      </th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">
-                        Revenue
-                      </th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">
-                        Rev Share
-                      </th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">
-                        Rev MoM
-                      </th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">
-                        Rev YoY
-                      </th>
+                      <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Brand</th>
+                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Avg Price</th>
+                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Units</th>
+                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Unit Share</th>
+                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Revenue</th>
+                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Rev Share</th>
+                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Rev MoM</th>
+                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Rev YoY</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {scopeRows.map((row) => (
-                      <tr key={`${row.scopeKey}-${row.label}`} className="border-b border-border last:border-0">
-                        <td className="py-3 px-2 text-xs font-medium">{row.label}</td>
+                    {brandRows.map((row) => (
+                      <tr key={`${row.scopeKey}-${row.brand}`} className="border-b border-border last:border-0">
+                        <td className="py-3 px-2 text-xs font-medium">{row.brand}</td>
                         <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice)}</td>
                         <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(row.units)}</td>
                         <td className="py-3 px-2 text-xs text-right">{formatPercent(row.unitsShare)}</td>
@@ -726,103 +1154,67 @@ export function SpecsClient({
                   </tbody>
                 </table>
               </div>
-            </CardContent>
-          </Card>
-        </>
-      ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
-          <div className="h-full">
-            <CustomerOrders
-              title="Scope trend"
-              subtitle="Revenue trend across snapshots"
-              totalLabel="Current scope revenue"
-              totalValue={formatCurrencyCompact(scopeRows.reduce((sum, row) => sum + row.revenue, 0))}
-              changeLabel={formatChangeLabel(
-                percentChange(
-                  scopeRows.reduce((sum, row) => sum + row.revenue, 0),
-                  previousScopeRows.reduce((sum, row) => sum + row.revenue, 0)
-                )
-              )}
-              changeValueLabel=""
-              data={typeTrend}
-              valueFormatter={formatCurrencyCompact}
-              color={REVENUE_CHART_COLOR}
-            />
-          </div>
-          <Card className="bg-card border border-border xl:col-span-2">
-            <CardHeader className="pb-2">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <CardTitle className="text-base font-medium">Type Matrix | Top 50 Summary Fields</CardTitle>
-                <Select
-                  value={resolvedScope}
-                  onValueChange={(value) => setSelectedScope((value as TypeScope) ?? "all_asins")}
-                >
-                  <SelectTrigger className="w-full sm:w-52">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {scopeOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardHeader>
-            <CardContent>
+            ) : (
+              <QuietEmptyState message="Brand mix is not available for this scope and snapshot." />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border border-border">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-base font-medium">Top 10 ASINs</CardTitle>
+              <p className="text-xs text-muted-foreground">Ranked by {asinMetric}</p>
+            </div>
+            <MetricToggle value={asinMetric} onChange={onAsinMetricChange} />
+          </CardHeader>
+          <CardContent>
+            {asinRows.length ? (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[700px] text-sm">
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Type</th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Avg Price</th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Quantity/Mo</th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Qty by %</th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Revenue/Mo</th>
-                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Revenue by %</th>
+                      <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Rank</th>
+                      <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Product</th>
+                      <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Brand</th>
+                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Price</th>
+                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Revenue</th>
+                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Units</th>
+                      <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Rating</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {scopeRows.length ? (
-                      scopeRows.map((row) => (
-                        <tr key={`scope-matrix-${row.scopeKey}-${row.label}`} className="border-b border-border last:border-0">
-                          <td className="py-3 px-2 text-xs font-medium">{row.label}</td>
-                          <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice)}</td>
-                          <td className="py-3 px-2 text-xs text-right">
-                            {formatNumberCompact(row.units)}
-                          </td>
-                          <td className="py-3 px-2 text-xs">
-                            <div className="flex items-center justify-end gap-2">
-                              <span>{formatPercent(row.unitsShare)}</span>
-                              <ShareBar value={row.unitsShare} tone="units" />
-                            </div>
-                          </td>
-                          <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(row.revenue)}</td>
-                          <td className="py-3 px-2 text-xs">
-                            <div className="flex items-center justify-end gap-2">
-                              <span>{formatPercent(row.revenueShare)}</span>
-                              <ShareBar value={row.revenueShare} tone="revenue" />
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={6} className="py-6 text-center text-xs text-muted-foreground">
-                          No type rows found for this scope.
+                    {asinRows.map((row) => (
+                      <tr key={`${asinMetric}-${row.rank}-${row.asin}`} className="border-b border-border last:border-0">
+                        <td className="py-3 px-2 text-xs font-semibold">#{row.rank}</td>
+                        <td className="max-w-56 py-3 px-2 text-xs" title={row.title}>
+                          {truncateLabel(row.title, 42)}
                         </td>
+                        <td className="py-3 px-2 text-xs text-muted-foreground">{row.brand}</td>
+                        <td className="py-3 px-2 text-xs text-right">{formatNullableCurrency(row.price)}</td>
+                        <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(row.revenue)}</td>
+                        <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(row.units)}</td>
+                        <td className="py-3 px-2 text-xs text-right">{formatNullableRating(row.rating)}</td>
                       </tr>
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            ) : (
+              <QuietEmptyState message="Top ASIN rankings are not available for this scope and snapshot." />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </section>
+  )
+}
 
-    </>
+function QuietEmptyState({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-xs text-muted-foreground">
+      {message}
+    </div>
   )
 }
 
@@ -991,79 +1383,133 @@ function buildTargetMetricCards(params: {
   ]
 }
 
-function buildScopeOptions(rows: TypeBreakdownMetric[]) {
-  if (!rows.length) {
-    return [{ value: "all_asins", label: "All ASINs" }]
-  }
-
-  const keys = new Set(rows.map((row) => row.scopeKey))
-  const options: Array<{ value: TypeScope; label: string }> = [
-    { value: "all_asins", label: "All ASINs" },
-  ]
-  if (keys.has("total_tablet")) options.push({ value: "total_tablet", label: "Total Tablet" })
-  if (keys.has("total_handheld")) options.push({ value: "total_handheld", label: "Total Handheld" })
-  if (keys.has("total_dongle")) options.push({ value: "total_dongle", label: "Total Dongle" })
-  if (keys.has("total_other_tools")) {
-    options.push({ value: "total_other_tools", label: "Total Other Tools" })
-  }
-
-  return options
-}
-
-function selectScopeRows(rows: TypeBreakdownMetric[], scope: TypeScope) {
+function selectScopeRows(rows: TypeBreakdownMetric[], scope: ResolvedTypeScope) {
   if (!rows.length) return [] as TypeBreakdownMetric[]
 
   if (scope === "all_asins") {
-    return rows
-      .filter((row) =>
-        [
-          "tablet_800_plus",
-          "tablet_400_800",
-          "tablet_under_400",
-          "total_tablet",
-          "handheld_75_plus",
-          "handheld_under_75",
-          "total_handheld",
-          "total_dongle",
-          "total_other_tools",
-        ].includes(row.scopeKey)
-      )
-      .sort((a, b) => b.revenue - a.revenue)
+    return rowsInScopeOrder(rows, ALL_SCOPE_BREAKDOWN_ORDER)
   }
 
   if (scope === "total_tablet") {
-    return rows
-      .filter((row) =>
-        ["tablet_800_plus", "tablet_400_800", "tablet_under_400", "total_tablet"].includes(row.scopeKey)
-      )
-      .sort((a, b) => b.revenue - a.revenue)
+    return rowsInScopeOrder(rows, [
+      "tablet_800_plus",
+      "tablet_400_800",
+      "tablet_under_400",
+      "total_tablet",
+    ])
   }
 
   if (scope === "total_handheld") {
-    return rows
-      .filter((row) =>
-        ["handheld_75_plus", "handheld_under_75", "total_handheld"].includes(row.scopeKey)
-      )
-      .sort((a, b) => b.revenue - a.revenue)
+    return rowsInScopeOrder(rows, [
+      "handheld_75_plus",
+      "handheld_under_75",
+      "total_handheld",
+    ])
   }
 
-  if (scope === "total_dongle") {
-    return rows.filter((row) => row.scopeKey === "total_dongle")
-  }
-
-  if (scope === "total_other_tools") {
-    return rows.filter((row) => row.scopeKey === "total_other_tools")
-  }
-
-  return rows
+  return rows.filter((row) => row.scopeKey === scope)
 }
 
-function findPrimaryScopeMetric(rows: TypeBreakdownMetric[], scope: TypeScope) {
+function rowsInScopeOrder(rows: TypeBreakdownMetric[], order: readonly string[]) {
+  const byScope = new Map(rows.map((row) => [row.scopeKey, row]))
+  return order.flatMap((scopeKey) => {
+    const row = byScope.get(scopeKey)
+    return row ? [row] : []
+  })
+}
+
+function selectProductTypeRows(rows: TypeBreakdownMetric[], scope: ResolvedTypeScope) {
+  if (scope === "all_asins") {
+    return rowsInScopeOrder(rows, [
+      "total_tablet",
+      "total_handheld",
+      "total_dongle",
+      "total_other_tools",
+    ])
+  }
+  if (scope === "total_tablet") {
+    return rowsInScopeOrder(rows, [
+      "tablet_800_plus",
+      "tablet_400_800",
+      "tablet_under_400",
+    ])
+  }
+  if (scope === "total_handheld") {
+    return rowsInScopeOrder(rows, ["handheld_75_plus", "handheld_under_75"])
+  }
+  return rows.filter((row) => row.scopeKey === scope)
+}
+
+function selectPriceTierMixRows(rows: TypeBreakdownMetric[], scope: ResolvedTypeScope) {
+  if (scope === "all_asins") {
+    return rows.filter((row) => DETAILED_PRICE_TIER_KEYS.has(row.scopeKey as ResolvedTypeScope))
+  }
+  if (scope === "total_tablet") {
+    return rowsInScopeOrder(rows, [
+      "tablet_800_plus",
+      "tablet_400_800",
+      "tablet_under_400",
+    ])
+  }
+  if (scope === "total_handheld") {
+    return rowsInScopeOrder(rows, ["handheld_75_plus", "handheld_under_75"])
+  }
+  return rows.filter((row) => row.scopeKey === scope)
+}
+
+function findPrimaryScopeMetric(rows: TypeBreakdownMetric[], scope: ResolvedTypeScope) {
   if (!rows.length) return undefined
   if (scope === "all_asins") {
     return rows.find((row) => row.scopeKey === "total") ?? rows.find((row) => row.scopeKey === "total_tablet")
   }
   return rows.find((row) => row.scopeKey === scope)
+}
+
+function productMatchesScope(
+  product: SnapshotSummary["topProducts"][number],
+  scope: ResolvedTypeScope
+) {
+  if (scope === "all_asins") return true
+
+  const type = `${product.subcategory ?? ""} ${product.toolType ?? ""}`
+  const isTablet = /tablet/i.test(type)
+  const isHandheld = /handheld/i.test(type)
+  const isDongle = /dongle/i.test(type)
+
+  if (scope === "total_tablet") return isTablet
+  if (scope === "tablet_800_plus") return isTablet && product.price >= 800
+  if (scope === "tablet_400_800") return isTablet && product.price >= 400 && product.price < 800
+  if (scope === "tablet_under_400") return isTablet && product.price < 400
+  if (scope === "total_handheld") return isHandheld
+  if (scope === "handheld_75_plus") return isHandheld && product.price >= 75
+  if (scope === "handheld_under_75") return isHandheld && product.price < 75
+  if (scope === "total_dongle") return isDongle
+  return !isTablet && !isHandheld && !isDongle
+}
+
+function formatSummaryRankSource(date: string, metric: MetricMode) {
+  const normalized = normalizeSnapshotDate(date)
+  const parsed = new Date(`${normalized}T00:00:00Z`)
+  if (Number.isNaN(parsed.getTime())) {
+    return `Monthly Summary - ${metric === "revenue" ? "Revenue" : "Units"} (${date})`
+  }
+  const month = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    timeZone: "UTC",
+  }).format(parsed)
+  const year = new Intl.DateTimeFormat("en-US", {
+    year: "2-digit",
+    timeZone: "UTC",
+  }).format(parsed)
+  return `Monthly Summary - ${metric === "revenue" ? "Revenue" : "Units"} (${month} '${year})`
+}
+
+function formatNullableCurrency(value: number | null) {
+  return typeof value === "number" && Number.isFinite(value) ? formatCurrency(value) : "n/a"
+}
+
+function formatNullableRating(value: number | null) {
+  return typeof value === "number" && Number.isFinite(value) ? formatRating(value) : "n/a"
 }
 
 function buildCodeReaderMetricCards(
@@ -1076,8 +1522,8 @@ function buildCodeReaderMetricCards(
   return [
     {
       title: "Scope Revenue",
-      value: formatCurrencyCompact(current?.revenue ?? 0),
-      secondaryValue: `Share ${formatPercent(current?.revenueShare ?? 0)}`,
+      value: current ? formatCurrencyCompact(current.revenue) : "n/a",
+      secondaryValue: current ? `Share ${formatPercent(current.revenueShare)}` : undefined,
       change: formatChangeLabel(revenueChange),
       changeSuffix: "MoM",
       isPositiveOutcome: (revenueChange ?? 0) >= 0,
@@ -1085,8 +1531,8 @@ function buildCodeReaderMetricCards(
     },
     {
       title: "Scope Units",
-      value: formatNumberCompact(current?.units ?? 0),
-      secondaryValue: `Share ${formatPercent(current?.unitsShare ?? 0)}`,
+      value: current ? formatNumberCompact(current.units) : "n/a",
+      secondaryValue: current ? `Share ${formatPercent(current.unitsShare)}` : undefined,
       change: formatChangeLabel(unitsChange),
       changeSuffix: "MoM",
       isPositiveOutcome: (unitsChange ?? 0) >= 0,
@@ -1094,7 +1540,7 @@ function buildCodeReaderMetricCards(
     },
     {
       title: "Average Price",
-      value: formatCurrency(current?.avgPrice ?? 0),
+      value: current ? formatCurrency(current.avgPrice) : "n/a",
       secondaryValue: previous ? `Prev ${formatCurrency(previous.avgPrice)}` : undefined,
       change: formatChangeLabel(percentFromRatio(current?.avgPriceMoM)),
       changeSuffix: "MoM",
@@ -1106,49 +1552,6 @@ function buildCodeReaderMetricCards(
       value: formatChangeLabel(percentFromRatio(current?.revenueYoY)),
       secondaryValue: `Units YoY ${formatChangeLabel(percentFromRatio(current?.unitsYoY))}`,
       change: "Summary sheet",
-      isPositiveOutcome: true,
-      icon: Layers,
-    },
-  ]
-}
-
-function buildDefaultMetricCards(
-  activeSnapshot?: { totals: { revenue: number; units: number; avgPrice: number } },
-  previousSnapshot?: { totals: { revenue: number; units: number; avgPrice: number } }
-): SpecsMetricCard[] {
-  const revenueChange = percentChange(activeSnapshot?.totals.revenue ?? 0, previousSnapshot?.totals.revenue ?? 0)
-  const unitsChange = percentChange(activeSnapshot?.totals.units ?? 0, previousSnapshot?.totals.units ?? 0)
-  const avgPriceChange = percentChange(activeSnapshot?.totals.avgPrice ?? 0, previousSnapshot?.totals.avgPrice ?? 0)
-
-  return [
-    {
-      title: "Revenue",
-      value: formatCurrencyCompact(activeSnapshot?.totals.revenue ?? 0),
-      change: formatChangeLabel(revenueChange),
-      changeSuffix: "MoM",
-      isPositiveOutcome: (revenueChange ?? 0) >= 0,
-      icon: Layers,
-    },
-    {
-      title: "Units",
-      value: formatNumberCompact(activeSnapshot?.totals.units ?? 0),
-      change: formatChangeLabel(unitsChange),
-      changeSuffix: "MoM",
-      isPositiveOutcome: (unitsChange ?? 0) >= 0,
-      icon: Gauge,
-    },
-    {
-      title: "Avg Price",
-      value: formatCurrency(activeSnapshot?.totals.avgPrice ?? 0),
-      change: formatChangeLabel(avgPriceChange),
-      changeSuffix: "MoM",
-      isPositiveOutcome: true,
-      icon: Zap,
-    },
-    {
-      title: "Category",
-      value: "Top Types",
-      change: "Use filters",
       isPositiveOutcome: true,
       icon: Layers,
     },

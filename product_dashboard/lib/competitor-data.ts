@@ -131,6 +131,44 @@ export type CategoryBrandMixMetric = {
   unitsShare: number
   revenue: number
   revenueShare: number
+  revenueMoM: number | null
+  revenueYoY: number | null
+}
+
+export type SummaryBrandRankRow = {
+  rank: number
+  brand: string
+  listings: number | null
+  monthlyRevenue: number
+  monthlyUnits: number
+  share: number
+  pricePerUnit: number | null
+  reviews: number | null
+  avgRating: number | null
+}
+
+export type SummaryBrandRanks = {
+  revenue: SummaryBrandRankRow[]
+  units: SummaryBrandRankRow[]
+}
+
+export type TierAsinRankRow = {
+  rank: number
+  asin: string
+  title: string
+  brand: string
+  type: string | null
+  price: number | null
+  revenue: number
+  units: number
+  reviews: number | null
+  rating: number | null
+}
+
+export type TierAsinRankSection = {
+  scopeKey: string
+  metric: "revenue" | "units"
+  rows: TierAsinRankRow[]
 }
 
 export type TypeBreakdownSummary = {
@@ -167,6 +205,8 @@ export type SnapshotSummary = {
   priceTiers: PriceTierSummary[]
   rolling12?: Rolling12Summary
   typeBreakdowns?: TypeBreakdownSummary
+  summaryBrandRanks?: SummaryBrandRanks
+  tierAsinRanks?: TierAsinRankSection[]
   qualityIssues?: DataQualityIssue[]
   metadata?: SnapshotMetadata
 }
@@ -946,6 +986,7 @@ function pruneSnapshotForPage(
       pruned.brandListings = snapshot.brandListings
       pruned.rolling12 = snapshot.rolling12
       pruned.typeBreakdowns = snapshot.typeBreakdowns
+      pruned.summaryBrandRanks = snapshot.summaryBrandRanks
       break
     case "sales":
       pruned.topProducts = snapshot.topProducts
@@ -955,6 +996,8 @@ function pruneSnapshotForPage(
     case "specs":
       pruned.topProducts = snapshot.topProducts
       pruned.typeBreakdowns = snapshot.typeBreakdowns
+      pruned.summaryBrandRanks = snapshot.summaryBrandRanks
+      pruned.tierAsinRanks = snapshot.tierAsinRanks
       pruned.metadata = snapshot.metadata
       break
     case "reports":
