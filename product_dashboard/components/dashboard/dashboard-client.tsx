@@ -75,7 +75,7 @@ const BLCKTEC_BRAND = "blcktec"
 const MARKET_TREND_REVENUE_COLOR = "#5B21B6"
 const MARKET_TREND_UNITS_COLOR = "#A855F7"
 const METRIC_SECONDARY_EMPHASIS_CLASS = "text-2xl font-semibold text-foreground"
-const BRAND_LOGO_CHIP_CLASS = "w-28"
+const BRAND_LOGO_CHIP_CLASS = "w-28 justify-center bg-neutral-900"
 const INNOVA_LOGO: MetricCardLogo = {
   src: "/brand-logos/innova-brand.png",
   alt: "Innova",

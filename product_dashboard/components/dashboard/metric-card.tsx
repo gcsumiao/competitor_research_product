@@ -53,7 +53,7 @@ export function MetricCard({
           <div className="flex items-center mb-3">
             <span
               className={cn(
-                "inline-flex h-9 max-w-full items-center overflow-hidden",
+                "inline-flex h-9 max-w-full items-center overflow-hidden rounded-lg px-2",
                 logo.chipClassName
               )}
             >
