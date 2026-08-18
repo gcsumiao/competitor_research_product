@@ -44,7 +44,7 @@ export function buildSynthesisSummary(mart: CodeReaderDataMart): SynthesisSummar
       id: "competitive-alert",
       title: "Competitive Alert — Who Moved",
       summary: movers
-        .map((item) => `${item.brand} ${item.asin} grew ${formatPercent(item.revenueMoM ?? 0)} MoM`)
+        .map((item) => `${item.displayName} grew ${formatPercent(item.revenueMoM ?? 0)} MoM`)
         .join("; "),
       severity: "watch",
       confidence: 0.82,
@@ -58,7 +58,7 @@ export function buildSynthesisSummary(mart: CodeReaderDataMart): SynthesisSummar
     proactive.push({
       id: "risk-of-month",
       title: "Biggest Risk Right Now",
-      summary: `${riskCandidate.brand} ${riskCandidate.asin} has strong revenue (${formatCurrency(
+      summary: `${riskCandidate.displayName} has strong revenue (${formatCurrency(
         riskCandidate.revenue
       )}) but weak rating (${riskCandidate.rating.toFixed(1)}).`,
       severity: "risk",
@@ -77,7 +77,7 @@ export function buildSynthesisSummary(mart: CodeReaderDataMart): SynthesisSummar
   watchlist.push(
     ...rising.map(
       (item) =>
-        `${item.brand} ${item.asin} is rising (+${((item.revenueMoM ?? 0) * 100).toFixed(1)}% MoM, rank #${item.rankRevenue}).`
+        `${item.displayName} is rising (+${((item.revenueMoM ?? 0) * 100).toFixed(1)}% MoM, rank #${item.rankRevenue}).`
     )
   )
 

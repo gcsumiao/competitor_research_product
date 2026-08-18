@@ -2,6 +2,7 @@ import golden from "@/lib/chatbot/evals/golden-questions.json"
 import { buildCodeReaderDataMart } from "@/lib/chatbot/code-reader-index"
 import { resolveEntities } from "@/lib/chatbot/entity-resolver"
 import { buildDeterministicChatResponse } from "@/lib/chatbot/insights"
+import { detectIntent } from "@/lib/chatbot/intents"
 import { routeIntent } from "@/lib/chatbot/intent-router"
 import { parseQuery } from "@/lib/chatbot/query-parser"
 import { resolveSnapshotTimeRange } from "@/lib/chatbot/time-resolver"
@@ -14,7 +15,11 @@ type GoldenItem = {
   checks?: string[]
   mustMatch: string[]
   mustNotMatch: string[]
+  answerMustMatch?: string[]
+  answerMustNotMatch?: string[]
   minBullets?: number
+  proactiveMin?: number
+  proactiveMax?: number
 }
 
 type EvalResult = {
@@ -28,6 +33,8 @@ type EvalResult = {
   bullets: string[]
   warnings: string[]
   evidenceCount: number
+  proactiveCount: number
+  suggestedQuestionCount: number
 }
 
 export async function runGoldenEvals() {
@@ -49,6 +56,8 @@ export async function runGoldenEvals() {
         bullets: [],
         warnings: ["No snapshot found for eval case."],
         evidenceCount: 0,
+        proactiveCount: 0,
+        suggestedQuestionCount: 0,
       })
       continue
     }
@@ -68,6 +77,8 @@ export async function runGoldenEvals() {
         bullets: [],
         warnings: ["No snapshot found for eval case."],
         evidenceCount: 0,
+        proactiveCount: 0,
+        suggestedQuestionCount: 0,
       })
       continue
     }
@@ -103,8 +114,45 @@ export async function runGoldenEvals() {
         failures.push(`mustNotMatch /${pattern}/`)
       }
     }
+    for (const pattern of item.answerMustMatch ?? []) {
+      const regex = compileRegex(pattern)
+      if (!regex.test(answer)) {
+        failures.push(`answerMustMatch /${pattern}/`)
+      }
+    }
+    for (const pattern of item.answerMustNotMatch ?? []) {
+      const regex = compileRegex(pattern)
+      if (regex.test(answer)) {
+        failures.push(`answerMustNotMatch /${pattern}/`)
+      }
+    }
     if (item.minBullets !== undefined && response.bullets.length < item.minBullets) {
       failures.push(`minBullets ${item.minBullets} (received ${response.bullets.length})`)
+    }
+    if (response.bullets.length > 4) {
+      failures.push(`maxBullets 4 (received ${response.bullets.length})`)
+    }
+    if (response.evidence.length > 5) {
+      failures.push(`maxEvidence 5 (received ${response.evidence.length})`)
+    }
+    if (response.suggestedQuestions.length !== 3) {
+      failures.push(`suggestedQuestions exactly 3 (received ${response.suggestedQuestions.length})`)
+    }
+    if (
+      response.intent !== "brand_health" &&
+      response.intent !== "self_assessment" &&
+      response.proactive.length > 0
+    ) {
+      failures.push(`proactive must be empty for ${response.intent}`)
+    }
+    if (category.id === "code_reader_scanner" && /\bB0[A-Z0-9]{8}\b/.test(assertionText)) {
+      failures.push("bare ASIN found outside evidence chips")
+    }
+    if (item.proactiveMin !== undefined && response.proactive.length < item.proactiveMin) {
+      failures.push(`proactiveMin ${item.proactiveMin} (received ${response.proactive.length})`)
+    }
+    if (item.proactiveMax !== undefined && response.proactive.length > item.proactiveMax) {
+      failures.push(`proactiveMax ${item.proactiveMax} (received ${response.proactive.length})`)
     }
     const mart = buildCodeReaderDataMart(category, snapshot.date)
     if (mart && category.id === "code_reader_scanner") {
@@ -115,6 +163,12 @@ export async function runGoldenEvals() {
         })
         const suggestedRoute = routeIntent(suggestedQuery, suggestedEntities)
         if (suggestedRoute.analyzer === "unknown") {
+          failures.push(`suggestedQuestion routes to unknown: ${JSON.stringify(suggestion)}`)
+        }
+      }
+    } else {
+      for (const suggestion of response.suggestedQuestions) {
+        if (detectIntent(suggestion, category.id).intent === "unknown") {
           failures.push(`suggestedQuestion routes to unknown: ${JSON.stringify(suggestion)}`)
         }
       }
@@ -131,6 +185,8 @@ export async function runGoldenEvals() {
       bullets: response.bullets,
       warnings: response.warnings,
       evidenceCount: response.evidence.length,
+      proactiveCount: response.proactive.length,
+      suggestedQuestionCount: response.suggestedQuestions.length,
     })
   }
 
@@ -164,6 +220,8 @@ async function main() {
       intent: result.intent,
       bullets: result.bullets.length,
       evidence: result.evidenceCount,
+      proactive: result.proactiveCount,
+      suggestions: result.suggestedQuestionCount,
       result: result.ok ? "PASS" : "FAIL",
       failures: result.failures.join("; "),
     }))

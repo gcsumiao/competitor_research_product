@@ -4,6 +4,7 @@ import type {
   SnapshotSummary,
   TypeBreakdownMetric,
 } from "@/lib/competitor-data"
+import { displayProductName } from "@/lib/chatbot/product-name"
 
 export type ProductHistoryPoint = {
   date: string
@@ -20,6 +21,7 @@ export type IndexedProduct = {
   asin: string
   title: string
   brand: string
+  displayName: string
   type: string
   price: number
   revenue: number
@@ -97,6 +99,7 @@ export type CodeReaderDataMart = {
   yoy?: SnapshotSummary
   products: IndexedProduct[]
   productsByAsin: Map<string, IndexedProduct>
+  displayNameByAsin: Map<string, string>
   productsByBrand: Map<string, IndexedProduct[]>
   brandSeries: Map<string, BrandHistoryPoint[]>
   asinHistoryByAsin: Map<string, AsinHistorySummary>
@@ -159,6 +162,7 @@ export function buildCodeReaderDataMart(
         asin: raw.asin,
         title: raw.title,
         brand: raw.brand,
+        displayName: displayProductName(raw),
         type: raw.toolType || raw.subcategory || "Unknown",
         price: safeNumber(raw.avgPrice ?? raw.price),
         revenue: safeNumber(raw.monthlyRevenue ?? raw.revenue),
@@ -199,6 +203,8 @@ export function buildCodeReaderDataMart(
     })
     .sort((a, b) => b.revenue - a.revenue)
 
+  disambiguateProductDisplayNames(products)
+
   const currentRevenueRanks = revenueRanksByDate.get(snapshot.date)
   const currentUnitsRanks = unitsRanksByDate.get(snapshot.date)
   products.forEach((item) => {
@@ -208,6 +214,9 @@ export function buildCodeReaderDataMart(
   })
 
   const productsByAsin = new Map(products.map((item) => [normalize(item.asin), item]))
+  const displayNameByAsin = new Map(
+    products.map((item) => [normalize(item.asin), item.displayName] as const)
+  )
   const productsByBrand = new Map<string, IndexedProduct[]>()
   for (const product of products) {
     const key = normalize(product.brand)
@@ -239,6 +248,7 @@ export function buildCodeReaderDataMart(
     yoy,
     products,
     productsByAsin,
+    displayNameByAsin,
     productsByBrand,
     brandSeries,
     asinHistoryByAsin,
@@ -258,6 +268,40 @@ export function buildCodeReaderDataMart(
   })
 
   return mart
+}
+
+function disambiguateProductDisplayNames(products: IndexedProduct[]) {
+  const productsByDisplayName = new Map<string, IndexedProduct[]>()
+  for (const product of products) {
+    const key = product.displayName.toLocaleLowerCase()
+    const matches = productsByDisplayName.get(key)
+    if (matches) matches.push(product)
+    else productsByDisplayName.set(key, [product])
+  }
+
+  for (const matches of productsByDisplayName.values()) {
+    if (matches.length <= 1) continue
+    // Prefer a human-meaningful price differentiator; fall back to an ASIN
+    // tail only when prices don't separate the group (or are missing).
+    const priceLabels = new Map<IndexedProduct, string | null>()
+    const priceLabelCounts = new Map<string, number>()
+    for (const product of matches) {
+      const label =
+        typeof product.price === "number" && Number.isFinite(product.price) && product.price > 0
+          ? `($${product.price % 1 === 0 ? product.price.toFixed(0) : product.price.toFixed(2)})`
+          : null
+      priceLabels.set(product, label)
+      if (label) priceLabelCounts.set(label, (priceLabelCounts.get(label) ?? 0) + 1)
+    }
+    for (const product of matches) {
+      const priceLabel = priceLabels.get(product)
+      const suffix =
+        priceLabel && priceLabelCounts.get(priceLabel) === 1
+          ? priceLabel
+          : `(…${product.asin.slice(-5)})`
+      product.displayName = `${product.displayName} ${suffix}`
+    }
+  }
 }
 
 function extractSnapshotProducts(snapshot: SnapshotSummary) {
@@ -623,6 +667,7 @@ function buildProductAliasLookup(products: IndexedProduct[]) {
   for (const product of products) {
     const asin = product.asin.toUpperCase()
     addAlias(product.asin, asin)
+    addAlias(product.displayName, asin)
 
     const compactBrand = normalize(product.brand)
     const titleTokens = `${product.brand} ${product.title}`

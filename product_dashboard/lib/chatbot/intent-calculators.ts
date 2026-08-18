@@ -1,4 +1,5 @@
 import type { CategorySummary, SnapshotSummary } from "@/lib/competitor-data"
+import { displayProductName } from "@/lib/chatbot/product-name"
 
 import type {
   ChatIntent,
@@ -109,7 +110,11 @@ export function mapLegacyIntent(intent: ChatIntent): ChatIntent {
   return intent
 }
 
-export function buildCategoryIntentResponse({
+export function buildCategoryIntentResponse(params: BuildIntentParams): ChatResponse {
+  return finalizeCategoryIntentResponse(buildCategoryIntentResponseRaw(params))
+}
+
+function buildCategoryIntentResponseRaw({
   message,
   intent,
   category,
@@ -126,6 +131,12 @@ export function buildCategoryIntentResponse({
     : fallbackIntent(capabilities)
   const trends = computeTrendContext(snapshot, snapshots)
   const evidenceBase = buildBaseEvidence(data, snapshot)
+  const displayNameByAsin = buildProductDisplayNames([
+    ...data.topByRevenue,
+    ...data.topByUnits,
+  ])
+  const productName = (product: NormalizedProduct) =>
+    displayNameByAsin.get(normalize(product.asin)) ?? displayProductName(product)
 
   if (resolvedIntent === "data_clarification") {
     const clarification = findClarification(message)
@@ -221,27 +232,27 @@ export function buildCategoryIntentResponse({
       ? [
           ...data.topByRevenue.slice(0, 3).map(
             (item, index) =>
-              `Revenue #${index + 1} ${item.brand} ${truncate(item.title, 64)}: ${currencyCompact(item.revenue)} and ${numberCompact(item.units)} units.`
+              `${productName(item)} ranks #${index + 1} by revenue with ${currencyCompact(item.revenue)} and ${numberCompact(item.units)} units.`
           ),
           ...data.topByUnits.slice(0, 3).map(
             (item, index) =>
-              `Units #${index + 1} ${item.brand} ${truncate(item.title, 64)}: ${numberCompact(item.units)} units and ${currencyCompact(item.revenue)} revenue.`
+              `${productName(item)} ranks #${index + 1} by units with ${numberCompact(item.units)} units and ${currencyCompact(item.revenue)} revenue.`
           ),
         ]
       : source.slice(0, 6).map((item, index) => {
-          return `#${index + 1} ${item.brand} ${truncate(item.title, 80)}: ${currencyCompact(item.revenue)} and ${numberCompact(item.units)} units.`
+          return `${productName(item)} ranks #${index + 1} with ${currencyCompact(item.revenue)} revenue and ${numberCompact(item.units)} units.`
         })
     return {
       intent: resolvedIntent,
       answer: asksBoth
-        ? `${topRevenue ? `${topRevenue.brand} ${truncate(topRevenue.title, 56)} leads revenue at ${currencyCompact(topRevenue.revenue)}` : "The revenue leader is unavailable"}; ${topUnits ? `${topUnits.brand} ${truncate(topUnits.title, 56)} leads units at ${numberCompact(topUnits.units)}` : "the unit leader is unavailable"}.`
+        ? `${topRevenue ? `${productName(topRevenue)} leads revenue at ${currencyCompact(topRevenue.revenue)}` : "The revenue leader is unavailable"}; ${topUnits ? `${productName(topUnits)} leads units at ${numberCompact(topUnits.units)}` : "the unit leader is unavailable"}.`
         : source[0]
-          ? `${source[0].brand} ${truncate(source[0].title, 64)} leads monthly ${prefersUnits ? "units" : "revenue"} at ${prefersUnits ? `${numberCompact(source[0].units)} units` : currencyCompact(source[0].revenue)}.`
+          ? `${productName(source[0])} leads monthly ${prefersUnits ? "units" : "revenue"} at ${prefersUnits ? `${numberCompact(source[0].units)} units` : currencyCompact(source[0].revenue)}.`
           : `No product ranking is available by ${prefersUnits ? "units" : "revenue"}.`,
       bullets: rankedBullets,
       evidence: [
         ...evidenceBase,
-        { label: "Top SKU", value: source[0] ? truncate(source[0].title, 42) : "n/a" },
+        { label: "Top Product", value: source[0] ? productName(source[0]) : "n/a" },
       ],
       proactive,
       suggestedQuestions,
@@ -382,10 +393,10 @@ export function buildCategoryIntentResponse({
     return {
       intent: resolvedIntent,
       answer: topRated[0]
-        ? `${topRated[0].brand} ${truncate(topRated[0].title, 64)} is the strongest rated product in the covered revenue leaders at ${topRated[0].rating.toFixed(1)}★, ${numberCompact(topRated[0].reviews)} reviews, and ${currencyCompact(topRated[0].revenue)} revenue.`
+        ? `${productName(topRated[0])} is the strongest rated product in the covered revenue leaders at ${topRated[0].rating.toFixed(1)}★, ${numberCompact(topRated[0].reviews)} reviews, and ${currencyCompact(topRated[0].revenue)} revenue.`
         : "No rated product has enough coverage for a rating/revenue conclusion.",
       bullets: topRated.map((row) => {
-        return `${row.brand} ${truncate(row.title, 64)}: ${row.rating.toFixed(1)}★, ${numberCompact(row.reviews)} reviews, ${currencyCompact(row.revenue)} revenue.`
+        return `${productName(row)} is rated ${row.rating.toFixed(1)}★ with ${numberCompact(row.reviews)} reviews and ${currencyCompact(row.revenue)} revenue.`
       }),
       evidence: evidenceBase,
       proactive,
@@ -444,6 +455,45 @@ function fallbackIntent(capabilities: ChatIntent[]): ChatIntent {
   return "unknown"
 }
 
+function finalizeCategoryIntentResponse(response: ChatResponse): ChatResponse {
+  const marketLevelIntents = new Set<ChatIntent>([
+    "market_size",
+    "market_leader",
+    "market_concentration",
+    "trends_momentum",
+    "price_range",
+    "product_type_mix",
+    "price_volume_tradeoff",
+    "competitive_gaps",
+  ])
+  const evidence = response.evidence
+    .filter(
+      (item) =>
+        marketLevelIntents.has(response.intent as ChatIntent) ||
+        (item.label !== "Market Revenue" && item.label !== "Market Units")
+    )
+    .slice(0, 5)
+  const suggestionFallbacks = [
+    "How big is this market this month?",
+    "Which products drive the most revenue right now?",
+    "How concentrated is this market?",
+  ]
+  const suggestedQuestions: string[] = []
+  for (const question of [...response.suggestedQuestions, ...suggestionFallbacks]) {
+    if (!question || suggestedQuestions.includes(question)) continue
+    suggestedQuestions.push(question)
+    if (suggestedQuestions.length === 3) break
+  }
+
+  return {
+    ...response,
+    bullets: response.bullets.map(ensureSentence).slice(0, 4),
+    evidence,
+    proactive: [],
+    suggestedQuestions,
+  }
+}
+
 function computeTrendContext(snapshot: SnapshotSummary, snapshots: SnapshotSummary[]): TrendContext {
   const sorted = [...snapshots].sort((a, b) => a.date.localeCompare(b.date))
   const index = sorted.findIndex((row) => row.date === snapshot.date)
@@ -461,8 +511,8 @@ function buildBaseEvidence(data: NormalizedCategoryData, snapshot: SnapshotSumma
   return [
     { label: "Category", value: data.categoryLabel },
     { label: "Snapshot", value: snapshot.date },
-    { label: "Revenue", value: currencyCompact(data.marketRevenue) },
-    { label: "Units", value: numberCompact(data.marketUnits) },
+    { label: "Market Revenue", value: currencyCompact(data.marketRevenue) },
+    { label: "Market Units", value: numberCompact(data.marketUnits) },
     { label: "Source", value: data.dataCoverage.sourceLabel },
   ]
 }
@@ -606,9 +656,40 @@ function percent(value: number) {
   }).format(value)
 }
 
-function truncate(value: string, length: number) {
-  if (value.length <= length) return value
-  return `${value.slice(0, Math.max(0, length - 1))}…`
+function buildProductDisplayNames(products: NormalizedProduct[]) {
+  const uniqueProducts = products.filter(
+    (product, index, rows) =>
+      rows.findIndex((candidate) => normalize(candidate.asin) === normalize(product.asin)) === index
+  )
+  const displayNameByAsin = new Map(
+    uniqueProducts.map((product) => [normalize(product.asin), displayProductName(product)] as const)
+  )
+  const productsByDisplayName = new Map<string, NormalizedProduct[]>()
+
+  for (const product of uniqueProducts) {
+    const displayName = displayNameByAsin.get(normalize(product.asin)) ?? displayProductName(product)
+    const key = displayName.toLocaleLowerCase()
+    const matches = productsByDisplayName.get(key)
+    if (matches) matches.push(product)
+    else productsByDisplayName.set(key, [product])
+  }
+
+  for (const matches of productsByDisplayName.values()) {
+    if (matches.length <= 1) continue
+    for (const product of matches) {
+      const asinKey = normalize(product.asin)
+      const displayName = displayNameByAsin.get(asinKey) ?? displayProductName(product)
+      displayNameByAsin.set(asinKey, `${displayName} (…${product.asin.slice(-5)})`)
+    }
+  }
+
+  return displayNameByAsin
+}
+
+function ensureSentence(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed || /[.!?]$/.test(trimmed)) return trimmed
+  return `${trimmed}.`
 }
 
 function normalize(value: string) {
