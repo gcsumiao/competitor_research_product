@@ -30,6 +30,7 @@ import {
   percentChange,
   pointChange,
 } from "@/lib/dashboard-format"
+import { REVENUE_CHART_COLOR, UNITS_CHART_COLOR } from "@/lib/chart-colors"
 
 const CATEGORY_COLORS = ["#3b82f6", "#22c55e", "#8b5cf6", "#f97316"]
 
@@ -220,6 +221,7 @@ export function ReportsClient({ data, reports }: { data: DashboardData; reports:
             }
             data={revenueComparison}
             valueFormatter={formatCurrencyCompact}
+            color={REVENUE_CHART_COLOR}
           />
         </div>
         <div>
@@ -235,6 +237,7 @@ export function ReportsClient({ data, reports }: { data: DashboardData; reports:
                 : ""
             }
             data={unitsComparison}
+            color={UNITS_CHART_COLOR}
           />
         </div>
       </div>

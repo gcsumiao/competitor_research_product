@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Calendar, Shield, TrendingUp, Users } from "lucide-react"
+import Image from "next/image"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import { MetricCard } from "@/components/dashboard/metric-card"
@@ -38,6 +39,7 @@ import {
   pointChange,
   truncateLabel,
 } from "@/lib/dashboard-format"
+import { REVENUE_CHART_COLOR, UNITS_CHART_COLOR } from "@/lib/chart-colors"
 import {
   buildBrandRolling12Trend,
   getBrandRolling12GrandTotals,
@@ -74,6 +76,35 @@ const BRAND_COLOR_PALETTE = [
   "#334155",
 ]
 
+const AVAILABLE_BRAND_LOGO_KEYS = new Set([
+  "ancel",
+  "autel",
+  "blcktec",
+  "bluedriver",
+  "diesellaptops",
+  "fixd",
+  "foxwell",
+  "gearwrench",
+  "icarsoft",
+  "innova",
+  "innova1p",
+  "innova3p",
+  "kingbolen",
+  "launch",
+  "motopower",
+  "mucar",
+  "obdeleven",
+  "obdlink",
+  "opusivs",
+  "otofix",
+  "thinkcar",
+  "topdon",
+  "vdiagtool",
+  "veepeak",
+  "vgate",
+  "xtool",
+])
+
 function normalizeBrand(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "")
 }
@@ -90,6 +121,32 @@ function fallbackBrandColor(brand: string) {
 function colorForBrand(brand: string) {
   const key = normalizeBrand(brand)
   return FIXED_BRAND_COLORS[key] ?? fallbackBrandColor(brand)
+}
+
+function resolveBrandLogo(brand: string) {
+  const key = normalizeBrand(brand)
+  return AVAILABLE_BRAND_LOGO_KEYS.has(key) ? `/brand-logos/${key}.png` : null
+}
+
+function BrandLogo({ brand, size = "md" }: { brand?: string; size?: "sm" | "md" }) {
+  if (!brand) return null
+  const src = resolveBrandLogo(brand)
+  if (!src) return null
+
+  return (
+    <span className="inline-flex shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white px-2 py-1">
+      <Image
+        src={src}
+        alt={`${brand} logo`}
+        width={112}
+        height={28}
+        className={cn(
+          "w-auto max-w-28 object-contain",
+          size === "sm" ? "h-6" : "h-7"
+        )}
+      />
+    </span>
+  )
 }
 
 type BrandSortMode = "revenue" | "units"
@@ -456,9 +513,12 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Selected brand</p>
-                    <p className="mt-1 text-2xl font-semibold text-foreground">
-                      {selectedBrandListing?.brand ?? "No brand selected"}
-                    </p>
+                    <div className="mt-1 flex items-center gap-3">
+                      <BrandLogo brand={selectedBrandListing?.brand} />
+                      <p className="text-2xl font-semibold text-foreground">
+                        {selectedBrandListing?.brand ?? "No brand selected"}
+                      </p>
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Snapshot {activeSnapshot ? formatSnapshotDateFull(activeSnapshot.date) : "n/a"}
@@ -496,7 +556,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                   changeLabel={formatChangeLabel(rolling12RevenueMonthlyChange)}
                   changeValueLabel="vs previous snapshot"
                   data={rolling12RevenueTrend}
-                  color="#3b82f6"
+                  color={REVENUE_CHART_COLOR}
                   formatter={formatCurrencyCompact}
                   axisFormatter={(value) => formatCurrencyCompact(value)}
                   compactSummary
@@ -509,7 +569,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                   changeLabel={formatChangeLabel(rolling12UnitsMonthlyChange)}
                   changeValueLabel="vs previous snapshot"
                   data={rolling12UnitsTrend}
-                  color="#10b981"
+                  color={UNITS_CHART_COLOR}
                   formatter={formatNumberCompact}
                   axisFormatter={(value) => formatNumberCompact(value)}
                   compactSummary
@@ -518,8 +578,9 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
 
               <Card className="bg-card border border-border">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-medium">
-                    {selectedBrandListing ? `${selectedBrandListing.brand} listings` : "Brand listings"}
+                  <CardTitle className="flex items-center gap-2 text-base font-medium">
+                    <BrandLogo brand={selectedBrandListing?.brand} size="sm" />
+                    <span>{selectedBrandListing ? `${selectedBrandListing.brand} listings` : "Brand listings"}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -611,6 +672,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                   isRankChart
                   yMin={1}
                   yMax={rankYMax}
+                  color={REVENUE_CHART_COLOR}
                 />
 
                 <CustomerOrders
@@ -624,6 +686,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                   isRankChart
                   yMin={1}
                   yMax={rankYMax}
+                  color={UNITS_CHART_COLOR}
                 />
               </div>
             </div>
@@ -672,8 +735,9 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
 
             <Card className="bg-card border border-border">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base font-medium">
-                  {selectedBrandListing ? `${selectedBrandListing.brand} listings` : "Brand listings"}
+                <CardTitle className="flex items-center gap-2 text-base font-medium">
+                  <BrandLogo brand={selectedBrandListing?.brand} size="sm" />
+                  <span>{selectedBrandListing ? `${selectedBrandListing.brand} listings` : "Brand listings"}</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>

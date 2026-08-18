@@ -59,6 +59,7 @@ import {
   pointChange,
   truncateLabel,
 } from "@/lib/dashboard-format"
+import { REVENUE_CHART_COLOR, UNITS_CHART_COLOR } from "@/lib/chart-colors"
 
 const PRICE_TIER_COLORS: Record<string, string> = {
   tablet_800_plus: "var(--color-tier-tablet-800-plus)",
@@ -72,8 +73,6 @@ const PRICE_TIER_COLORS: Record<string, string> = {
 const PRICE_TIER_FALLBACK_COLOR = "var(--color-tier-total-other-tools)"
 const INNOVA_BRAND = "innova"
 const BLCKTEC_BRAND = "blcktec"
-const MARKET_TREND_REVENUE_COLOR = "#5B21B6"
-const MARKET_TREND_UNITS_COLOR = "#A855F7"
 const METRIC_SECONDARY_EMPHASIS_CLASS = "text-2xl font-semibold text-foreground"
 const BRAND_LOGO_CHIP_CLASS = "w-28 justify-center bg-neutral-900"
 const INNOVA_LOGO: MetricCardLogo = {
@@ -523,8 +522,8 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             }
             color={
               marketTrendMetric === "units"
-                ? MARKET_TREND_UNITS_COLOR
-                : MARKET_TREND_REVENUE_COLOR
+                ? UNITS_CHART_COLOR
+                : REVENUE_CHART_COLOR
             }
             headerRight={
               <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
