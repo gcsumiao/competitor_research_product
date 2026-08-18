@@ -77,7 +77,7 @@ export function routeIntent(parsed: ParsedQuery, resolution: EntityResolution): 
       return {
         analyzer: "unknown",
         clarificationQuestion:
-          "Which product should I compare? You can provide ASIN, for example: 'Compare B08XYZ1234 competitors'.",
+          "Which product should I compare? For example: 'Compare Innova 5610 with competitors'.",
       }
     }
     return { analyzer: forced }

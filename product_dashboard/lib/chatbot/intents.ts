@@ -53,6 +53,7 @@ const INTENT_RULES: IntentRule[] = [
       "market size",
       "total market",
       "how big",
+      "how large",
       "total revenue",
       "total units",
       "tam",

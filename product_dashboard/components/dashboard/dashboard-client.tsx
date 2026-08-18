@@ -290,7 +290,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     ? percentChange(currentUnits, previousUnits)
     : null
 
-  const marketTrendTotalLabel = marketTrendMetric === "units" ? "Total units" : "Total revenue"
+  const marketTrendTotalLabel = marketTrendMetric === "units" ? "Monthly total units" : "Monthly total revenue"
   const marketTrendTotalValue =
     marketTrendMetric === "units"
       ? (isCodeReader

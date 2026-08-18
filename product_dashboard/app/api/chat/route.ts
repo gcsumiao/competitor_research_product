@@ -100,7 +100,9 @@ export async function POST(request: Request) {
       ].slice(0, 6),
     }
 
-    const enhanced = await maybeEnhanceWithLlm(message, deterministicWithTime)
+    const enhanced = process.env.OPENAI_API_KEY
+      ? await maybeEnhanceWithLlm(message, deterministicWithTime)
+      : null
     const finalResponse = addSnapshotPrefix(enhanced ?? deterministicWithTime)
     return NextResponse.json(toClientResponse(finalResponse))
   } catch {
@@ -115,7 +117,6 @@ export async function POST(request: Request) {
           "How did we do this month?",
           "What are competitors doing?",
           "What should I be worried about?",
-          "What are the Rolling 12 month grand total revenue and units?",
         ],
         warnings: ["The chat service encountered an unexpected parsing error."],
       } satisfies ChatResponse,
@@ -182,7 +183,7 @@ async function maybeEnhanceWithLlm(
           {
             role: "system",
             content:
-              "You are an analytics analyst. Answer the user's question directly in 1-3 plain sentences plus up to 5 concise evidence bullets. Use only facts in factPack; never infer or invent a metric. If factPack warnings are present, lead with the material caveat. Do not use Markdown syntax. Return strict JSON with keys answer, bullets, suggestedQuestions.",
+              "You are an analytics analyst. Answer the user's question directly in 1-2 plain sentences plus up to 4 full-sentence evidence bullets. Use only facts in factPack; never infer or invent a metric. Refer to products by human-readable brand and model names, never by a raw ASIN. Put methodology only in assumptions. If factPack warnings are present, lead with the material caveat. Do not use Markdown syntax. Return strict JSON with keys answer, bullets, suggestedQuestions, with exactly 3 question-specific suggestedQuestions.",
           },
           {
             role: "user",
@@ -221,16 +222,14 @@ async function maybeEnhanceWithLlm(
           .filter((item): item is string => typeof item === "string")
           .map(cleanPlainText)
           .filter(Boolean)
-          .slice(0, 5)
-      : deterministic.bullets
-
-    const suggestedQuestions = Array.isArray(parsed.suggestedQuestions)
-      ? parsed.suggestedQuestions
-          .filter((item): item is string => typeof item === "string")
-          .map(cleanPlainText)
-          .filter(Boolean)
+          .map(ensureSentence)
           .slice(0, 4)
-      : deterministic.suggestedQuestions
+      : deterministic.bullets
+    const suggestedQuestions = deterministic.suggestedQuestions.slice(0, 3)
+
+    if (countSentences(answer) > 2 || /\bB0[A-Z0-9]{8}\b/i.test([answer, ...bullets].join("\n"))) {
+      return null
+    }
 
     // Guardrail: if question explicitly asks for a brand, keep deterministic scope fidelity.
     if (explicitBrands.length && !containsAllBrands(answer, explicitBrands)) {
@@ -256,10 +255,20 @@ function cleanPlainText(value: string) {
     .trim()
 }
 
+function ensureSentence(value: string) {
+  return /[.!?]$/.test(value) ? value : `${value}.`
+}
+
+function countSentences(value: string) {
+  return value.split(/(?<=[.!?])\s+/).filter(Boolean).length
+}
+
 function toClientResponse(response: ChatResponse) {
   const output = { ...response }
   delete output.factPack
   delete output.wantsLlmSynthesis
+  delete output.entities
+  delete output.topContributors
   return output
 }
 
@@ -332,8 +341,13 @@ function windowToLabel(value: "1m" | "3m" | "6m" | "12m" | "all") {
 function addSnapshotPrefix(response: ChatResponse): ChatResponse {
   if (!response.snapshotUsed) return response
   if (response.answer.startsWith("(Snapshot used:")) return response
+  const context = [
+    `Snapshot used: ${response.snapshotUsed}`,
+    response.compareSnapshotUsed ? `compared with: ${response.compareSnapshotUsed}` : "",
+    response.windowUsed ? `window: ${response.windowUsed}` : "",
+  ].filter(Boolean)
   return {
     ...response,
-    answer: `(Snapshot used: ${response.snapshotUsed}) ${response.answer}`,
+    answer: `(${context.join("; ")}) ${response.answer}`,
   }
 }

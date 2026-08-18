@@ -96,7 +96,7 @@ export function resolveEntities(
     isSpecificProductQuestion(normalized) &&
     !isBroadRankingQuestion(normalized)
   if (ambiguous) {
-    const labels = matchedProducts.slice(0, 3).map((item) => `${item.brand} ${item.asin}`)
+    const labels = matchedProducts.slice(0, 3).map((item) => item.displayName)
     return {
       entities,
       scope,

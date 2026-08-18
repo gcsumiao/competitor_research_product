@@ -4,7 +4,7 @@
     "categoryId": "code_reader_scanner",
     "question": "what’s innova top sku?",
     "checks": ["brand_scope", "top_product", "grounded_metrics"],
-    "mustMatch": ["innova", "[A-Z0-9]{8,10}", "\\d"],
+    "mustMatch": ["innova", "5610|[A-Z]{2,}\\d+", "\\d"],
     "mustNotMatch": ["could not|couldn't|unavailable"],
     "minBullets": 3
   },
@@ -15,15 +15,19 @@
     "checks": ["brand_scope", "monthly_revenue_units_rank", "price_vs_units_driver"],
     "mustMatch": ["xtool", "revenue", "units", "\\d"],
     "mustNotMatch": ["could not|couldn't find"],
+    "proactiveMax": 0,
     "minBullets": 3
   },
   {
     "id": "product_competitor_5610",
     "categoryId": "code_reader_scanner",
-    "question": "Innova 5610 biggest competitor",
+    "question": "Who is Innova 5610's biggest competitor?",
     "checks": ["asin_resolution", "competitor_reasoning", "grounded_metrics"],
-    "mustMatch": ["autel|topdon|launch|ancel|foxwell|xtool|thinkcar|obdlink|veepeak|motopower|otofix", "[A-Z0-9]{8,10}", "\\d"],
-    "mustNotMatch": ["which product should i compare|couldn't find comparable"],
+    "mustMatch": ["biggest competitor", "same-type", "MoM"],
+    "mustNotMatch": ["which product should i compare|couldn't find comparable", "monthly delta"],
+    "answerMustMatch": ["(?:autel|topdon|launch|ancel|foxwell|xtool|thinkcar|obdlink|veepeak|motopower|otofix)\\s+[A-Za-z0-9-]*\\d[A-Za-z0-9-]*(?:\\s+[A-Z]{3,})?", "\\b[\\d,.]+[KMB]?\\s+units\\b.*\\$[\\d,.]+[KMB]?\\s+this month"],
+    "answerMustNotMatch": ["\\bB0[A-Z0-9]{8}\\b", "monthly delta"],
+    "proactiveMax": 0,
     "minBullets": 2
   },
   {
@@ -93,8 +97,9 @@
     "id": "sku_threat_top_own",
     "categoryId": "code_reader_scanner",
     "question": "Which competitor is threatening our top SKU?",
-    "mustMatch": ["autel|topdon|launch|ancel|foxwell|xtool|thinkcar|obdlink|veepeak|motopower|otofix|icarsoft|bluedriver", "revenue [+-]\\d", "\\d"],
+    "mustMatch": ["autel|topdon|launch|ancel|foxwell|xtool|thinkcar|obdlink|veepeak|motopower|otofix|icarsoft|bluedriver", "revenue (?:is )?[+-]\\d", "\\d"],
     "mustNotMatch": ["^Top (Innova|products)", "No top-product data", "n/a MoM"],
+    "proactiveMax": 0,
     "minBullets": 3
   },
   {
@@ -111,6 +116,7 @@
     "question": "How did we do this month?",
     "mustMatch": ["own brands|innova|blcktec", "revenue", "units", "\\d"],
     "mustNotMatch": ["use a quick action"],
+    "proactiveMin": 1,
     "minBullets": 3
   },
   {

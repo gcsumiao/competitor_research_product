@@ -2,10 +2,11 @@ import {
   buildCodeReaderDataMart,
   type IndexedProduct,
 } from "@/lib/chatbot/code-reader-index"
-import { findClosestCompetitors } from "@/lib/chatbot/competitor-engine"
+import { findBiggestCompetitors } from "@/lib/chatbot/competitor-engine"
 import { resolveEntities } from "@/lib/chatbot/entity-resolver"
 import { routeIntent, type AnalyzerId } from "@/lib/chatbot/intent-router"
 import { parseQuery, type ParsedQuery } from "@/lib/chatbot/query-parser"
+import { displayProductName, stripDisplayNameSuffix } from "@/lib/chatbot/product-name"
 import { buildSynthesisSummary } from "@/lib/chatbot/synthesis-engine"
 import { getBrandRolling12GrandTotals } from "@/lib/code-reader-brand-rolling12"
 import type { TimeResolution } from "@/lib/chatbot/time-resolver"
@@ -114,8 +115,8 @@ export function buildCodeReaderBrainResponse({
       intent: "unknown",
       answer: routed.clarificationQuestion,
       bullets: ["I need one more detail to run a precise product-level analysis."],
-      evidence: baseEvidence(mart.snapshot),
-      proactive: buildSynthesisSummary(mart).proactive,
+      evidence: [{ label: "Snapshot", value: mart.snapshot.date }],
+      proactive: [],
       suggestedQuestions: [
         "Who is Innova 5610's biggest competitor?",
         "How did Innova 5610 perform vs last month?",
@@ -130,7 +131,7 @@ export function buildCodeReaderBrainResponse({
     }
   }
 
-  const output = runAnalyzer(routed.analyzer, {
+  const analyzerParams = {
     mart,
     targetBrand,
     parsed,
@@ -138,23 +139,40 @@ export function buildCodeReaderBrainResponse({
     entities: resolved.entities,
     matchedProducts: resolved.matchedProducts,
     message,
-  })
+  }
+  const output = finalizeAnalyzerOutput(
+    routed.analyzer,
+    runAnalyzer(routed.analyzer, analyzerParams),
+    analyzerParams
+  )
   trace.push({ step: "Execute deterministic analyzer", status: "ok" })
 
-  const synthesis = buildSynthesisSummary(mart)
-  trace.push({ step: "Build proactive synthesis", status: synthesis.proactive.length ? "ok" : "partial" })
+  const proactive = shouldBuildProactiveSynthesis(routed.analyzer, analyzerParams)
+    ? buildSynthesisSummary(mart).proactive
+    : []
+  trace.push({ step: "Build proactive synthesis", status: proactive.length ? "ok" : "partial" })
 
-  const snapshotPrefix = `(Snapshot used: ${mart.snapshot.date})`
+  const explicitlyRequestsYoY = /\b(yoy|year over year|same month last year|vs last year)\b/.test(
+    parsed.normalized
+  )
+  const explicitlyRequestsRolling12 = isExplicitRolling12Request(parsed.normalized)
   const compareSnapshotUsed =
     resolvedTime?.compareSnapshotDate ??
-    (parsed.plan.growthWindow === "yoy"
+    (explicitlyRequestsYoY
       ? mart.yoy?.date
-      : parsed.plan.growthWindow === "mom" || parsed.scope.compareToLastMonth
+      : parsed.scope.compareToLastMonth
         ? mart.previous?.date
         : undefined)
-  const windowUsed = parsed.plan.resolvedWindow
-    ? windowToLabel(parsed.plan.resolvedWindow)
-    : undefined
+  const windowUsed = resolvedTime?.resolvedWindow
+    ? windowToLabel(resolvedTime.resolvedWindow)
+    : explicitlyRequestsRolling12
+      ? windowToLabel("12m")
+      : parsed.scope.compareToLastMonth
+        ? windowToLabel("1m")
+        : explicitlyRequestsYoY
+          ? windowToLabel("12m")
+          : undefined
+  const snapshotPrefix = buildSnapshotPrefix(mart.snapshot.date, compareSnapshotUsed, windowUsed)
 
   return {
     intent: routed.analyzer,
@@ -163,7 +181,7 @@ export function buildCodeReaderBrainResponse({
       : `${snapshotPrefix} ${output.answer}`,
     bullets: output.bullets,
     evidence: output.evidence,
-    proactive: synthesis.proactive,
+    proactive,
     suggestedQuestions: output.suggestedQuestions,
     warnings: unique([...output.warnings, ...mart.qualityWarnings]).slice(0, 6),
     confidence: output.confidence,
@@ -188,6 +206,34 @@ function windowToLabel(value: HistoricalWindow) {
   if (value === "6m") return "Last 6 months"
   if (value === "12m") return "Last 12 months"
   return "Full history"
+}
+
+function buildSnapshotPrefix(
+  snapshot: string,
+  compareSnapshot?: string,
+  window?: string
+) {
+  const context = [
+    `Snapshot used: ${snapshot}`,
+    compareSnapshot ? `compared with: ${compareSnapshot}` : "",
+    window ? `window: ${window}` : "",
+  ].filter(Boolean)
+  return `(${context.join("; ")})`
+}
+
+function shouldBuildProactiveSynthesis(
+  analyzer: AnalyzerId,
+  params: AnalyzerParams
+) {
+  if (analyzer !== "brand_health") return false
+  if (isExplicitRolling12Request(params.parsed.normalized)) {
+    return params.scope.mode === "own_brands"
+  }
+  if (params.scope.mode === "own_brands") return true
+  return (
+    params.scope.brands.length > 0 &&
+    params.scope.brands.every((brand) => OWN_BRAND_KEYS.includes(normalize(brand) as typeof OWN_BRAND_KEYS[number]))
+  )
 }
 
 function runAnalyzer(
@@ -254,7 +300,7 @@ function runAnalyzer(
       const window3 = history?.windows["3m"]
       const window12 = history?.windows["12m"]?.months ? history.windows["12m"] : history?.windows.all
       return {
-        answer: `${target.brand} ${target.asin}'s recent revenue trend is ${history?.windows["3m"].trend ?? "flat"}.`,
+        answer: `${productLabel(mart, target)}'s recent revenue trend is ${history?.windows["3m"].trend ?? "flat"}.`,
         bullets: [
           `Latest month: ${formatCurrency(target.revenue)} revenue, ${formatNumber(target.units)} units, ASP ${formatCurrency(target.price)}.`,
           window3
@@ -274,7 +320,7 @@ function runAnalyzer(
         assumptions: ["History is computed from available dashboard snapshots up to current selected month."],
         citations: [citation("ASIN history windows", "asinHistoryByAsin", mart.snapshot.date)],
         suggestedQuestions: [
-          `Who is the biggest competitor to ${target.asin}?`,
+          `Who is the biggest competitor to ${productLabel(mart, target)}?`,
           `Show ${target.brand} top ASIN contributors.`,
           "Which brands are fastest movers this month?",
         ],
@@ -299,10 +345,10 @@ function runAnalyzer(
     }
 
     return {
-      answer: `${brandKey.toUpperCase()}'s top revenue ASIN is ${topContributors[0].asin}; the next contributors are ${topContributors.slice(1).map((item) => item.asin).join(", ") || "not available"}.`,
+      answer: `${brandKey.toUpperCase()}'s top revenue product is ${contributorLabel(mart, topContributors[0])}; the next contributors are ${topContributors.slice(1).map((item) => contributorLabel(mart, item)).join(", ") || "not available"}.`,
       bullets: topContributors.map(
         (item) =>
-          `${item.asin}: ${formatCurrency(item.revenue)} revenue, ${formatNumber(item.units)} units, trend ${item.trend}.`
+          `${contributorLabel(mart, item)} generated ${formatCurrency(item.revenue)} revenue from ${formatNumber(item.units)} units, with a ${item.trend} recent trend.`
       ),
       evidence: [
         ...baseEvidence(mart.snapshot),
@@ -343,7 +389,7 @@ function runAnalyzer(
           `Revenue share ${formatPercent(stats.revenueShare)} vs unit share ${formatPercent(stats.unitShare)}.`,
           ...topContributors.map(
             (item) =>
-              `${item.asin}: ${formatCurrency(item.revenue)} revenue, ${formatNumber(item.units)} units, trend ${item.trend}.`
+              `${contributorLabel(mart, item)} generated ${formatCurrency(item.revenue)} revenue from ${formatNumber(item.units)} units, with a ${item.trend} recent trend.`
           ),
         ],
         evidence: [
@@ -395,34 +441,55 @@ function runAnalyzer(
     const target = params.matchedProducts[0] ?? scopedProducts[0] ?? mart.products.find((item) => ownBrands.has(normalize(item.brand)))
     if (!target) return unknownOutput(mart, "I couldn't identify a target product for competitor analysis.")
 
-    const result = findClosestCompetitors(mart, target)
+    const result = findBiggestCompetitors(mart, target)
     const top = result.candidates[0]
     if (!top) {
-      return unknownOutput(mart, `I couldn't find comparable competitors for ${target.brand} ${target.asin} in the current snapshot.`)
+      return unknownOutput(mart, `I couldn't find a same-type competitor for ${productLabel(mart, target)} in the current snapshot.`)
     }
 
+    const targetName = productLabel(mart, target)
+    const competitorName = productLabel(mart, top.product)
+    const runnerUp = result.candidates[1]?.product
+    const priceDifference = target.price > 0
+      ? (top.product.price - target.price) / target.price
+      : null
+    const priceBandLabel = `${formatCurrency(result.priceBand.min)}-${formatCurrency(result.priceBand.max)}`
+    const criterion = result.widenedPriceBand
+      ? `the largest same-type rival after widening beyond the empty ${priceBandLabel} price band`
+      : `the largest same-type rival in the ${priceBandLabel} price band`
+
     return {
-      answer: `${top.product.brand} ${shortProductTitle(top.product.title, 52, top.product.brand)} (${top.product.asin}) is the closest current competitor to ${target.brand} ${target.asin}.`,
+      answer: `${competitorName} is ${targetName}'s biggest competitor: it sold ${formatNumber(top.product.units)} units for ${formatCurrency(top.product.revenue)} this month — ${criterion} — and its revenue grew ${formatPercent(top.product.revenueMoM)} MoM versus ${targetName}'s ${formatPercent(target.revenueMoM)}.`,
       bullets: [
-        `Target ${target.brand} ${target.asin}: ${formatCurrency(target.revenue)} revenue, ${formatNumber(target.units)} units, ASP ${formatCurrency(target.price)}.`,
-        ...top.evidence.slice(0, 4),
-        ...result.candidates.slice(1).map((item, index) => `Alternative #${index + 2}: ${item.product.brand} ${item.product.asin} (${item.score.toFixed(1)}/100).`),
+        runnerUp
+          ? `${productLabel(mart, runnerUp)} is the runner-up rival with ${formatNumber(runnerUp.units)} units and ${formatCurrency(runnerUp.revenue)} revenue this month.`
+          : `${competitorName} is the only qualifying rival in the comparison set this month.`,
+        priceDifference === null
+          ? `A meaningful price comparison is unavailable for ${competitorName} and ${targetName}.`
+          : `${competitorName} sells at ${formatCurrency(top.product.price)} versus ${targetName}'s ${formatCurrency(target.price)} (${formatAbsolutePercent(priceDifference)} ${priceDifference < 0 ? "cheaper" : "more expensive"}).`,
+        ...(top.product.rating > 0 && target.rating > 0
+          ? [top.product.reviews > 0 && target.reviews > 0
+              ? `${competitorName} is rated ${top.product.rating.toFixed(1)}★ versus ${targetName}'s ${target.rating.toFixed(1)}★, based on ${formatNumber(top.product.reviews)} versus ${formatNumber(target.reviews)} reviews.`
+              : `${competitorName} is rated ${top.product.rating.toFixed(1)}★ versus ${targetName}'s ${target.rating.toFixed(1)}★; review counts are unavailable.`]
+          : []),
       ],
       evidence: [
         ...baseEvidence(mart.snapshot),
-        { label: "Target Product", value: `${target.brand} ${target.asin}` },
-        { label: "Closest Competitor", value: `${top.product.brand} ${top.product.asin}` },
+        { label: "Target Product", value: productEvidenceValue(mart, target) },
+        { label: "Biggest Competitor", value: productEvidenceValue(mart, top.product) },
+        { label: "Selection Standard", value: criterion },
+        { label: "Revenue MoM Pair", value: `${competitorName} ${formatPercent(top.product.revenueMoM)} vs ${targetName} ${formatPercent(target.revenueMoM)}` },
       ],
       confidence: result.confidence,
       assumptions: result.assumptions,
       citations: [
-        citation("Product matching", "brandSheetListings/topProducts", mart.snapshot.date),
-        citation("Competitor scoring model", "deterministic competitor-engine", mart.snapshot.date),
+        citation("Current-month competitor revenue", "brandSheetListings/topProducts", mart.snapshot.date),
+        citation("Same-type price-band rival selection", "deterministic competitor-engine", mart.snapshot.date),
       ],
       suggestedQuestions: [
-        `How did ${top.product.asin} perform vs last month?`,
-        "Which products grew revenue fastest this month?",
-        "Show competitor movement this month.",
+        "Which competitor is threatening our top SKU?",
+        `How did ${targetName} perform vs last month?`,
+        "Where can we grow with lower competitive density?",
       ],
       warnings: [],
       historicalWindow: "12m",
@@ -442,7 +509,7 @@ function runAnalyzer(
     const unitsMoM = target.unitsMoM
 
     return {
-      answer: `${target.brand} ${target.asin} is ${describeTrend(revenueMoM)} in revenue (${formatPercent(revenueMoM)}) and ${describeTrend(unitsMoM)} in units (${formatPercent(unitsMoM)}) vs last month.`,
+      answer: `${productLabel(mart, target)} is ${describeTrend(revenueMoM)} in revenue (${formatPercent(revenueMoM)}) and ${describeTrend(unitsMoM)} in units (${formatPercent(unitsMoM)}) versus last month.`,
       bullets: [
         `Current monthly revenue: ${formatCurrency(target.revenue)} | units: ${formatNumber(target.units)}.`,
         `Current rank: #${target.rankRevenue} by revenue, #${target.rankUnits} by units.`,
@@ -453,7 +520,7 @@ function runAnalyzer(
       ],
       evidence: [
         ...baseEvidence(mart.snapshot),
-        { label: "Product", value: `${target.brand} ${target.asin}` },
+        { label: "Product", value: productEvidenceValue(mart, target) },
         { label: "Revenue MoM", value: formatPercent(revenueMoM) },
         { label: "Units MoM", value: formatPercent(unitsMoM) },
       ],
@@ -464,8 +531,8 @@ function runAnalyzer(
         citation("Monthly performance deltas", "topProducts/brandSheetListings", mart.snapshot.date),
       ],
       suggestedQuestions: [
-        `Who is the biggest competitor to ${target.asin}?`,
-        `How did ${target.asin}'s revenue and units change vs last month?`,
+        `Who is the biggest competitor to ${productLabel(mart, target)}?`,
+        `How did ${productLabel(mart, target)}'s revenue and units change versus last month?`,
         "Show market shift for top competitors.",
       ],
       warnings: [],
@@ -724,14 +791,14 @@ function runAnalyzer(
       topOneShare >= 0.55
         ? `Concentration risk: top SKU contributes ${formatPercent(topOneShare)} of ${labelForScope(params.scope).toLowerCase()} revenue.`
         : weakest
-          ? `Quality risk: ${weakest.asin} has high revenue (${formatCurrency(weakest.revenue)}) but lower rating (${weakest.rating.toFixed(1)}).`
+          ? `Quality risk: ${productLabel(mart, weakest)} has high revenue (${formatCurrency(weakest.revenue)}) but a lower rating (${weakest.rating.toFixed(1)}).`
           : "No severe risk crossed configured thresholds."
 
     return {
       answer: riskLine,
       bullets: [
         `Own revenue concentration (Top 1): ${formatPercent(topOneShare)}.`,
-        weakest ? `Rating pressure candidate: ${weakest.brand} ${weakest.asin} (${weakest.rating.toFixed(1)}★).` : "No high-revenue low-rating SKU found.",
+        weakest ? `${productLabel(mart, weakest)} is the rating-pressure candidate at ${weakest.rating.toFixed(1)}★.` : "No high-revenue low-rating product was found.",
         ...buildSynthesisSummary(mart).watchlist.slice(0, 2),
       ],
       evidence: baseEvidence(mart.snapshot),
@@ -915,9 +982,9 @@ function runAnalyzer(
     }
     return {
       answer: top.length
-        ? `Top ${scopeLabel} product: ${top[0].title} — ${top[0].brand} ${top[0].asin} (${params.parsed.plan.rankingMetric === "units" ? `${formatNumber(top[0].units)} units` : `${formatCurrency(top[0].revenue)} revenue`}).`
+        ? `${productLabel(mart, top[0])} is the top ${scopeLabel} product with ${params.parsed.plan.rankingMetric === "units" ? `${formatNumber(top[0].units)} units` : `${formatCurrency(top[0].revenue)} revenue`} this month.`
         : "No top-product data is available for this snapshot.",
-      bullets: top.map((item, idx) => `#${idx + 1} ${item.brand} ${item.asin}: ${formatCurrency(item.revenue)} / ${formatNumber(item.units)} units.`),
+      bullets: top.map((item, idx) => `${productLabel(mart, item)} ranks #${idx + 1} with ${formatCurrency(item.revenue)} revenue and ${formatNumber(item.units)} units.`),
       evidence: [
         ...baseEvidence(mart.snapshot),
         { label: "Scope", value: scopeLabel },
@@ -927,8 +994,8 @@ function runAnalyzer(
       assumptions: ["Top-product ranking uses deterministic scope resolution and current snapshot monthly metrics."],
       citations: [citation("Top products", "snapshot.topProducts + brandSheetListings", mart.snapshot.date)],
       suggestedQuestions: [
-        top[0] ? `Who is the biggest competitor to ${top[0].asin}?` : "What are competitors doing this month?",
-        top[0] ? `How did ${top[0].asin} perform vs last month?` : "Which products are rising fastest now?",
+        top[0] ? `Who is the biggest competitor to ${productLabel(mart, top[0])}?` : "What are competitors doing this month?",
+        top[0] ? `How did ${productLabel(mart, top[0])} perform versus last month?` : "Which products are rising fastest now?",
         "Which products are rising fastest now?",
       ],
       warnings: [],
@@ -983,21 +1050,21 @@ function analyzeSkuThreat(params: AnalyzerParams): AnalyzerOutput {
   )
   if (!competitorProducts.length) {
     return {
-      answer: `${ownTopSku.brand} ${shortProductTitle(ownTopSku.title, 52, ownTopSku.brand)} (${ownTopSku.asin}) is the top own SKU, but this snapshot contains no competitor ASINs to score against it.`,
+      answer: `${productLabel(mart, ownTopSku)} is the top own product, but this snapshot contains no competitor products to score against it.`,
       bullets: [
         `Defended SKU: ${formatCurrency(ownTopSku.revenue)} revenue, rank #${ownTopSku.rankRevenue}, price ${formatCurrency(ownTopSku.price)}.`,
         "Recommendation: restore competitor-ASIN coverage before making a product-defense decision.",
       ],
       evidence: [
         ...baseEvidence(mart.snapshot),
-        { label: "Defended SKU", value: `${ownTopSku.brand} ${ownTopSku.asin}` },
+        { label: "Defended SKU", value: productEvidenceValue(mart, ownTopSku) },
         { label: "Competitor ASINs", value: "0" },
       ],
       confidence: 0.45,
       assumptions: ["Own brands are Innova and BLCKTEC."],
       citations: [citation("SKU threat universe", "current snapshot products", mart.snapshot.date)],
       suggestedQuestions: [
-        `How did ${ownTopSku.asin} perform vs last month?`,
+        `How did ${productLabel(mart, ownTopSku)} perform versus last month?`,
         "What are competitors doing this month?",
         "Where can we grow with lower competitive density?",
       ],
@@ -1055,7 +1122,7 @@ function analyzeSkuThreat(params: AnalyzerParams): AnalyzerOutput {
   if (!topThreat) {
     return unknownOutput(
       mart,
-      `No competitor product could be scored against ${ownTopSku.brand} ${ownTopSku.asin}; adjacent competitor coverage is also empty.`
+      `No competitor product could be scored against ${productLabel(mart, ownTopSku)}; adjacent competitor coverage is also empty.`
     )
   }
 
@@ -1065,25 +1132,19 @@ function analyzeSkuThreat(params: AnalyzerParams): AnalyzerOutput {
       ? `No same-type product met the normal price-comparability rule, so this uses the closest same-type evidence.`
       : ""
   const why = describeThreatWhy(topThreat, ownTopSku)
-  const anyDegradedThreat = threats.some((threat) => threat.coverage < 1)
   const threatCoverageWarnings = threats
     .map((threat, index) => formatThreatCoverageWarning(threat, index + 1))
     .filter((warning): warning is string => Boolean(warning))
-  const momentumCoverageNote =
-    anyDegradedThreat
-      ? " At least one listed threat score has incomplete factor coverage; its qualifier identifies the degraded score."
-      : ""
-
   return {
-    answer: `${wideningSentence ? `${wideningSentence} ` : ""}${topThreat.product.brand} ${shortProductTitle(topThreat.product.title, 52, topThreat.product.brand)} (${topThreat.product.asin}) is the most threatening competitor to ${ownTopSku.brand} ${shortProductTitle(ownTopSku.title, 52, ownTopSku.brand)} (${ownTopSku.asin}) because ${why}.${momentumCoverageNote}`,
+    answer: `${productLabel(mart, topThreat.product)} is the most threatening competitor to ${productLabel(mart, ownTopSku)} because ${why}.${wideningSentence ? ` ${wideningSentence}` : ""}`,
     bullets: [
       ...threats.map((threat, index) => formatThreatBullet(threat, ownTopSku, index + 1)),
-      `Recommendation: defend ${ownTopSku.asin} against ${topThreat.product.asin} with a focused price/value test and weekly rank, revenue-growth, and review monitoring.`,
+      `Defend ${productLabel(mart, ownTopSku)} against ${productLabel(mart, topThreat.product)} with a focused price/value test and weekly rank, revenue-growth, and review monitoring.`,
     ],
     evidence: [
       ...baseEvidence(mart.snapshot),
-      { label: "Defended SKU", value: `${ownTopSku.brand} ${ownTopSku.asin}` },
-      { label: "Primary Threat", value: `${topThreat.product.brand} ${topThreat.product.asin}` },
+      { label: "Defended SKU", value: productEvidenceValue(mart, ownTopSku) },
+      { label: "Primary Threat", value: productEvidenceValue(mart, topThreat.product) },
       { label: "Threat Score", value: formatThreatScore(topThreat) },
       { label: "Threat Score Coverage", value: topThreat.coverage.toFixed(2) },
       {
@@ -1119,8 +1180,8 @@ function analyzeSkuThreat(params: AnalyzerParams): AnalyzerOutput {
       citation("Competitor universe", "current snapshot all brands", mart.snapshot.date),
     ],
     suggestedQuestions: [
-      `How did ${ownTopSku.asin} perform vs last month?`,
-      `Who are the closest competitors to ${ownTopSku.asin}?`,
+      `How did ${productLabel(mart, ownTopSku)} perform versus last month?`,
+      `Who are the closest competitors to ${productLabel(mart, ownTopSku)}?`,
       "Where can we grow with lower competitive density?",
     ],
     warnings: threatCoverageWarnings,
@@ -1294,7 +1355,7 @@ function formatThreatBullet(threat: ThreatCandidate, ownTopSku: IndexedProduct, 
   const priceText = threat.priceUndercut !== null
     ? `${Math.abs(threat.priceUndercut * 100).toFixed(0)}% ${threat.priceUndercut >= 0 ? "below" : "above"} our ${formatCurrency(ownTopSku.price)} price`
     : "price comparison unavailable"
-  return `#${rank} ${threat.product.brand} ${shortProductTitle(threat.product.title, 52, threat.product.brand)} (${threat.product.asin}): threat score ${formatThreatScore(threat)}; ${rankText}; ${priceText}; revenue ${formatPercent(threat.product.revenueMoM)} MoM vs ours ${formatPercent(ownTopSku.revenueMoM)}.`
+  return `${threat.product.displayName} ranks #${rank} for threat at ${formatThreatScore(threat)}, with ${rankText}, a price ${priceText}, and revenue growth of ${formatPercent(threat.product.revenueMoM)} MoM versus ${formatPercent(ownTopSku.revenueMoM)} for ${ownTopSku.displayName}.`
 }
 
 function formatThreatScore(threat: ThreatCandidate) {
@@ -1325,13 +1386,13 @@ function formatThreatCoverageWarning(threat: ThreatCandidate, rank: number) {
   if (threat.reviewGain === null || threat.ownReviewGain === null) {
     missingFactors.push("review velocity")
   }
-  return `Threat #${rank} ${threat.product.asin} is ${formatThreatScore(threat)} because ${missingFactors.join(", ")} evidence was unavailable; missing factors contribute zero.`
+  return `Threat #${rank}, ${threat.product.displayName}, scores ${formatThreatScore(threat)} because ${missingFactors.join(", ")} evidence was unavailable; missing factors contribute zero.`
 }
 
 function threatProductFact(product: IndexedProduct) {
   return {
     brand: product.brand,
-    title: shortProductTitle(product.title, 52, product.brand),
+    title: product.displayName,
     asin: product.asin,
     type: product.type,
     price: round(product.price),
@@ -1596,16 +1657,6 @@ function densityPriceBand(price: number) {
   )?.label ?? "$400+"
 }
 
-function shortProductTitle(title: string, maxLength = 52, leadingBrand?: string) {
-  const compact = title.replace(/\s+/g, " ").trim()
-  const escapedBrand = leadingBrand?.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  const withoutRepeatedBrand = escapedBrand
-    ? compact.replace(new RegExp(`^${escapedBrand}\\s+`, "i"), "")
-    : compact
-  if (withoutRepeatedBrand.length <= maxLength) return withoutRepeatedBrand
-  return `${withoutRepeatedBrand.slice(0, maxLength - 1).trimEnd()}…`
-}
-
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
@@ -1685,11 +1736,11 @@ function analyzeFastestGrowth(
 
     return {
       answer: usedAbsoluteDeltaFallback
-        ? `No ASIN met the prior-month revenue headline gate of ${formatCurrency(headlineRevenueGate)}; using absolute revenue delta instead, ${top.product.brand} ${top.product.asin} had the largest revenue delta at ${formatCurrency(safe(top.revenueDelta))}.`
-        : `Fastest ${metric} growth ASIN (${windowLabel(window)}): ${top.product.brand} ${top.product.asin}.`,
+        ? `No ASIN met the prior-month revenue headline gate of ${formatCurrency(headlineRevenueGate)}; using absolute revenue delta instead, ${productLabel(mart, top.product)} had the largest revenue delta at ${formatCurrency(safe(top.revenueDelta))}.`
+        : `Fastest ${metric} growth ASIN (${windowLabel(window)}): ${productLabel(mart, top.product)}.`,
       bullets: ranked.map(
         (row, index) =>
-          `#${index + 1} ${row.product.brand} ${row.product.asin}: ${formatPercent(row.growth)} (${windowLabel(window)}), ${formatCurrency(row.product.revenue)} revenue, ${formatNumber(row.product.units)} units.`
+          `#${index + 1} ${productLabel(mart, row.product)}: ${formatPercent(row.growth)} (${windowLabel(window)}), ${formatCurrency(row.product.revenue)} revenue, ${formatNumber(row.product.units)} units.`
       ),
       evidence: [
         ...baseEvidence(mart.snapshot),
@@ -1706,7 +1757,7 @@ function analyzeFastestGrowth(
       ],
       citations: [citation("ASIN growth", "products + history windows", mart.snapshot.date)],
       suggestedQuestions: [
-        `Who is the biggest competitor to ${top.product.asin}?`,
+        `Who is the biggest competitor to ${productLabel(mart, top.product)}?`,
         `Is ${top.product.brand} growth driven by price or units?`,
         "Which brands grew fastest in handheld tools?",
       ],
@@ -1754,7 +1805,7 @@ function analyzeFastestGrowth(
       `Current growth profile for ${top.row.brand}: ${toArchetypeLabel(topArchetype)}.`,
       ...topContributors.map(
         (item) =>
-          `${item.asin}: ${formatCurrency(item.revenue)} revenue, ${formatNumber(item.units)} units, trend ${item.trend}.`
+          `${contributorLabel(mart, item)}: ${formatCurrency(item.revenue)} revenue, ${formatNumber(item.units)} units, trend ${item.trend}.`
       ),
     ],
     evidence: [
@@ -1807,10 +1858,10 @@ function analyzeFastestRankMover(params: AnalyzerParams): AnalyzerOutput {
       return unknownOutput(mart, "I couldn't compute ASIN rank movement from available snapshots.")
     }
     return {
-      answer: `Fastest ASIN rank mover (${metric} rank): ${top.product.brand} ${top.product.asin} (${signedRankDelta(top.delta)}).`,
+      answer: `Fastest ASIN rank mover (${metric} rank): ${productLabel(mart, top.product)} (${signedRankDelta(top.delta)}).`,
       bullets: ranked.map(
         (row, index) =>
-          `#${index + 1} ${row.product.brand} ${row.product.asin}: ${formatRank(row.prevRank)} -> ${formatRank(row.currentRank)} (${signedRankDelta(row.delta)}).`
+          `#${index + 1} ${productLabel(mart, row.product)}: ${formatRank(row.prevRank)} -> ${formatRank(row.currentRank)} (${signedRankDelta(row.delta)}).`
       ),
       evidence: [
         ...baseEvidence(mart.snapshot),
@@ -1822,8 +1873,8 @@ function analyzeFastestRankMover(params: AnalyzerParams): AnalyzerOutput {
       assumptions: ["Rank mover compares current rank versus immediately previous snapshot rank."],
       citations: [citation("ASIN rank movement", "product history ranks", mart.snapshot.date)],
       suggestedQuestions: [
-        `How did ${top.product.asin} perform by revenue and units?`,
-        `Who competes closest with ${top.product.asin}?`,
+        `How did ${productLabel(mart, top.product)} perform by revenue and units?`,
+        `Who competes closest with ${productLabel(mart, top.product)}?`,
         "Who is the fastest rank mover by revenue this month?",
       ],
       warnings: [],
@@ -2243,8 +2294,6 @@ function analyzeTrendsMomentum(params: AnalyzerParams): AnalyzerOutput {
     })
     .sort((a, b) => b.momentum - a.momentum)
 
-  const rising = products.slice(0, 3)
-  const declining = [...products].reverse().slice(0, 2)
   const scopedBrandKeys = new Set(scopedProducts.map((product) => normalize(product.brand)))
   const brandMovers = mart.snapshot.brandTotals
     .filter((row) => params.scope.mode === "all_brands" || scopedBrandKeys.has(normalize(row.brand)))
@@ -2255,9 +2304,10 @@ function analyzeTrendsMomentum(params: AnalyzerParams): AnalyzerOutput {
     .sort((a, b) => b.delta - a.delta)
     .slice(0, 3)
 
-  const eligibleHeadline = products.find(
-    (item) => item.priorRevenue !== null && item.priorRevenue >= headlineRevenueGate
-  )
+  const isHeadlineEligible = (item: (typeof products)[number]) =>
+    item.priorRevenue !== null && item.priorRevenue >= headlineRevenueGate
+  const gatedProducts = products.filter(isHeadlineEligible)
+  const eligibleHeadline = gatedProducts[0]
   const fallbackHeadline = [...products]
     .filter((item) => item.revenueDelta !== null)
     .sort((a, b) => safe(b.revenueDelta) - safe(a.revenueDelta))[0]
@@ -2266,25 +2316,30 @@ function analyzeTrendsMomentum(params: AnalyzerParams): AnalyzerOutput {
   if (!topRise) {
     return unknownOutput(mart, "I couldn't compute momentum signals from this snapshot.")
   }
+  const rising = usedAbsoluteDeltaFallback ? [topRise] : gatedProducts.slice(0, 3)
+  const decliningPool = gatedProducts.length ? gatedProducts : products
+  const declining = [...decliningPool].reverse().slice(0, 2)
+  const smallBaseLabel = (item: (typeof products)[number]) =>
+    isHeadlineEligible(item) ? "" : " (small base)"
 
   return {
     answer: usedAbsoluteDeltaFallback
-      ? `No product met the prior-month revenue headline gate of ${formatCurrency(headlineRevenueGate)}; using absolute revenue delta instead, ${topRise.product.brand} ${topRise.product.asin} had the largest revenue delta at ${formatCurrency(safe(topRise.revenueDelta))}${declining[0] ? `; ${declining[0].product.brand} ${declining[0].product.asin} declined most at ${formatPercent(declining[0].product.revenueMoM)}` : ""}.`
-      : `${topRise.product.brand} ${topRise.product.asin} grew fastest in the requested scope at ${formatPercent(topRise.product.revenueMoM)} revenue MoM${declining[0] ? `; ${declining[0].product.brand} ${declining[0].product.asin} declined most at ${formatPercent(declining[0].product.revenueMoM)}` : ""}.`,
+      ? `No product met the prior-month revenue headline gate of ${formatCurrency(headlineRevenueGate)}; using absolute revenue delta instead, ${productLabel(mart, topRise.product)} had the largest revenue delta at ${formatCurrency(safe(topRise.revenueDelta))}${declining[0] ? `; ${productLabel(mart, declining[0].product)} declined most at ${formatPercent(declining[0].product.revenueMoM)}` : ""}.`
+      : `${productLabel(mart, topRise.product)} grew fastest in the requested scope at ${formatPercent(topRise.product.revenueMoM)} revenue MoM${declining[0] ? `; ${productLabel(mart, declining[0].product)} declined most at ${formatPercent(declining[0].product.revenueMoM)}` : ""}.`,
     bullets: [
       ...rising.map(
         (item, index) =>
-          `Rising #${index + 1}: ${item.product.brand} ${item.product.asin} (${formatPercent(item.product.revenueMoM)} revenue MoM, ${formatPercent(item.product.unitsMoM)} units MoM).`
+          `Rising #${index + 1}: ${productLabel(mart, item.product)}${smallBaseLabel(item)} (${formatPercent(item.product.revenueMoM)} revenue MoM, ${formatPercent(item.product.unitsMoM)} units MoM).`
       ),
       ...declining.map(
         (item, index) =>
-          `Declining #${index + 1}: ${item.product.brand} ${item.product.asin} (${formatPercent(item.product.revenueMoM)} revenue MoM).`
+          `Declining #${index + 1}: ${productLabel(mart, item.product)}${smallBaseLabel(item)} (${formatPercent(item.product.revenueMoM)} revenue MoM).`
       ),
       ...brandMovers.map((item) => `Brand momentum: ${item.brand} ${formatPercent(item.delta)} revenue MoM.`),
     ],
     evidence: [
       ...baseEvidence(mart.snapshot),
-      { label: "Top Momentum Product", value: `${topRise.product.brand} ${topRise.product.asin}` },
+      { label: "Top Momentum Product", value: productEvidenceValue(mart, topRise.product) },
       { label: "Revenue MoM", value: formatPercent(topRise.product.revenueMoM) },
       { label: "Headline Prior Revenue", value: formatCurrency(topRise.priorRevenue ?? 0) },
       { label: "Headline Revenue Gate", value: formatCurrency(headlineRevenueGate) },
@@ -2331,16 +2386,16 @@ function analyzeRatingReviews(params: AnalyzerParams): AnalyzerOutput {
   const top = strongQuality[0] ?? mismatches[0]
   return {
     answer: top
-      ? `Rating-performance signal: ${top.brand} ${top.asin} combines ${top.rating.toFixed(1)}★ with ${formatCurrency(top.revenue)} monthly revenue.`
+      ? `Rating-performance signal: ${productLabel(mart, top)} combines ${top.rating.toFixed(1)}★ with ${formatCurrency(top.revenue)} monthly revenue.`
       : "Rating-performance signal is limited in this snapshot.",
     bullets: [
       ...strongQuality.map(
         (item) =>
-          `High-quality leader: ${item.brand} ${item.asin} (${item.rating.toFixed(1)}★, ${formatNumber(item.reviews)} reviews, ${formatCurrency(item.revenue)} revenue).`
+          `High-quality leader: ${productLabel(mart, item)} (${item.rating.toFixed(1)}★, ${formatNumber(item.reviews)} reviews, ${formatCurrency(item.revenue)} revenue).`
       ),
       ...mismatches.map(
         (item) =>
-          `Price-quality risk: ${item.brand} ${item.asin} has ${formatCurrency(item.revenue)} revenue but rating ${item.rating.toFixed(1)}★.`
+          `Price-quality risk: ${productLabel(mart, item)} has ${formatCurrency(item.revenue)} revenue but rating ${item.rating.toFixed(1)}★.`
       ),
     ],
     evidence: [
@@ -2566,6 +2621,91 @@ function matchesTypeScope(typeName: string, scope: ProductTypeScope) {
   if (scope === "handheld") return normalized.includes("handheld")
   if (scope === "dongle") return normalized.includes("dongle")
   return normalized.includes("tablet")
+}
+
+function finalizeAnalyzerOutput(
+  analyzer: AnalyzerId,
+  output: AnalyzerOutput,
+  params: AnalyzerParams
+): AnalyzerOutput {
+  const marketLevel = isMarketLevelAnalyzer(analyzer, output, params)
+  const evidence = output.evidence
+    .filter(
+      (item) =>
+        marketLevel || (item.label !== "Market Revenue" && item.label !== "Market Units")
+    )
+    .slice(0, 5)
+
+  return {
+    ...output,
+    bullets: output.bullets.map(ensureSentence).slice(0, 4),
+    evidence,
+    suggestedQuestions: finalizeSuggestedQuestions(output.suggestedQuestions),
+  }
+}
+
+function isMarketLevelAnalyzer(
+  analyzer: AnalyzerId,
+  output: AnalyzerOutput,
+  params: AnalyzerParams
+) {
+  if (
+    analyzer === "market_size" ||
+    analyzer === "market_shift" ||
+    analyzer === "market_leader" ||
+    analyzer === "market_concentration"
+  ) {
+    return true
+  }
+  return (
+    analyzer === "brand_health" &&
+    (params.scope.mode === "all_brands" || /^Total market\b/i.test(output.answer))
+  )
+}
+
+function finalizeSuggestedQuestions(questions: string[]) {
+  const fallbacks = [
+    "Which competitor is threatening our top SKU?",
+    "Which products are rising fastest this month?",
+    "Where can we grow with lower competitive density?",
+  ]
+  const finalized: string[] = []
+  for (const question of [...questions, ...fallbacks]) {
+    if (!question || finalized.includes(question)) continue
+    finalized.push(question)
+    if (finalized.length === 3) break
+  }
+  return finalized
+}
+
+function productLabel(
+  mart: NonNullable<ReturnType<typeof buildCodeReaderDataMart>>,
+  product: Pick<IndexedProduct, "asin" | "title" | "brand">
+) {
+  return mart.displayNameByAsin.get(normalize(product.asin)) ?? displayProductName(product)
+}
+
+// Evidence values pair the human name with the full ASIN, so the collision
+// suffix would duplicate the ASIN — strip it before appending.
+function productEvidenceValue(
+  mart: NonNullable<ReturnType<typeof buildCodeReaderDataMart>>,
+  product: Pick<IndexedProduct, "asin" | "title" | "brand">
+) {
+  return `${stripDisplayNameSuffix(productLabel(mart, product))} (${product.asin})`
+}
+
+function contributorLabel(
+  mart: NonNullable<ReturnType<typeof buildCodeReaderDataMart>>,
+  contributor: TopContributor
+) {
+  const product = mart.productsByAsin.get(normalize(contributor.asin))
+  return product ? productLabel(mart, product) : displayProductName(contributor)
+}
+
+function ensureSentence(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed || /[.!?]$/.test(trimmed)) return trimmed
+  return `${trimmed}.`
 }
 
 function isCanonicalTypeScope(scopeKey: string) {
@@ -2808,6 +2948,10 @@ function formatNumber(value: number) {
 function formatPercent(value: number | null) {
   if (value === null || Number.isNaN(value)) return "n/a"
   return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)}%`
+}
+
+function formatAbsolutePercent(value: number) {
+  return `${Math.abs(value * 100).toFixed(0)}%`
 }
 
 function formatSharePercent(value: number) {

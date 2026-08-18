@@ -8,6 +8,7 @@ import {
   mapLegacyIntent,
 } from "@/lib/chatbot/intent-calculators"
 import { categorySuggestedQuestions } from "@/lib/chatbot/question-bank"
+import { displayProductName } from "@/lib/chatbot/product-name"
 import { buildFrameworkProactiveSuggestions, buildProactiveSuggestions } from "@/lib/chatbot/proactive"
 import type { TimeResolution } from "@/lib/chatbot/time-resolver"
 import { resolveCategorySourceWorkbook } from "@/lib/chatbot/category-sources"
@@ -80,7 +81,29 @@ const categoryDataCache = new Map<
   }
 >()
 
-export async function buildDeterministicChatResponse({
+export async function buildDeterministicChatResponse(params: BuildParams): Promise<ChatResponse> {
+  const response = await buildDeterministicChatResponseRaw(params)
+  const suggestions = Array.from(
+    new Set([
+      ...response.suggestedQuestions,
+      "Which competitor is threatening our top SKU?",
+      "Which products are rising fastest this month?",
+      "Where can we grow with lower competitive density?",
+    ])
+  ).slice(0, 3)
+  return {
+    ...response,
+    bullets: response.bullets.slice(0, 4),
+    evidence: response.evidence.slice(0, 5),
+    proactive:
+      response.intent === "brand_health" || response.intent === "self_assessment"
+        ? response.proactive
+        : [],
+    suggestedQuestions: suggestions,
+  }
+}
+
+async function buildDeterministicChatResponseRaw({
   message,
   category,
   snapshot,
@@ -424,7 +447,7 @@ function summarizeOwnProductMovement(
   )
 
   const deltas = currentProducts.map((product) => ({
-    title: product.title,
+    title: displayProductName(product),
     change: product.revenue - (previousMap.get(product.asin) ?? 0),
   }))
 
@@ -596,7 +619,7 @@ function buildRiskSignals(
       title: "Competitive Convergence Risk",
       summary:
         ownLead
-          ? `${convergenceCount} rival products sit within $20 of ${ownLead.asin} with higher ratings.`
+          ? `${convergenceCount} rival products sit within $20 of ${displayProductName(ownLead)} with higher ratings.`
           : "No own lead SKU available for convergence scoring.",
       score: convergenceScore,
     },
@@ -679,7 +702,7 @@ function buildOpportunities(
 
   if (weakRatedHighRevenue) {
     lines.push(
-      `Potential opening: ${weakRatedHighRevenue.brand} ${weakRatedHighRevenue.asin} has ${currencyCompact(weakRatedHighRevenue.revenue)} revenue but low rating (${fixed(weakRatedHighRevenue.rating, 1)}).`
+      `Potential opening: ${displayProductName(weakRatedHighRevenue)} has ${currencyCompact(weakRatedHighRevenue.revenue)} revenue but low rating (${fixed(weakRatedHighRevenue.rating, 1)}).`
     )
   }
 
