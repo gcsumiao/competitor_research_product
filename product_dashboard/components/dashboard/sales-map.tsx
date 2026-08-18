@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/select"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts"
 
+import { formatCurrencyCompact, formatPercent } from "@/lib/dashboard-format"
+
 export type SalesMapItem = {
   label: string
   value: number
@@ -99,7 +101,7 @@ export function SalesMap({
   highlightPrimaryControl = false,
 }: SalesMapProps) {
   const total = items.reduce((sum, item) => sum + item.value, 0)
-  const formatValue = valueFormatter ?? ((value: number) => `$${value.toLocaleString()}`)
+  const formatValue = valueFormatter ?? formatCurrencyCompact
 
   return (
     <Card className="bg-card border-border h-full">
@@ -257,7 +259,7 @@ export function SalesMap({
             )}
             <div>
               <p className="text-xs text-muted-foreground">{totalLabel}</p>
-              <p className="text-2xl font-semibold">{totalValue || `$${total.toLocaleString()}`}</p>
+              <p className="text-2xl font-semibold">{totalValue || formatCurrencyCompact(total)}</p>
             </div>
           </div>
 
@@ -301,11 +303,4 @@ export function SalesMap({
       </CardContent>
     </Card>
   )
-}
-
-function formatPercent(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "percent",
-    maximumFractionDigits: 1,
-  }).format(value)
 }

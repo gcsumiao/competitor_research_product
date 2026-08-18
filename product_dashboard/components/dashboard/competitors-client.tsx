@@ -29,8 +29,10 @@ import {
   formatChangeLabel,
   formatCurrency,
   formatCurrencyCompact,
+  formatInteger,
   formatNumberCompact,
   formatPercent,
+  formatRating,
   formatSigned,
   percentChange,
   pointChange,
@@ -191,15 +193,15 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
   const metricCards = [
     {
       title: "Top 3 share",
-      value: formatPercent(top3Share, 1),
-      change: top3Change === null ? "n/a" : `${formatSigned(top3Change, 1)}pt`,
+      value: formatPercent(top3Share),
+      change: top3Change === null ? "n/a" : `${formatSigned(top3Change, 0)}pt`,
       changeSuffix: "",
       isPositiveOutcome: (top3Change ?? 0) <= 0,
       icon: Shield,
     },
     {
       title: "Top 5 share",
-      value: formatPercent(top5Share, 1),
+      value: formatPercent(top5Share),
       change: "Market coverage",
       changeSuffix: "",
       isPositiveOutcome: true,
@@ -230,16 +232,16 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
     label: row.label,
     value: row.revenueMonthly,
     tooltipRows: [
-      { label: "Monthly revenue", value: formatCurrency(row.revenueMonthly, 2) },
-      { label: "Rolling 12 grand total", value: formatCurrency(row.revenueGrandTotal, 2) },
+      { label: "Monthly revenue", value: formatCurrencyCompact(row.revenueMonthly) },
+      { label: "Rolling 12 grand total", value: formatCurrencyCompact(row.revenueGrandTotal) },
     ],
   }))
   const rolling12UnitsTrend = rolling12Trend.map((row) => ({
     label: row.label,
     value: row.unitsMonthly,
     tooltipRows: [
-      { label: "Monthly units", value: formatIntegerTooltip(row.unitsMonthly) },
-      { label: "Rolling 12 grand total", value: formatIntegerTooltip(row.unitsGrandTotal) },
+      { label: "Monthly units", value: formatNumberCompact(row.unitsMonthly) },
+      { label: "Rolling 12 grand total", value: formatNumberCompact(row.unitsGrandTotal) },
     ],
   }))
 
@@ -330,7 +332,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
               ? formatNumberCompact(topShareBrand?.units ?? 0)
               : formatCurrencyCompact(topShareBrand?.revenue ?? 0)}
             growthLabel="Top 3 share"
-            growthValue={top3Change === null ? "n/a" : `${formatSigned(top3Change, 1)}pt`}
+            growthValue={top3Change === null ? "n/a" : `${formatSigned(top3Change, 0)}pt`}
             totalLabel={brandSortMode === "units" ? "Total units" : "Total revenue"}
             totalValue={brandSortMode === "units"
               ? formatNumberCompact(activeSnapshot?.totals.units ?? 0)
@@ -386,7 +388,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                 asin: product.asin,
                 name: truncateLabel(product.title, 36),
                 brand: product.brand,
-                priceLabel: product.price ? formatCurrency(product.price, 0) : "n/a",
+                priceLabel: product.price ? formatCurrency(product.price) : "n/a",
                 revenueLabel: formatCurrencyCompact(product.revenue),
                 image: product.imageUrl,
                 url: product.url,
@@ -467,7 +469,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                   <div className="rounded-xl border border-border p-4">
                     <p className="text-xs text-muted-foreground">Rolling 12 Grand Total Revenue</p>
                     <p className="mt-2 text-3xl font-semibold">
-                      {formatCurrency(rolling12GrandTotals?.revenueGrandTotal ?? 0, 0)}
+                      {formatCurrencyCompact(rolling12GrandTotals?.revenueGrandTotal ?? 0)}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Current month {formatCurrencyCompact(rolling12GrandTotals?.revenueMonthly ?? 0)} | {formatChangeLabel(rolling12RevenueChange)} vs previous snapshot
@@ -476,10 +478,10 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                   <div className="rounded-xl border border-border p-4">
                     <p className="text-xs text-muted-foreground">Rolling 12 Grand Total Units</p>
                     <p className="mt-2 text-3xl font-semibold">
-                      {formatInteger(rolling12GrandTotals?.unitsGrandTotal ?? 0)}
+                      {formatNumberCompact(rolling12GrandTotals?.unitsGrandTotal ?? 0)}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Current month {formatInteger(rolling12GrandTotals?.unitsMonthly ?? 0)} | {formatChangeLabel(rolling12UnitsChange)} vs previous snapshot
+                      Current month {formatNumberCompact(rolling12GrandTotals?.unitsMonthly ?? 0)} | {formatChangeLabel(rolling12UnitsChange)} vs previous snapshot
                     </p>
                   </div>
                 </div>
@@ -490,12 +492,12 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                   title="Rolling 12 months Revenue Trend"
                   subtitle={selectedBrandListing ? `${selectedBrandListing.brand} monthly revenue across snapshots` : "Selected brand monthly revenue trend"}
                   totalLabel="Current monthly revenue"
-                  totalValue={formatCurrency(rolling12GrandTotals?.revenueMonthly ?? 0, 0)}
+                  totalValue={formatCurrencyCompact(rolling12GrandTotals?.revenueMonthly ?? 0)}
                   changeLabel={formatChangeLabel(rolling12RevenueMonthlyChange)}
                   changeValueLabel="vs previous snapshot"
                   data={rolling12RevenueTrend}
                   color="#3b82f6"
-                  formatter={(value) => formatCurrency(value, 2)}
+                  formatter={formatCurrencyCompact}
                   axisFormatter={(value) => formatCurrencyCompact(value)}
                   compactSummary
                 />
@@ -503,12 +505,12 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                   title="Rolling 12 months Units Trend"
                   subtitle={selectedBrandListing ? `${selectedBrandListing.brand} monthly units across snapshots` : "Selected brand monthly units trend"}
                   totalLabel="Current monthly units"
-                  totalValue={formatInteger(rolling12GrandTotals?.unitsMonthly ?? 0)}
+                  totalValue={formatNumberCompact(rolling12GrandTotals?.unitsMonthly ?? 0)}
                   changeLabel={formatChangeLabel(rolling12UnitsMonthlyChange)}
                   changeValueLabel="vs previous snapshot"
                   data={rolling12UnitsTrend}
                   color="#10b981"
-                  formatter={(value) => formatIntegerTooltip(value)}
+                  formatter={formatNumberCompact}
                   axisFormatter={(value) => formatNumberCompact(value)}
                   compactSummary
                 />
@@ -569,25 +571,25 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                               {product.toolType ?? product.subcategory ?? "n/a"}
                             </td>
                             <td className="py-3 px-2 text-xs text-right">
-                              {formatCurrencyPrecise(product.avgPrice ?? product.price)}
+                              {formatPositivePrice(product.avgPrice ?? product.price)}
                             </td>
                             <td className="py-3 px-2 text-xs text-right">
-                              {formatCurrencyPrecise(product.estimatedRevenue12mo)}
+                              {formatPositiveRevenue(product.estimatedRevenue12mo)}
                             </td>
                             <td className="py-3 px-2 text-xs text-right">
-                              {formatCurrencyPrecise(product.monthlyRevenue ?? product.revenue)}
+                              {formatPositiveRevenue(product.monthlyRevenue ?? product.revenue)}
                             </td>
                             <td className="py-3 px-2 text-xs text-right">
-                              {formatInteger(product.estimatedUnits12mo)}
+                              {formatPositiveUnits(product.estimatedUnits12mo)}
                             </td>
                             <td className="py-3 px-2 text-xs text-right">
-                              {formatInteger(product.monthlyUnits ?? product.units)}
+                              {formatPositiveUnits(product.monthlyUnits ?? product.units)}
                             </td>
-                            <td className="py-3 px-2 text-xs text-right">{formatInteger(product.reviewCount)}</td>
+                            <td className="py-3 px-2 text-xs text-right">{formatPlainInteger(product.reviewCount)}</td>
                             <td className="py-3 px-2 text-xs text-right">
                               {typeof product.toolRating === "number" && product.toolRating > 0
-                                ? product.toolRating.toFixed(1)
-                                : (product.rating > 0 ? product.rating.toFixed(1) : "n/a")}
+                                ? formatRating(product.toolRating)
+                                : (product.rating > 0 ? formatRating(product.rating) : "n/a")}
                             </td>
                           </tr>
                         ))}
@@ -715,25 +717,25 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                             {product.toolType ?? product.subcategory ?? "n/a"}
                           </td>
                           <td className="py-3 px-2 text-xs text-right">
-                            {formatCurrencyPrecise(product.avgPrice ?? product.price)}
+                            {formatPositivePrice(product.avgPrice ?? product.price)}
                           </td>
                           <td className="py-3 px-2 text-xs text-right">
-                            {formatCurrencyPrecise(product.estimatedRevenue12mo)}
+                            {formatPositiveRevenue(product.estimatedRevenue12mo)}
                           </td>
                           <td className="py-3 px-2 text-xs text-right">
-                            {formatCurrencyPrecise(product.monthlyRevenue ?? product.revenue)}
+                            {formatPositiveRevenue(product.monthlyRevenue ?? product.revenue)}
                           </td>
                           <td className="py-3 px-2 text-xs text-right">
-                            {formatInteger(product.estimatedUnits12mo)}
+                            {formatPositiveUnits(product.estimatedUnits12mo)}
                           </td>
                           <td className="py-3 px-2 text-xs text-right">
-                            {formatInteger(product.monthlyUnits ?? product.units)}
+                            {formatPositiveUnits(product.monthlyUnits ?? product.units)}
                           </td>
-                          <td className="py-3 px-2 text-xs text-right">{formatInteger(product.reviewCount)}</td>
+                          <td className="py-3 px-2 text-xs text-right">{formatPlainInteger(product.reviewCount)}</td>
                           <td className="py-3 px-2 text-xs text-right">
                             {typeof product.toolRating === "number" && product.toolRating > 0
-                              ? product.toolRating.toFixed(1)
-                              : (product.rating > 0 ? product.rating.toFixed(1) : "n/a")}
+                              ? formatRating(product.toolRating)
+                              : (product.rating > 0 ? formatRating(product.rating) : "n/a")}
                           </td>
                         </tr>
                       ))}
@@ -770,24 +772,13 @@ function buildBrandListingAnnotation(
   const label = isPriceLed ? "Price-led" : isVolumeLed ? "Units-led" : "Balanced"
   const tone = isPriceLed ? "price_led" : isVolumeLed ? "units_led" : "balanced"
 
-  const aspText = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(brandAsp)
-  const marketText = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(marketAsp)
-
-  const pct = (value: number) =>
-    new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 }).format(value)
+  const aspText = formatCurrency(brandAsp)
+  const marketText = formatCurrency(marketAsp)
 
   return {
     label,
     tone,
-    summary: `${brand} is earning mainly via ${label.toLowerCase()} items this month. Avg price ${aspText} vs market ${marketText}. Revenue share ${pct(revShare)} vs unit share ${pct(unitShare)}.`,
+    summary: `${brand} is earning mainly via ${label.toLowerCase()} items this month. Avg price ${aspText} vs market ${marketText}. Revenue share ${formatPercent(revShare)} vs unit share ${formatPercent(unitShare)}.`,
   }
 }
 
@@ -866,27 +857,24 @@ function rankMovement(current?: number, previous?: number) {
   return previous - current
 }
 
-function formatCurrencyPrecise(value: number | undefined) {
+function formatPositivePrice(value: number | undefined) {
   if (typeof value !== "number" || value <= 0) return "n/a"
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(value)
+  return formatCurrency(value)
 }
 
-function formatInteger(value: number | undefined) {
+function formatPositiveRevenue(value: number | undefined) {
   if (typeof value !== "number" || value <= 0) return "n/a"
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
-  }).format(value)
+  return formatCurrencyCompact(value)
 }
 
-function formatIntegerTooltip(value: number | undefined) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "n/a"
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
-  }).format(value)
+function formatPositiveUnits(value: number | undefined) {
+  if (typeof value !== "number" || value <= 0) return "n/a"
+  return formatNumberCompact(value)
+}
+
+function formatPlainInteger(value: number | undefined) {
+  if (typeof value !== "number" || value <= 0) return "n/a"
+  return formatInteger(value)
 }
 
 function annotationToneClasses(annotation: BrandListingAnnotation) {

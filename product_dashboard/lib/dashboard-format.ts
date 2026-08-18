@@ -35,11 +35,12 @@ export function pointChange(current: number, previous: number) {
   return (current - previous) * 100
 }
 
-export function formatCurrency(value: number, decimals = 1) {
+export function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: decimals,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(value)
 }
 
@@ -51,43 +52,49 @@ export function formatNumberCompact(value: number) {
   return `${value < 0 ? "-" : ""}${formatCompactMagnitude(Math.abs(value))}`
 }
 
-export function formatCodeReaderCurrencyCompact(value: number) {
-  if (!Number.isFinite(value)) return "$0"
-  const absoluteValue = Math.abs(value)
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: absoluteValue >= 1_000 ? "compact" : "standard",
-    minimumFractionDigits: absoluteValue >= 1_000 ? 1 : 0,
-    maximumFractionDigits: absoluteValue >= 1_000 ? 1 : 0,
-  }).format(value)
-}
-
-export function formatCodeReaderUnitsCompact(value: number) {
+export function formatInteger(value: number) {
   if (!Number.isFinite(value)) return "0"
   return new Intl.NumberFormat("en-US", {
-    notation: Math.abs(value) >= 1_000 ? "compact" : "standard",
     maximumFractionDigits: 0,
   }).format(value)
 }
 
-export function formatPercent(value: number, decimals = 1) {
-  return new Intl.NumberFormat("en-US", {
-    style: "percent",
-    maximumFractionDigits: decimals,
-  }).format(value)
+export function formatCodeReaderCurrencyCompact(value: number) {
+  return formatCurrencyCompact(value)
+}
+
+export function formatCodeReaderUnitsCompact(value: number) {
+  return formatNumberCompact(value)
+}
+
+export function formatPercent(value: number) {
+  if (!Number.isFinite(value)) return "0%"
+  const rounded = Math.round(value * 100)
+  return `${rounded === 0 ? 0 : rounded}%`
 }
 
 export function formatSigned(value: number, decimals: number) {
-  const sign = value > 0 ? "+" : value < 0 ? "" : ""
-  return `${sign}${value.toFixed(decimals)}`
+  const rounded = Number(value.toFixed(decimals))
+  const normalized = rounded === 0 ? 0 : rounded
+  const sign = normalized > 0 ? "+" : ""
+  return `${sign}${normalized.toFixed(decimals)}`
 }
 
 export function formatChangeLabel(value: number | null) {
   if (value === null || !Number.isFinite(value)) {
     return "n/a"
   }
-  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`
+  const rounded = Math.round(value)
+  const normalized = rounded === 0 ? 0 : rounded
+  return `${normalized > 0 ? "+" : ""}${normalized}%`
+}
+
+export function formatRating(value: number) {
+  if (!Number.isFinite(value)) return "n/a"
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value)
 }
 
 export function formatDeltaLabel(current: number, previous?: number) {
@@ -103,14 +110,14 @@ export function truncateLabel(label: string, maxLength: number) {
 
 function formatCompactMagnitude(value: number) {
   if (!Number.isFinite(value)) return "0"
-  if (value >= 1_000_000_000) return `${trimCompactDecimal(value / 1_000_000_000)}B`
-  if (value >= 1_000_000) return `${trimCompactDecimal(value / 1_000_000)}M`
-  if (value >= 1_000) return `${trimCompactDecimal(value / 1_000)}K`
+  if (value >= 1_000_000_000) return `${formatCompactDecimal(value / 1_000_000_000)}B`
+  if (value >= 1_000_000) return `${formatCompactDecimal(value / 1_000_000)}M`
+  if (value >= 1_000) return `${formatCompactDecimal(value / 1_000)}K`
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 0,
   }).format(value)
 }
 
-function trimCompactDecimal(value: number) {
-  return value.toFixed(1).replace(/\.0$/, "")
+function formatCompactDecimal(value: number) {
+  return value.toFixed(1)
 }

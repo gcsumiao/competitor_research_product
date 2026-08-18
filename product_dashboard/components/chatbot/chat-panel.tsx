@@ -34,10 +34,18 @@ export function ChatPanel({
   onQuickAction,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const latestMessageRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const node = scrollRef.current
     if (!node) return
+
+    const latestMessage = messages.at(-1)
+    if (!isLoading && latestMessage?.role === "assistant") {
+      latestMessageRef.current?.scrollIntoView({ block: "start" })
+      return
+    }
+
     node.scrollTop = node.scrollHeight
   }, [messages, open, isLoading])
 
@@ -65,8 +73,13 @@ export function ChatPanel({
           <QuickActions disabled={isLoading} actions={quickActions} onSelect={onQuickAction} />
         ) : null}
 
-        {messages.map((message) => (
-          <ChatMessage key={message.id} message={message} onSuggestedQuestion={onQuickAction} />
+        {messages.map((message, index) => (
+          <ChatMessage
+            key={message.id}
+            message={message}
+            onSuggestedQuestion={onQuickAction}
+            containerRef={index === messages.length - 1 ? latestMessageRef : undefined}
+          />
         ))}
 
         {isLoading ? (

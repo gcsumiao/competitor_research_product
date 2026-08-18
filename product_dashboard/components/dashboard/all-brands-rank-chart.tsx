@@ -5,6 +5,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { SnapshotSummary } from "@/lib/competitor-data"
+import { formatCurrencyCompact, formatNumberCompact } from "@/lib/dashboard-format"
 import { formatSnapshotLabelMonthEnd } from "@/lib/snapshot-date"
 import { cn } from "@/lib/utils"
 
@@ -312,14 +313,8 @@ export function AllBrandsRankChart({
                         return (
                           <span className="text-xs font-semibold text-foreground">
                             {metric === "revenue"
-                              ? new Intl.NumberFormat("en-US", {
-                                  style: "currency",
-                                  currency: "USD",
-                                  maximumFractionDigits: 0,
-                                }).format(grandTotal)
-                              : new Intl.NumberFormat("en-US", {
-                                  maximumFractionDigits: 0,
-                                }).format(grandTotal)}
+                              ? formatCurrencyCompact(grandTotal)
+                              : formatNumberCompact(grandTotal)}
                           </span>
                         )
                       })()}

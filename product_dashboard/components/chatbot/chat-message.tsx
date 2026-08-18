@@ -1,6 +1,7 @@
 "use client"
 
 import { AlertTriangle, Lightbulb } from "lucide-react"
+import type { Ref } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -17,12 +18,13 @@ export type ChatPanelMessage = {
 type ChatMessageProps = {
   message: ChatPanelMessage
   onSuggestedQuestion: (question: string) => void
+  containerRef?: Ref<HTMLDivElement>
 }
 
-export function ChatMessage({ message, onSuggestedQuestion }: ChatMessageProps) {
+export function ChatMessage({ message, onSuggestedQuestion, containerRef }: ChatMessageProps) {
   if (message.role === "user") {
     return (
-      <div className="flex justify-end">
+      <div ref={containerRef} className="flex justify-end">
         <div className="max-w-[85%] rounded-2xl bg-foreground px-4 py-2 text-xs text-background">
           {message.content}
         </div>
@@ -51,7 +53,7 @@ export function ChatMessage({ message, onSuggestedQuestion }: ChatMessageProps) 
     .join(" · ")
 
   return (
-    <div className="flex justify-start">
+    <div ref={containerRef} className="flex justify-start">
       <Card className="w-full border border-border bg-card">
         <CardContent className="space-y-3 p-3">
           {meta ? (

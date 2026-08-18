@@ -23,6 +23,7 @@ import {
   formatChangeLabel,
   formatCurrency,
   formatCurrencyCompact,
+  formatDeltaLabel,
   formatNumberCompact,
   formatPercent,
   formatSigned,
@@ -128,7 +129,7 @@ export function ReportsClient({ data, reports }: { data: DashboardData; reports:
     },
     {
       title: "Avg price",
-      value: formatCurrency(activeSnapshot?.totals.avgPrice ?? 0, 2),
+      value: formatCurrency(activeSnapshot?.totals.avgPrice ?? 0),
       change: formatChangeLabel(avgPriceChange),
       changeSuffix: previousSnapshot ? "MoM" : "",
       isPositiveOutcome: (avgPriceChange ?? 0) >= 0,
@@ -137,7 +138,7 @@ export function ReportsClient({ data, reports }: { data: DashboardData; reports:
     {
       title: "Top category share",
       value: topCategory?.label ?? "n/a",
-      change: topCategoryChange === null ? "n/a" : `${formatSigned(topCategoryChange, 1)}pt`,
+      change: topCategoryChange === null ? "n/a" : `${formatSigned(topCategoryChange, 0)}pt`,
       changeSuffix: "",
       isPositiveOutcome: (topCategoryChange ?? 0) >= 0,
       icon: FileText,
@@ -218,6 +219,7 @@ export function ReportsClient({ data, reports }: { data: DashboardData; reports:
                 : ""
             }
             data={revenueComparison}
+            valueFormatter={formatCurrencyCompact}
           />
         </div>
         <div>
@@ -229,7 +231,7 @@ export function ReportsClient({ data, reports }: { data: DashboardData; reports:
             changeLabel={formatChangeLabel(unitsChange)}
             changeValueLabel={
               previousSnapshot
-                ? `${formatSigned((activeSnapshot?.totals.units ?? 0) - previousSnapshot.totals.units, 0)} units`
+                ? `${formatDeltaLabel(activeSnapshot?.totals.units ?? 0, previousSnapshot.totals.units)} units`
                 : ""
             }
             data={unitsComparison}
@@ -245,7 +247,7 @@ export function ReportsClient({ data, reports }: { data: DashboardData; reports:
           topLabel={topCategory?.label ?? "n/a"}
           topValue={formatCurrencyCompact(topCategory?.revenue ?? 0)}
           growthLabel="Top share"
-          growthValue={formatPercent(topCategoryShare, 1)}
+          growthValue={formatPercent(topCategoryShare)}
           totalLabel="Total revenue"
           totalValue={formatCurrencyCompact(totalRevenue)}
         />
@@ -256,10 +258,10 @@ export function ReportsClient({ data, reports }: { data: DashboardData; reports:
           topLabel={topCategory?.label ?? "n/a"}
           topValue={formatNumberCompact(topCategory?.units ?? 0)}
           growthLabel="Top share"
-          growthValue={formatPercent(topCategoryUnitsShare, 1)}
+          growthValue={formatPercent(topCategoryUnitsShare)}
           totalLabel="Total units"
           totalValue={formatNumberCompact(totalUnits)}
-          valueFormatter={(value) => value.toLocaleString()}
+          valueFormatter={formatNumberCompact}
         />
       </div>
 
