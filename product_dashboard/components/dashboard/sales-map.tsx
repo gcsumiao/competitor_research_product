@@ -241,7 +241,9 @@ export function SalesMap({
                 <p className={["text-2xl font-semibold", growthValueClassName ?? "text-[var(--color-positive)]"].join(" ")}>
                   {growthValue}
                 </p>
-                <p className="text-xs text-muted-foreground">{growthSubLabel ?? "MoM change"}</p>
+                {(growthSubLabel ?? "MoM change") ? (
+                  <p className="text-xs text-muted-foreground">{growthSubLabel ?? "MoM change"}</p>
+                ) : null}
                 {growthSecondaryValue ? (
                   <>
                     <p

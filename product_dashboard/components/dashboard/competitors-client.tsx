@@ -686,7 +686,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                       </thead>
                       <tbody>
                         {(selectedBrandListing?.products ?? []).map((product) => (
-                          <tr key={product.asin} className="border-b border-border last:border-0">
+                          <tr key={product.asin} className="border-b border-border last:border-0 even:bg-muted/30">
                             <td className="py-3 px-2 text-xs font-medium">
                               {product.url ? (
                                 <a className="text-foreground hover:underline" href={product.url} target="_blank" rel="noreferrer">
@@ -837,7 +837,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                     </thead>
                     <tbody>
                       {(selectedBrandListing?.products ?? []).map((product) => (
-                        <tr key={product.asin} className="border-b border-border last:border-0">
+                        <tr key={product.asin} className="border-b border-border last:border-0 even:bg-muted/30">
                           <td className="py-3 px-2 text-xs font-medium">
                             {product.url ? (
                               <a className="text-foreground hover:underline" href={product.url} target="_blank" rel="noreferrer">
