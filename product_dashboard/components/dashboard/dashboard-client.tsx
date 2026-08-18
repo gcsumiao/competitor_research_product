@@ -194,7 +194,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     if (!activeSnapshot) return []
     return (activeSnapshot.brandTotals ?? []).slice(0, 2).map((brand, index) => ({
       label: brand.brand,
-      value: formatPercent(brand.share, 1),
+      value: formatPercent(brand.share),
       sublabel: `${formatCurrencyCompact(brand.revenue)} revenue`,
       tone: index === 0 ? "green" as const : "orange" as const,
     }))
@@ -236,7 +236,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     asin: product.asin,
     name: truncateLabel(product.title, 36),
     brand: product.brand,
-    priceLabel: product.price ? formatCurrency(product.price, 0) : "n/a",
+    priceLabel: product.price ? formatCurrency(product.price) : "n/a",
     revenueLabel:
       isCodeReader && topAsinsMetric === "units"
         ? formatNumberCompact(product.units)
@@ -513,11 +513,13 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             changeValueLabel={marketTrendDeltaLabel}
             data={marketTrendData}
             valueFormatter={
-              isCodeReader
-                ? (marketTrendMetric === "units"
+              marketTrendMetric === "units"
+                ? (isCodeReader
                     ? formatCodeReaderUnitsCompact
-                    : formatCodeReaderCurrencyCompact)
-                : undefined
+                    : formatNumberCompact)
+                : (isCodeReader
+                    ? formatCodeReaderCurrencyCompact
+                    : formatCurrencyCompact)
             }
             color={
               marketTrendMetric === "units"
@@ -851,8 +853,8 @@ function buildMetricCards(
     },
     {
       title: "Market Concentration",
-      value: `Top 3 = ${formatPercent(current.totals.top3Share, 1)}`,
-      change: concentrationChange === null ? "n/a" : `${formatSigned(concentrationChange, 1)}pt`,
+      value: `Top 3 = ${formatPercent(current.totals.top3Share)}`,
+      change: concentrationChange === null ? "n/a" : `${formatSigned(concentrationChange, 0)}pt`,
       isPositiveOutcome: (concentrationChange ?? 0) <= 0,
       icon: Users,
     },
@@ -1224,15 +1226,15 @@ function buildConcentrationInsight(
 ) {
   const top3 = current.totals.top3Share
   const top3Delta = previous ? pointChange(top3, previous.totals.top3Share) : null
-  const direction = top3Delta === null ? "" : ` (${formatSigned(top3Delta, 1)}pt vs prior snapshot)`
+  const direction = top3Delta === null ? "" : ` (${formatSigned(top3Delta, 0)}pt vs prior snapshot)`
 
   if (top3 >= 0.8) {
-    return `High concentration: top 3 brands control ${formatPercent(top3, 1)}${direction}. Entry is difficult without sharp differentiation.`
+    return `High concentration: top 3 brands control ${formatPercent(top3)}${direction}. Entry is difficult without sharp differentiation.`
   }
   if (top3 >= 0.65) {
-    return `Moderate concentration: top 3 brands control ${formatPercent(top3, 1)}${direction}. Entry is viable with targeted positioning.`
+    return `Moderate concentration: top 3 brands control ${formatPercent(top3)}${direction}. Entry is viable with targeted positioning.`
   }
-  return `Low concentration: top 3 brands control ${formatPercent(top3, 1)}${direction}. Market remains open for new entrants.`
+  return `Low concentration: top 3 brands control ${formatPercent(top3)}${direction}. Market remains open for new entrants.`
 }
 
 function buildWhitespaceInsight(snapshot: SnapshotSummary) {
@@ -1248,7 +1250,7 @@ function buildWhitespaceInsight(snapshot: SnapshotSummary) {
   )
 
   if (whitespaceCandidate) {
-    return `${whitespaceCandidate.label} shows whitespace: ${formatPercent(whitespaceCandidate.revenueShare, 1)} revenue share with lower unit share ${formatPercent(whitespaceCandidate.unitsShare, 1)}.`
+    return `${whitespaceCandidate.label} shows whitespace: ${formatPercent(whitespaceCandidate.revenueShare)} revenue share with lower unit share ${formatPercent(whitespaceCandidate.unitsShare)}.`
   }
 
   return "No clear whitespace bucket in current type rows; test differentiation inside top segments."
@@ -1262,14 +1264,14 @@ function buildEntryAngleInsights(snapshot: SnapshotSummary, categoryId?: string)
 
   if (topBrand) {
     angles.push(
-      `Position against ${topBrand.brand} (${formatPercent(topBrand.share, 1)} share) with focused SKU messaging.`
+      `Position against ${topBrand.brand} (${formatPercent(topBrand.share)} share) with focused SKU messaging.`
     )
   }
   if (secondBrand) {
     angles.push(`Use ${secondBrand.brand} price/spec bands as the secondary benchmark lane.`)
   }
   if (avgTopPrice > 0) {
-    angles.push(`Target launch MSRP near ${formatCurrency(avgTopPrice, 0)} with differentiated features.`)
+    angles.push(`Target launch MSRP near ${formatCurrency(avgTopPrice)} with differentiated features.`)
   }
   return angles.slice(0, 3)
 }

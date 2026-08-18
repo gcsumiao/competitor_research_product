@@ -31,9 +31,11 @@ import {
   formatChangeLabel,
   formatCurrency,
   formatCurrencyCompact,
+  formatInteger,
   formatNumberCompact,
   formatSigned,
   formatPercent,
+  formatRating,
   percentChange,
   truncateLabel,
 } from "@/lib/dashboard-format"
@@ -93,7 +95,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
     },
     {
       title: "Avg Price (Top 50)",
-      value: formatCurrency(activeTotals.avgPrice, 2),
+      value: formatCurrency(activeTotals.avgPrice),
       change: formatChangeLabel(percentChange(activeTotals.avgPrice, previousTotals.avgPrice)),
       changeSuffix: previousSnapshot ? "MoM" : "",
       isPositiveOutcome: activeTotals.avgPrice >= previousTotals.avgPrice,
@@ -103,7 +105,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
       title: "Average Ratings",
       value: formatAverageRating(activeTotals.averageRating),
       change: previousSnapshot
-        ? formatSigned(activeTotals.averageRating - previousTotals.averageRating, 2)
+        ? formatSigned(activeTotals.averageRating - previousTotals.averageRating, 1)
         : "n/a",
       changeSuffix: previousSnapshot ? "pts" : "",
       isPositiveOutcome: activeTotals.averageRating >= previousTotals.averageRating,
@@ -115,7 +117,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
     asin: product.asin,
     name: truncateLabel(product.title, 36),
     brand: product.brand,
-    priceLabel: product.price ? formatCurrency(product.price, 0) : "n/a",
+    priceLabel: product.price ? formatCurrency(product.price) : "n/a",
     revenueLabel: resolvedMode === "revenue"
       ? formatCurrencyCompact(product.revenue)
       : `${formatNumberCompact(product.units)} units`,
@@ -270,13 +272,13 @@ export function Top50Client({ data }: { data: DashboardData }) {
                     </td>
                     <td className="py-3 px-2 text-xs text-muted-foreground">{product.brand}</td>
                     <td className="py-3 px-2 text-xs text-right">
-                      {product.price ? formatCurrency(product.price, 0) : "n/a"}
+                      {product.price ? formatCurrency(product.price) : "n/a"}
                     </td>
                     <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(product.revenue)}</td>
                     <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(product.units)}</td>
-                    <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(product.reviewCount)}</td>
+                    <td className="py-3 px-2 text-xs text-right">{formatInteger(product.reviewCount)}</td>
                     <td className="py-3 px-2 text-xs text-right">
-                      {product.rating ? product.rating.toFixed(1) : "n/a"}
+                      {product.rating ? formatRating(product.rating) : "n/a"}
                     </td>
                   </tr>
                 ))}
@@ -317,5 +319,5 @@ function summarizeTop50(
 
 function formatAverageRating(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "n/a"
-  return value.toFixed(2)
+  return formatRating(value)
 }

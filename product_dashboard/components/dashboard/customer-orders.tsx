@@ -4,6 +4,8 @@ import { useId, type ReactNode } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 
+import { formatNumberCompact } from "@/lib/dashboard-format"
+
 export type CustomerOrdersDatum = {
   label: string
   value: number
@@ -41,7 +43,7 @@ export function CustomerOrders({
   color = "#6366f1",
 }: CustomerOrdersProps) {
   const gradientId = `market-trend-${useId().replace(/:/g, "")}`
-  const formatValue = valueFormatter ?? ((value: number) => value.toLocaleString())
+  const formatValue = valueFormatter ?? formatNumberCompact
 
   return (
     <Card className="bg-card border-border h-full">

@@ -3,6 +3,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts"
 
+import { formatCurrencyCompact, formatNumberCompact } from "@/lib/dashboard-format"
+
 export type ProfitChartDatum = {
   label: string
   sales: number
@@ -87,7 +89,7 @@ export function ProfitChart({
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 11, fill: "#737373" }}
-                tickFormatter={(value) => `$${Math.round(value / 1000)}k`}
+                tickFormatter={formatCurrencyCompact}
               />
               <YAxis
                 yAxisId="right"
@@ -95,7 +97,7 @@ export function ProfitChart({
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 11, fill: "#737373" }}
-                tickFormatter={(value) => `${Math.round(value / 1000)}k`}
+                tickFormatter={formatNumberCompact}
               />
               <Tooltip
                 contentStyle={{
@@ -108,7 +110,7 @@ export function ProfitChart({
                 labelStyle={{ color: "#fff" }}
                 itemStyle={{ color: "#fff" }}
                 formatter={(value: number, name: string) => [
-                  name === "sales" ? value.toLocaleString() : `$${value.toLocaleString()}`,
+                  name === "sales" ? formatNumberCompact(value) : formatCurrencyCompact(value),
                   name === "sales" ? "Units" : "Revenue",
                 ]}
                 labelFormatter={(label) => label}

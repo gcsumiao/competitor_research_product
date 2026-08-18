@@ -57,6 +57,7 @@ import {
   formatCurrencyCompact,
   formatNumberCompact,
   formatPercent,
+  formatRating,
   percentChange,
   truncateLabel,
 } from "@/lib/dashboard-format"
@@ -335,7 +336,7 @@ export function SpecsClient({
             topLabel={topRevenueRow?.label ?? "n/a"}
             topValue={formatCurrencyCompact(topRevenueRow?.revenue ?? 0)}
             growthLabel="Top value share"
-            growthValue={formatPercent(topRevenueRow?.revenueShare ?? 0, 0)}
+            growthValue={formatPercent(topRevenueRow?.revenueShare ?? 0)}
             totalLabel="Revenue/Mo"
             totalValue={formatCurrencyCompact(activeRows.reduce((sum, row) => sum + row.revenue, 0))}
           />
@@ -346,10 +347,10 @@ export function SpecsClient({
             topLabel={topUnitsRow?.label ?? "n/a"}
             topValue={formatNumberCompact(topUnitsRow?.units ?? 0)}
             growthLabel="Top value share"
-            growthValue={formatPercent(topUnitsRow?.unitsShare ?? 0, 0)}
+            growthValue={formatPercent(topUnitsRow?.unitsShare ?? 0)}
             totalLabel="Quantity/Mo"
             totalValue={formatNumberCompact(activeRows.reduce((sum, row) => sum + row.units, 0))}
-            valueFormatter={(value) => value.toLocaleString()}
+            valueFormatter={formatNumberCompact}
           />
         </div>
 
@@ -363,14 +364,14 @@ export function SpecsClient({
                 <p className="text-xs text-muted-foreground">Top Revenue Value</p>
                 <p className="text-sm font-medium">{topRevenueRow?.label ?? "n/a"}</p>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrencyCompact(topRevenueRow?.revenue ?? 0)} | {formatPercent(topRevenueRow?.revenueShare ?? 0, 0)}
+                  {formatCurrencyCompact(topRevenueRow?.revenue ?? 0)} | {formatPercent(topRevenueRow?.revenueShare ?? 0)}
                 </p>
               </div>
               <div className="rounded-lg border border-border p-3">
                 <p className="text-xs text-muted-foreground">Top Units Value</p>
                 <p className="text-sm font-medium">{topUnitsRow?.label ?? "n/a"}</p>
                 <p className="text-xs text-muted-foreground">
-                  {formatNumberCompact(topUnitsRow?.units ?? 0)} | {formatPercent(topUnitsRow?.unitsShare ?? 0, 0)}
+                  {formatNumberCompact(topUnitsRow?.units ?? 0)} | {formatPercent(topUnitsRow?.unitsShare ?? 0)}
                 </p>
               </div>
               <div className="rounded-lg border border-border p-3">
@@ -402,20 +403,20 @@ export function SpecsClient({
                     activeRows.map((row) => (
                       <tr key={`matrix-${row.valueKey}`} className="border-b border-border last:border-0">
                         <td className="py-3 px-2 text-xs font-medium">{row.label}</td>
-                        <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice, 2)}</td>
+                        <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice)}</td>
                         <td className="py-3 px-2 text-xs text-right">
-                          {row.units.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          {formatNumberCompact(row.units)}
                         </td>
                         <td className="py-3 px-2 text-xs">
                           <div className="flex items-center justify-end gap-2">
-                            <span>{formatPercent(row.unitsShare, 0)}</span>
+                            <span>{formatPercent(row.unitsShare)}</span>
                             <ShareBar value={row.unitsShare} tone="units" />
                           </div>
                         </td>
-                        <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.revenue, 0)}</td>
+                        <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(row.revenue)}</td>
                         <td className="py-3 px-2 text-xs">
                           <div className="flex items-center justify-end gap-2">
-                            <span>{formatPercent(row.revenueShare, 0)}</span>
+                            <span>{formatPercent(row.revenueShare)}</span>
                             <ShareBar value={row.revenueShare} tone="revenue" />
                           </div>
                         </td>
@@ -474,10 +475,10 @@ export function SpecsClient({
                         </a>
                       </td>
                       <td className="py-3 px-2 text-xs">{product.brand}</td>
-                      <td className="py-3 px-2 text-xs text-right">{formatCurrency(product.price, 0)}</td>
+                      <td className="py-3 px-2 text-xs text-right">{formatCurrency(product.price)}</td>
                       <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(product.revenue)}</td>
                       <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(product.units)}</td>
-                      <td className="py-3 px-2 text-xs text-right">{product.rating.toFixed(1)}</td>
+                      <td className="py-3 px-2 text-xs text-right">{formatRating(product.rating)}</td>
                       <td className="py-3 px-2 text-xs">{formatKeySpecs(dimensions, nonCodeCategoryId)}</td>
                     </tr>
                   ))}
@@ -544,7 +545,7 @@ export function SpecsClient({
       asin: product.asin,
       name: truncateLabel(product.title, 36),
       brand: product.brand,
-      priceLabel: product.price ? formatCurrency(product.price, 0) : "n/a",
+      priceLabel: product.price ? formatCurrency(product.price) : "n/a",
       revenueLabel: formatCurrencyCompact(product.revenue),
       image: product.imageUrl,
       url: product.url,
@@ -616,6 +617,7 @@ export function SpecsClient({
                 )}
                 changeValueLabel=""
                 data={typeTrend}
+                valueFormatter={formatCurrencyCompact}
               />
             </div>
             <div className="lg:col-span-2 h-full">
@@ -639,8 +641,7 @@ export function SpecsClient({
                     ? formatPercent(
                         typeMixMetric === "revenue"
                           ? topScopeRowForMix.revenueShare
-                          : topScopeRowForMix.unitsShare,
-                        1
+                          : topScopeRowForMix.unitsShare
                       )
                     : "n/a"
                 }
@@ -650,6 +651,7 @@ export function SpecsClient({
                     ? formatCurrencyCompact(scopeRows.reduce((sum, row) => sum + row.revenue, 0))
                     : formatNumberCompact(scopeRows.reduce((sum, row) => sum + row.units, 0))
                 }
+                valueFormatter={typeMixMetric === "revenue" ? formatCurrencyCompact : formatNumberCompact}
                 primaryControl={{
                   value: resolvedScope,
                   onChange: (value) => setSelectedScope(value as TypeScope),
@@ -706,11 +708,11 @@ export function SpecsClient({
                     {scopeRows.map((row) => (
                       <tr key={`${row.scopeKey}-${row.label}`} className="border-b border-border last:border-0">
                         <td className="py-3 px-2 text-xs font-medium">{row.label}</td>
-                        <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice, 2)}</td>
+                        <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice)}</td>
                         <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(row.units)}</td>
-                        <td className="py-3 px-2 text-xs text-right">{formatPercent(row.unitsShare, 1)}</td>
+                        <td className="py-3 px-2 text-xs text-right">{formatPercent(row.unitsShare)}</td>
                         <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(row.revenue)}</td>
-                        <td className="py-3 px-2 text-xs text-right">{formatPercent(row.revenueShare, 1)}</td>
+                        <td className="py-3 px-2 text-xs text-right">{formatPercent(row.revenueShare)}</td>
                         <td className="py-3 px-2 text-xs text-right">
                           {formatChangeLabel(percentFromRatio(row.revenueMoM))}
                         </td>
@@ -741,6 +743,7 @@ export function SpecsClient({
               )}
               changeValueLabel=""
               data={typeTrend}
+              valueFormatter={formatCurrencyCompact}
             />
           </div>
           <Card className="bg-card border border-border xl:col-span-2">
@@ -782,20 +785,20 @@ export function SpecsClient({
                       scopeRows.map((row) => (
                         <tr key={`scope-matrix-${row.scopeKey}-${row.label}`} className="border-b border-border last:border-0">
                           <td className="py-3 px-2 text-xs font-medium">{row.label}</td>
-                          <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice, 2)}</td>
+                          <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice)}</td>
                           <td className="py-3 px-2 text-xs text-right">
-                            {row.units.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            {formatNumberCompact(row.units)}
                           </td>
                           <td className="py-3 px-2 text-xs">
                             <div className="flex items-center justify-end gap-2">
-                              <span>{formatPercent(row.unitsShare, 0)}</span>
+                              <span>{formatPercent(row.unitsShare)}</span>
                               <ShareBar value={row.unitsShare} tone="units" />
                             </div>
                           </td>
-                          <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.revenue, 0)}</td>
+                          <td className="py-3 px-2 text-xs text-right">{formatCurrencyCompact(row.revenue)}</td>
                           <td className="py-3 px-2 text-xs">
                             <div className="flex items-center justify-end gap-2">
-                              <span>{formatPercent(row.revenueShare, 0)}</span>
+                              <span>{formatPercent(row.revenueShare)}</span>
                               <ShareBar value={row.revenueShare} tone="revenue" />
                             </div>
                           </td>
@@ -862,11 +865,16 @@ function DualMetricTrendCard({
             <LineChart data={rows}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+              <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickFormatter={formatNumberCompact} />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                tick={{ fontSize: 11 }}
+                tickFormatter={formatCurrencyCompact}
+              />
               <Tooltip
                 formatter={(value: number, name: string) => [
-                  name === "Revenue/Mo" ? formatCurrency(value, 0) : value.toLocaleString(),
+                  name === "Revenue/Mo" ? formatCurrencyCompact(value) : formatNumberCompact(value),
                   name,
                 ]}
               />
@@ -939,7 +947,7 @@ function buildTargetMetricCards(params: {
     {
       title: "Selected Value Revenue",
       value: formatCurrencyCompact(params.currentRow?.revenue ?? 0),
-      secondaryValue: `Share ${formatPercent(params.currentRow?.revenueShare ?? 0, 1)}`,
+      secondaryValue: `Share ${formatPercent(params.currentRow?.revenueShare ?? 0)}`,
       change: formatChangeLabel(
         percentChange(params.currentRow?.revenue ?? 0, params.previousRow?.revenue ?? 0)
       ),
@@ -950,7 +958,7 @@ function buildTargetMetricCards(params: {
     {
       title: "Selected Value Units",
       value: formatNumberCompact(params.currentRow?.units ?? 0),
-      secondaryValue: `Share ${formatPercent(params.currentRow?.unitsShare ?? 0, 1)}`,
+      secondaryValue: `Share ${formatPercent(params.currentRow?.unitsShare ?? 0)}`,
       change: formatChangeLabel(
         percentChange(params.currentRow?.units ?? 0, params.previousRow?.units ?? 0)
       ),
@@ -960,7 +968,7 @@ function buildTargetMetricCards(params: {
     },
     {
       title: "Avg Retail Price",
-      value: formatCurrency(params.currentRow?.avgPrice ?? 0, 0),
+      value: formatCurrency(params.currentRow?.avgPrice ?? 0),
       secondaryValue: "Top 50 summary",
       change: formatChangeLabel(
         percentChange(params.currentRow?.avgPrice ?? 0, params.previousRow?.avgPrice ?? 0)
@@ -971,7 +979,7 @@ function buildTargetMetricCards(params: {
     },
     {
       title: "Concentration (Top 3)",
-      value: formatPercent(top3Share, 1),
+      value: formatPercent(top3Share),
       secondaryValue: top3Share >= 0.8 ? "High concentration" : "Addressable concentration",
       change: top3Share >= 0.8 ? "Defend & differentiate" : "Entry feasible",
       isPositiveOutcome: top3Share < 0.8,
@@ -1066,7 +1074,7 @@ function buildCodeReaderMetricCards(
     {
       title: "Scope Revenue",
       value: formatCurrencyCompact(current?.revenue ?? 0),
-      secondaryValue: `Share ${formatPercent(current?.revenueShare ?? 0, 1)}`,
+      secondaryValue: `Share ${formatPercent(current?.revenueShare ?? 0)}`,
       change: formatChangeLabel(revenueChange),
       changeSuffix: "MoM",
       isPositiveOutcome: (revenueChange ?? 0) >= 0,
@@ -1075,7 +1083,7 @@ function buildCodeReaderMetricCards(
     {
       title: "Scope Units",
       value: formatNumberCompact(current?.units ?? 0),
-      secondaryValue: `Share ${formatPercent(current?.unitsShare ?? 0, 1)}`,
+      secondaryValue: `Share ${formatPercent(current?.unitsShare ?? 0)}`,
       change: formatChangeLabel(unitsChange),
       changeSuffix: "MoM",
       isPositiveOutcome: (unitsChange ?? 0) >= 0,
@@ -1083,8 +1091,8 @@ function buildCodeReaderMetricCards(
     },
     {
       title: "Average Price",
-      value: formatCurrency(current?.avgPrice ?? 0, 2),
-      secondaryValue: previous ? `Prev ${formatCurrency(previous.avgPrice, 2)}` : undefined,
+      value: formatCurrency(current?.avgPrice ?? 0),
+      secondaryValue: previous ? `Prev ${formatCurrency(previous.avgPrice)}` : undefined,
       change: formatChangeLabel(percentFromRatio(current?.avgPriceMoM)),
       changeSuffix: "MoM",
       isPositiveOutcome: true,
@@ -1128,7 +1136,7 @@ function buildDefaultMetricCards(
     },
     {
       title: "Avg Price",
-      value: formatCurrency(activeSnapshot?.totals.avgPrice ?? 0, 2),
+      value: formatCurrency(activeSnapshot?.totals.avgPrice ?? 0),
       change: formatChangeLabel(avgPriceChange),
       changeSuffix: "MoM",
       isPositiveOutcome: true,

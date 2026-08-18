@@ -14,6 +14,7 @@ import {
 import type { TooltipProps } from "recharts"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatNumberCompact } from "@/lib/dashboard-format"
 
 type TrendLineDatum = {
   label: string
@@ -50,7 +51,7 @@ export function TrendLineCard({
   compactSummary?: boolean
 }) {
   const chartId = useId().replace(/:/g, "")
-  const formatValue = formatter ?? ((value: number) => value.toLocaleString())
+  const formatValue = formatter ?? formatNumberCompact
   const formatAxisValue = axisFormatter ?? formatValue
   const renderTooltip = ({ active, label, payload }: TooltipProps<number, string>) => {
     if (!active || !payload?.length) return null

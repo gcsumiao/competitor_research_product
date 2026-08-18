@@ -25,7 +25,8 @@ function pctChange(current: number, previous: number) {
 
 function formatChange(value: number | null) {
   if (value === null || !Number.isFinite(value)) return "n/a"
-  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`
+  const rounded = Math.round(value)
+  return `${rounded > 0 ? "+" : ""}${rounded}%`
 }
 
 type RevenueMoMCandidate = {
