@@ -61,12 +61,12 @@ export function BrandPerformanceChart({
     <Card className="bg-card border-border h-full">
       <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <CardTitle className="text-base font-medium">Brand performance</CardTitle>
+          <CardTitle className="text-base font-medium">Brand monthly performance</CardTitle>
           <p className="text-xs text-muted-foreground">Rolling 12 monthly revenue and units</p>
         </div>
         <div
           className="flex w-fit items-center rounded-full border border-border bg-background/40 p-0.5"
-          aria-label="Brand performance selector"
+          aria-label="Brand monthly performance selector"
         >
           {(Object.keys(BRAND_PALETTES) as BrandPerformanceBrand[]).map((option) => (
             <button

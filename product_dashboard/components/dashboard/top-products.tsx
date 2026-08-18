@@ -20,6 +20,7 @@ interface TopProductsProps {
   title?: string
   subtitle?: string
   headerRight?: ReactNode
+  imageFallbacks?: Map<string, string>
 }
 
 export function TopProducts({
@@ -27,6 +28,7 @@ export function TopProducts({
   title = "Top Products",
   subtitle = "Revenue leaders in this snapshot",
   headerRight,
+  imageFallbacks,
 }: TopProductsProps) {
   return (
     <Card className="bg-card border-border h-full">
@@ -44,7 +46,11 @@ export function TopProducts({
             <div key={rowKey} className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-lg bg-muted overflow-hidden">
-                  <TopProductImage key={`image-${rowKey}`} product={product} />
+                  <TopProductImage
+                    key={`image-${rowKey}`}
+                    product={product}
+                    imageFallbacks={imageFallbacks}
+                  />
                 </div>
                 <div>
                   <p className="text-sm font-medium">{product.name}</p>
@@ -62,8 +68,17 @@ export function TopProducts({
   )
 }
 
-function TopProductImage({ product }: { product: TopProduct }) {
-  const candidates = useMemo(() => resolveImageCandidates(product), [product])
+function TopProductImage({
+  product,
+  imageFallbacks,
+}: {
+  product: TopProduct
+  imageFallbacks?: Map<string, string>
+}) {
+  const candidates = useMemo(
+    () => resolveImageCandidates(product, imageFallbacks),
+    [imageFallbacks, product]
+  )
   const [candidateIndex, setCandidateIndex] = useState(0)
   const safeIndex = Math.min(candidateIndex, candidates.length - 1)
   const src = candidates[safeIndex] ?? "/placeholder.svg"
@@ -101,7 +116,7 @@ function TopProductImage({ product }: { product: TopProduct }) {
   return image
 }
 
-function resolveImageCandidates(product: TopProduct) {
+function resolveImageCandidates(product: TopProduct, imageFallbacks?: Map<string, string>) {
   const values: string[] = []
   const image = product.image?.trim()
   if (image) {
@@ -110,6 +125,10 @@ function resolveImageCandidates(product: TopProduct) {
 
   const asin = product.asin?.trim().toUpperCase() || extractAsin(product.url)
   if (asin) {
+    const fallback = imageFallbacks?.get(asin)?.trim()
+    if (fallback) {
+      values.push(fallback)
+    }
     values.push(`https://m.media-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_.jpg`)
     values.push(`https://m.media-amazon.com/images/P/${asin}.01._SL160_.jpg`)
     values.push(`https://m.media-amazon.com/images/P/${asin}.01._AC_UL160_.jpg`)

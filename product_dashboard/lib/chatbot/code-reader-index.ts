@@ -31,8 +31,8 @@ export type IndexedProduct = {
   estimatedUnits12mo?: number
   monthlyRevenue?: number
   monthlyUnits?: number
-  rankRevenue: number
-  rankUnits: number
+  rankRevenue: number | null
+  rankUnits: number | null
   revenueMoM: number | null
   unitsMoM: number | null
   priceMoM: number | null
@@ -144,14 +144,17 @@ export function buildCodeReaderDataMart(
   const snapshotProductsByDate = new Map(
     sorted.map((item) => [item.date, extractSnapshotProducts(item)] as const)
   )
+  const { revenueRanksByDate, unitsRanksByDate } = buildFullRevenueRanksByDate(
+    snapshotProductsByDate
+  )
   const currentProducts = snapshotProductsByDate.get(snapshot.date) ?? new Map<string, ProductSummary>()
   const previousProducts = previous
     ? snapshotProductsByDate.get(previous.date) ?? new Map<string, ProductSummary>()
     : new Map<string, ProductSummary>()
 
   const products = Array.from(currentProducts.values())
-    .map((raw) => {
-      const previousRaw = previousProducts.get(raw.asin)
+    .map((raw): IndexedProduct => {
+      const previousRaw = previousProducts.get(normalize(raw.asin))
       return {
         asin: raw.asin,
         title: raw.title,
@@ -167,8 +170,8 @@ export function buildCodeReaderDataMart(
         estimatedUnits12mo: safeOptionalNumber(raw.estimatedUnits12mo),
         monthlyRevenue: safeOptionalNumber(raw.monthlyRevenue ?? raw.revenue),
         monthlyUnits: safeOptionalNumber(raw.monthlyUnits ?? raw.units),
-        rankRevenue: 0,
-        rankUnits: 0,
+        rankRevenue: null,
+        rankUnits: null,
         revenueMoM: ratioDelta(
           safeNumber(raw.monthlyRevenue ?? raw.revenue),
           safeNumber(previousRaw?.monthlyRevenue ?? previousRaw?.revenue)
@@ -181,22 +184,28 @@ export function buildCodeReaderDataMart(
           safeNumber(raw.avgPrice ?? raw.price),
           safeNumber(previousRaw?.avgPrice ?? previousRaw?.price)
         ),
-        ratingMoM: safeNumber(raw.toolRating ?? raw.rating) - safeNumber(previousRaw?.toolRating ?? previousRaw?.rating),
-        history: buildProductHistory(sorted, raw.asin, snapshotProductsByDate),
+        ratingMoM: previousRaw
+          ? safeNumber(raw.toolRating ?? raw.rating) - safeNumber(previousRaw.toolRating ?? previousRaw.rating)
+          : null,
+        history: buildProductHistory(
+          sorted,
+          snapshot.date,
+          raw.asin,
+          snapshotProductsByDate,
+          revenueRanksByDate,
+          unitsRanksByDate
+        ),
       }
     })
     .sort((a, b) => b.revenue - a.revenue)
 
-  products.forEach((item, index) => {
-    item.rankRevenue = index + 1
+  const currentRevenueRanks = revenueRanksByDate.get(snapshot.date)
+  const currentUnitsRanks = unitsRanksByDate.get(snapshot.date)
+  products.forEach((item) => {
+    const key = normalize(item.asin)
+    item.rankRevenue = currentRevenueRanks?.get(key) ?? null
+    item.rankUnits = currentUnitsRanks?.get(key) ?? null
   })
-  const rankedProductByAsin = new Map(products.map((item) => [normalize(item.asin), item]))
-  ;[...products]
-    .sort((a, b) => b.units - a.units)
-    .forEach((item, index) => {
-      const target = rankedProductByAsin.get(normalize(item.asin))
-      if (target) target.rankUnits = index + 1
-    })
 
   const productsByAsin = new Map(products.map((item) => [normalize(item.asin), item]))
   const productsByBrand = new Map<string, IndexedProduct[]>()
@@ -303,20 +312,24 @@ function mergeProduct(map: Map<string, ProductSummary>, next: ProductSummary) {
 
 function buildProductHistory(
   sortedSnapshots: SnapshotSummary[],
+  selectedDate: string,
   asin: string,
-  snapshotProductsByDate: Map<string, Map<string, ProductSummary>>
+  snapshotProductsByDate: Map<string, Map<string, ProductSummary>>,
+  revenueRanksByDate: Map<string, Map<string, number>>,
+  unitsRanksByDate: Map<string, Map<string, number>>
 ): ProductHistoryPoint[] {
   const key = normalize(asin)
   const history: ProductHistoryPoint[] = []
 
   for (const snapshot of sortedSnapshots) {
+    if (snapshot.date > selectedDate) continue
     const productMap = snapshotProductsByDate.get(snapshot.date)
     if (!productMap) continue
     const product = productMap.get(key)
     if (!product) continue
 
-    const rankRevenue = indexOfRank(snapshot.topProducts ?? [], product.asin)
-    const rankUnits = indexOfRank(snapshot.top50ByUnits ?? [], product.asin)
+    const rankRevenue = revenueRanksByDate.get(snapshot.date)?.get(key) ?? null
+    const rankUnits = unitsRanksByDate.get(snapshot.date)?.get(key) ?? null
 
     history.push({
       date: snapshot.date,
@@ -331,6 +344,53 @@ function buildProductHistory(
   }
 
   return history
+}
+
+function buildFullRevenueRanksByDate(
+  snapshotProductsByDate: Map<string, Map<string, ProductSummary>>
+) {
+  const revenueRanksByDate = new Map<string, Map<string, number>>()
+  const unitsRanksByDate = new Map<string, Map<string, number>>()
+
+  for (const [date, productMap] of snapshotProductsByDate) {
+    revenueRanksByDate.set(
+      date,
+      buildDenseProductRanks(productMap, (product) =>
+        safeNumber(product.monthlyRevenue ?? product.revenue)
+      )
+    )
+    unitsRanksByDate.set(
+      date,
+      buildDenseProductRanks(productMap, (product) =>
+        safeNumber(product.monthlyUnits ?? product.units)
+      )
+    )
+  }
+
+  return { revenueRanksByDate, unitsRanksByDate }
+}
+
+function buildDenseProductRanks(
+  productMap: Map<string, ProductSummary>,
+  getValue: (product: ProductSummary) => number
+) {
+  const ranks = new Map<string, number>()
+  const rankedProducts = Array.from(productMap.entries())
+    .map(([asin, product]) => ({ asin, value: getValue(product) }))
+    .filter((item) => item.value > 0)
+    .sort((left, right) => right.value - left.value || left.asin.localeCompare(right.asin))
+
+  let denseRank = 0
+  let previousValue: number | undefined
+  for (const { asin, value } of rankedProducts) {
+    if (previousValue === undefined || value !== previousValue) {
+      denseRank += 1
+      previousValue = value
+    }
+    ranks.set(asin, denseRank)
+  }
+
+  return ranks
 }
 
 function buildBrandSeries(sortedSnapshots: SnapshotSummary[]) {
@@ -660,12 +720,6 @@ function getYoYSnapshot(sortedSnapshots: SnapshotSummary[], snapshotDate: string
 
   const earlier = sortedSnapshots.filter((item) => item.date.slice(0, 7) <= yoyMonthKey)
   return earlier[earlier.length - 1]
-}
-
-function indexOfRank(source: ProductSummary[], asin: string) {
-  if (!source.length || !asin) return null
-  const idx = source.findIndex((item) => normalize(item.asin) === normalize(asin))
-  return idx < 0 ? null : idx + 1
 }
 
 function pickString(current?: string, next?: string) {

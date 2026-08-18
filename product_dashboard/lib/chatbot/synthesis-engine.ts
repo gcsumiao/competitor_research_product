@@ -67,7 +67,12 @@ export function buildSynthesisSummary(mart: CodeReaderDataMart): SynthesisSummar
   }
 
   const rising = mart.products
-    .filter((item) => (item.revenueMoM ?? 0) >= 0.25 && item.rankRevenue <= 20)
+    .filter(
+      (item) =>
+        (item.revenueMoM ?? 0) >= 0.25 &&
+        item.rankRevenue !== null &&
+        item.rankRevenue <= 20
+    )
     .slice(0, 3)
   watchlist.push(
     ...rising.map(

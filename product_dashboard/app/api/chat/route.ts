@@ -102,7 +102,7 @@ export async function POST(request: Request) {
 
     const enhanced = await maybeEnhanceWithLlm(message, deterministicWithTime)
     const finalResponse = addSnapshotPrefix(enhanced ?? deterministicWithTime)
-    return NextResponse.json(finalResponse)
+    return NextResponse.json(toClientResponse(finalResponse))
   } catch {
     return NextResponse.json(
       {
@@ -157,7 +157,12 @@ async function maybeEnhanceWithLlm(
   if (!apiKey) return null
 
   const intentInfo = detectIntent(question)
-  const shouldUseLlm = deterministic.intent === "unknown" || intentInfo.confidence < 0.55
+  const confidence = deterministic.confidence ?? intentInfo.confidence
+  const shouldUseLlm =
+    deterministic.intent === "unknown" ||
+    confidence < 0.55 ||
+    (deterministic.wantsLlmSynthesis === true &&
+      (deterministic.confidence ?? 1) < 0.8)
   if (!shouldUseLlm) return null
 
   try {
@@ -172,19 +177,26 @@ async function maybeEnhanceWithLlm(
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
         temperature: 0.2,
+        response_format: { type: "json_object" },
         messages: [
           {
             role: "system",
             content:
-              "You are rephrasing an analytics answer. Keep numbers and facts consistent with provided deterministic data. Return strict JSON with keys answer, bullets, suggestedQuestions.",
+              "You are an analytics analyst. Answer the user's question directly in 1-3 plain sentences plus up to 5 concise evidence bullets. Use only facts in factPack; never infer or invent a metric. If factPack warnings are present, lead with the material caveat. Do not use Markdown syntax. Return strict JSON with keys answer, bullets, suggestedQuestions.",
           },
           {
             role: "user",
             content: JSON.stringify({
               question,
-              deterministic,
-              instruction:
-                "Rewrite to be concise and stakeholder-friendly. Do not invent metrics. Keep bullets <= 5.",
+              factPack: {
+                ...(deterministic.factPack ?? {
+                  intent: deterministic.intent,
+                  evidence: deterministic.evidence,
+                  snapshotUsed: deterministic.snapshotUsed,
+                  compareSnapshotUsed: deterministic.compareSnapshotUsed,
+                }),
+                warnings: deterministic.warnings ?? [],
+              },
             }),
           },
         ],
@@ -201,15 +213,23 @@ async function maybeEnhanceWithLlm(
     const parsed = safeParseJson(content)
     if (!parsed) return null
 
-    const answer = typeof parsed.answer === "string" ? parsed.answer.trim() : ""
+    const answer = typeof parsed.answer === "string" ? cleanPlainText(parsed.answer) : ""
     if (!answer) return null
 
     const bullets = Array.isArray(parsed.bullets)
-      ? parsed.bullets.filter((item): item is string => typeof item === "string").slice(0, 5)
+      ? parsed.bullets
+          .filter((item): item is string => typeof item === "string")
+          .map(cleanPlainText)
+          .filter(Boolean)
+          .slice(0, 5)
       : deterministic.bullets
 
     const suggestedQuestions = Array.isArray(parsed.suggestedQuestions)
-      ? parsed.suggestedQuestions.filter((item): item is string => typeof item === "string").slice(0, 4)
+      ? parsed.suggestedQuestions
+          .filter((item): item is string => typeof item === "string")
+          .map(cleanPlainText)
+          .filter(Boolean)
+          .slice(0, 4)
       : deterministic.suggestedQuestions
 
     // Guardrail: if question explicitly asks for a brand, keep deterministic scope fidelity.
@@ -226,6 +246,21 @@ async function maybeEnhanceWithLlm(
   } catch {
     return null
   }
+}
+
+function cleanPlainText(value: string) {
+  return value
+    .trim()
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/[*_`]/g, "")
+    .trim()
+}
+
+function toClientResponse(response: ChatResponse) {
+  const output = { ...response }
+  delete output.factPack
+  delete output.wantsLlmSynthesis
+  return output
 }
 
 function safeParseJson(content: string): Record<string, unknown> | null {

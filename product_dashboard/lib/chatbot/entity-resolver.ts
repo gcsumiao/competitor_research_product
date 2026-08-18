@@ -52,7 +52,10 @@ export function resolveEntities(
   const brandResolution = resolveBrands(normalized, tokenSet, mart)
   const brandMatches = brandResolution.brands
   entitySources.push(...brandResolution.sources)
-  const titleMatches = resolveByTitle(normalized, mart)
+  const skipTitleResolution =
+    options?.parsedQuery?.plan.intent === "sku_threat" ||
+    options?.parsedQuery?.plan.intent === "competitive_density"
+  const titleMatches = skipTitleResolution ? [] : resolveByTitle(normalized, mart)
   for (const product of titleMatches) {
     entitySources.push({
       entity: "product",
@@ -236,6 +239,14 @@ function resolveScope(params: {
   targetBrand?: string
   parsedQuery?: ParsedQuery
 }): ResolvedScope {
+  if (params.parsedQuery?.plan.intent === "sku_threat") {
+    return {
+      mode: "all_brands",
+      brands: [],
+      source: "SKU-threat analysis defends own brands but evaluates the full competitor universe.",
+    }
+  }
+
   const explicit = unique(params.parsedQuery?.plan.scopeBrands ?? params.matchedBrands)
   if (explicit.length) {
     return {

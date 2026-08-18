@@ -16,7 +16,7 @@ import {
   BrandPerformanceChart,
   type BrandPerformanceBrand,
 } from "@/components/dashboard/brand-performance-chart"
-import { MetricCard } from "@/components/dashboard/metric-card"
+import { MetricCard, type MetricCardLogo } from "@/components/dashboard/metric-card"
 import { PageHeader } from "@/components/dashboard/page-header"
 import { ProfitChart } from "@/components/dashboard/profit-chart"
 import { CustomerOrders } from "@/components/dashboard/customer-orders"
@@ -30,7 +30,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { DashboardData, SnapshotSummary, TypeBreakdownMetric } from "@/lib/competitor-data"
+import type {
+  DashboardData,
+  ProductSummary,
+  SnapshotSummary,
+  TypeBreakdownMetric,
+} from "@/lib/competitor-data"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
 import { averagePriceForCategory } from "@/lib/jump-starters-classification"
 import { cn } from "@/lib/utils"
@@ -67,6 +72,24 @@ const PRICE_TIER_COLORS: Record<string, string> = {
 const PRICE_TIER_FALLBACK_COLOR = "var(--color-tier-total-other-tools)"
 const INNOVA_BRAND = "innova"
 const BLCKTEC_BRAND = "blcktec"
+const MARKET_TREND_REVENUE_COLOR = "#5B21B6"
+const MARKET_TREND_UNITS_COLOR = "#A855F7"
+const METRIC_SECONDARY_EMPHASIS_CLASS = "text-2xl font-semibold text-foreground"
+const BRAND_LOGO_CHIP_CLASS = "w-28 justify-center bg-neutral-900"
+const INNOVA_LOGO: MetricCardLogo = {
+  src: "/brand-logos/innova-brand.png",
+  alt: "Innova",
+  width: 1310,
+  height: 351,
+  chipClassName: BRAND_LOGO_CHIP_CLASS,
+}
+const BLCKTEC_LOGO: MetricCardLogo = {
+  src: "/brand-logos/blcktec-brand.png",
+  alt: "BLCKTEC",
+  width: 2374,
+  height: 278,
+  chipClassName: BRAND_LOGO_CHIP_CLASS,
+}
 
 const DETAILED_PRICE_TIER_KEYS = new Set([
   "tablet_800_plus",
@@ -103,6 +126,7 @@ type MetricCardView = {
   changeSuffix?: string
   isPositiveOutcome: boolean
   icon: typeof DollarSign
+  logo?: MetricCardLogo
   valueClassName?: string
   secondaryValueClassName?: string
   changeClassName?: string
@@ -198,6 +222,11 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         label: formatSnapshotLabelMonthEnd(snapshot.date),
         value: marketTrendMetric === "units" ? snapshot.totals.units : snapshot.totals.revenue,
       }))
+
+  const productImageFallbacks = useMemo(
+    () => buildProductImageFallbacks(selectedCategory?.snapshots ?? []),
+    [selectedCategory]
+  )
 
   const topAsinsSource = isCodeReader && topAsinsMetric === "units"
     ? (activeSnapshot?.top50ByUnits ?? activeSnapshot?.topProducts ?? [])
@@ -356,6 +385,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
               changeSuffix={metric.changeSuffix}
               isPositiveOutcome={metric.isPositiveOutcome}
               icon={metric.icon}
+              logo={metric.logo}
               valueClassName={metric.valueClassName}
               secondaryValueClassName={metric.secondaryValueClassName}
               changeClassName={metric.changeClassName}
@@ -378,6 +408,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                 changeSuffix={metric.changeSuffix}
                 isPositiveOutcome={metric.isPositiveOutcome}
                 icon={metric.icon}
+                logo={metric.logo}
                 valueClassName={metric.valueClassName}
                 secondaryValueClassName={metric.secondaryValueClassName}
                 changeClassName={metric.changeClassName}
@@ -416,6 +447,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
           {isCodeReader ? (
             <TopProducts
               products={products}
+              imageFallbacks={productImageFallbacks}
               title="Top ASINs"
               subtitle={
                 topAsinsMetric === "units"
@@ -454,6 +486,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
           ) : (
           <TopProducts
             products={products}
+            imageFallbacks={productImageFallbacks}
             title="Top ASINs"
             subtitle="Revenue leaders in selected snapshot"
           />
@@ -487,9 +520,9 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                 : undefined
             }
             color={
-              isCodeReader
-                ? (marketTrendMetric === "units" ? "#2563EB" : "#F97316")
-                : undefined
+              marketTrendMetric === "units"
+                ? MARKET_TREND_UNITS_COLOR
+                : MARKET_TREND_REVENUE_COLOR
             }
             headerRight={
               <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
@@ -637,6 +670,32 @@ function formatCodeReaderDelta(
   return `${delta >= 0 ? "+" : "-"}${formatter(Math.abs(delta))}`
 }
 
+function buildProductImageFallbacks(snapshots: SnapshotSummary[]): Map<string, string> {
+  const fallbacks = new Map<string, string>()
+
+  for (let index = snapshots.length - 1; index >= 0; index -= 1) {
+    const snapshot = snapshots[index]
+    if (!snapshot) continue
+
+    const groups: ProductSummary[][] = [
+      snapshot.topProducts ?? [],
+      snapshot.top50ByUnits ?? [],
+      ...(snapshot.brandListings ?? []).map((listing) => listing.products ?? []),
+    ]
+
+    for (const products of groups) {
+      for (const product of products) {
+        const asin = product.asin?.trim().toUpperCase()
+        const imageUrl = product.imageUrl?.trim()
+        if (!asin || !imageUrl || fallbacks.has(asin)) continue
+        fallbacks.set(asin, imageUrl)
+      }
+    }
+  }
+
+  return fallbacks
+}
+
 function buildMetricCards(
   current: SnapshotSummary | undefined,
   previous: SnapshotSummary | undefined,
@@ -698,10 +757,12 @@ function buildMetricCards(
         valueBadgeText: innovaRevenueMove.label,
         valueBadgeClassName: innovaRevenueMove.className,
         secondaryValue: `Revenue ${formatCodeReaderCurrencyCompact(innovaCurrentRevenue?.grandTotal ?? 0)}`,
+        secondaryValueClassName: METRIC_SECONDARY_EMPHASIS_CLASS,
         change: `Rolling 12 ${formatChangeLabel(innovaRevenueChange)} vs prior month`,
         changeClassName: metricDeltaClassName(innovaRevenueChange),
         isPositiveOutcome: (innovaRevenueChange ?? 0) >= 0,
         icon: DollarSign,
+        logo: INNOVA_LOGO,
       },
       {
         title: "Innova Rolling 12 Units Rank",
@@ -709,10 +770,12 @@ function buildMetricCards(
         valueBadgeText: innovaUnitsMove.label,
         valueBadgeClassName: innovaUnitsMove.className,
         secondaryValue: `Units ${formatCodeReaderUnitsCompact(innovaCurrentUnits?.grandTotal ?? 0)}`,
+        secondaryValueClassName: METRIC_SECONDARY_EMPHASIS_CLASS,
         change: `Rolling 12 ${formatChangeLabel(innovaUnitsChange)} vs prior month`,
         changeClassName: metricDeltaClassName(innovaUnitsChange),
         isPositiveOutcome: (innovaUnitsChange ?? 0) >= 0,
         icon: Package,
+        logo: INNOVA_LOGO,
       },
       {
         title: "BLCKTEC Rolling 12 Rev Rank",
@@ -720,10 +783,12 @@ function buildMetricCards(
         valueBadgeText: blcktecRevenueMove.label,
         valueBadgeClassName: blcktecRevenueMove.className,
         secondaryValue: `Revenue ${formatCodeReaderCurrencyCompact(blcktecCurrentRevenue?.grandTotal ?? 0)}`,
+        secondaryValueClassName: METRIC_SECONDARY_EMPHASIS_CLASS,
         change: `Rolling 12 ${formatChangeLabel(blcktecRevenueChange)} vs prior month`,
         changeClassName: metricDeltaClassName(blcktecRevenueChange),
         isPositiveOutcome: (blcktecRevenueChange ?? 0) >= 0,
         icon: DollarSign,
+        logo: BLCKTEC_LOGO,
       },
       {
         title: "BLCKTEC Rolling 12 Units Rank",
@@ -731,10 +796,12 @@ function buildMetricCards(
         valueBadgeText: blcktecUnitsMove.label,
         valueBadgeClassName: blcktecUnitsMove.className,
         secondaryValue: `Units ${formatCodeReaderUnitsCompact(blcktecCurrentUnits?.grandTotal ?? 0)}`,
+        secondaryValueClassName: METRIC_SECONDARY_EMPHASIS_CLASS,
         change: `Rolling 12 ${formatChangeLabel(blcktecUnitsChange)} vs prior month`,
         changeClassName: metricDeltaClassName(blcktecUnitsChange),
         isPositiveOutcome: (blcktecUnitsChange ?? 0) >= 0,
         icon: Package,
+        logo: BLCKTEC_LOGO,
       },
     ]
   }

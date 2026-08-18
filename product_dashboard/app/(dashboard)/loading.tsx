@@ -20,6 +20,9 @@ export default function Loading() {
         {Array.from({ length: 4 }, (_, index) => (
           <Card key={index} className="bg-card border border-border">
             <CardContent className="p-5">
+              <div className="flex items-center mb-3">
+                <Bar className="h-9 w-28 rounded-lg" />
+              </div>
               <div className="flex items-start justify-between mb-2">
                 <Bar className="h-5 w-36" />
                 <Bar className="w-8 h-8 rounded-lg" />
@@ -27,7 +30,7 @@ export default function Loading() {
               <div className="mb-1 h-9 flex items-center">
                 <Bar className="h-7 w-24" />
               </div>
-              <Bar className="h-4 w-28 mb-2" />
+              <Bar className="h-8 w-40 mb-2" />
               <Bar className="h-4 w-44" />
             </CardContent>
           </Card>

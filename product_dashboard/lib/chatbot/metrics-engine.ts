@@ -1,4 +1,7 @@
-import { buildCodeReaderDataMart } from "@/lib/chatbot/code-reader-index"
+import {
+  buildCodeReaderDataMart,
+  type IndexedProduct,
+} from "@/lib/chatbot/code-reader-index"
 import { findClosestCompetitors } from "@/lib/chatbot/competitor-engine"
 import { resolveEntities } from "@/lib/chatbot/entity-resolver"
 import { routeIntent, type AnalyzerId } from "@/lib/chatbot/intent-router"
@@ -41,6 +44,8 @@ type AnalyzerOutput = {
   historicalWindow?: HistoricalWindow
   salesArchetype?: SalesArchetype
   topContributors?: TopContributor[]
+  factPack?: Record<string, unknown>
+  wantsLlmSynthesis?: boolean
 }
 
 type AnalyzerParams = {
@@ -52,6 +57,18 @@ type AnalyzerParams = {
   matchedProducts: NonNullable<ReturnType<typeof resolveEntities>["matchedProducts"]>
   message: string
 }
+
+const OWN_BRAND_KEYS = ["innova", "blcktec"] as const
+const ASIN_HEADLINE_PRIOR_REVENUE_MAX = 10_000
+const ASIN_HEADLINE_CATEGORY_REVENUE_SHARE = 0.001
+const DENSITY_REVENUE_FLOOR_SHARE = 0.02
+const DENSITY_PRICE_BANDS = [
+  { label: "<$50", min: 0, max: 50 },
+  { label: "$50-100", min: 50, max: 100 },
+  { label: "$100-200", min: 100, max: 200 },
+  { label: "$200-400", min: 200, max: 400 },
+  { label: "$400+", min: 400, max: Number.POSITIVE_INFINITY },
+] as const
 
 export function buildCodeReaderBrainResponse({
   message,
@@ -100,9 +117,9 @@ export function buildCodeReaderBrainResponse({
       evidence: baseEvidence(mart.snapshot),
       proactive: buildSynthesisSummary(mart).proactive,
       suggestedQuestions: [
-        "Which ASIN should we analyze?",
-        "Compare Innova 5610 against closest competitors.",
-        "Show product trend for Innova 5610.",
+        "Who is Innova 5610's biggest competitor?",
+        "How did Innova 5610 perform vs last month?",
+        "Which competitor is threatening our top SKU?",
       ],
       warnings: mart.qualityWarnings,
       confidence: 0.42,
@@ -157,6 +174,8 @@ export function buildCodeReaderBrainResponse({
     historicalWindow: output.historicalWindow,
     salesArchetype: output.salesArchetype,
     topContributors: output.topContributors,
+    factPack: output.factPack,
+    wantsLlmSynthesis: output.wantsLlmSynthesis,
     snapshotUsed: mart.snapshot.date,
     compareSnapshotUsed,
     windowUsed,
@@ -177,6 +196,15 @@ function runAnalyzer(
 ): AnalyzerOutput {
   const { mart } = params
   const ownBrands = resolveOwnBrands(params.targetBrand, params.scope)
+
+  if (analyzer === "sku_threat") {
+    return analyzeSkuThreat(params)
+  }
+
+  if (analyzer === "competitive_density") {
+    return analyzeCompetitiveDensity(params)
+  }
+
   const brandArchetypes = computeBrandArchetypes(mart)
 
   if (analyzer === "fastest_growth" || analyzer === "fastest_mover") {
@@ -226,7 +254,7 @@ function runAnalyzer(
       const window3 = history?.windows["3m"]
       const window12 = history?.windows["12m"]?.months ? history.windows["12m"] : history?.windows.all
       return {
-        answer: `ASIN History: ${target.brand} ${target.asin} is ${history?.windows["3m"].trend ?? "flat"} over the recent period.`,
+        answer: `${target.brand} ${target.asin}'s recent revenue trend is ${history?.windows["3m"].trend ?? "flat"}.`,
         bullets: [
           `Latest month: ${formatCurrency(target.revenue)} revenue, ${formatNumber(target.units)} units, ASP ${formatCurrency(target.price)}.`,
           window3
@@ -271,7 +299,7 @@ function runAnalyzer(
     }
 
     return {
-      answer: `${brandKey.toUpperCase()} top ASINs are ${topContributors.map((item) => item.asin).join(", ")} with historical trend support.`,
+      answer: `${brandKey.toUpperCase()}'s top revenue ASIN is ${topContributors[0].asin}; the next contributors are ${topContributors.slice(1).map((item) => item.asin).join(", ") || "not available"}.`,
       bullets: topContributors.map(
         (item) =>
           `${item.asin}: ${formatCurrency(item.revenue)} revenue, ${formatNumber(item.units)} units, trend ${item.trend}.`
@@ -329,7 +357,7 @@ function runAnalyzer(
         citations: [citation("Brand archetype scoring", "current snapshot brand metrics", mart.snapshot.date)],
         suggestedQuestions: [
           `Show ${stats.brand} top ASIN history.`,
-          `Who is ${stats.brand}'s fastest-moving ASIN?`,
+          `Show the fastest-growing ${stats.brand} products.`,
           "Which brands are volume-led this month?",
         ],
         warnings: [],
@@ -374,7 +402,7 @@ function runAnalyzer(
     }
 
     return {
-      answer: `Closest Competitor: ${top.product.brand} ${top.product.asin}`,
+      answer: `${top.product.brand} ${shortProductTitle(top.product.title, 52, top.product.brand)} (${top.product.asin}) is the closest current competitor to ${target.brand} ${target.asin}.`,
       bullets: [
         `Target ${target.brand} ${target.asin}: ${formatCurrency(target.revenue)} revenue, ${formatNumber(target.units)} units, ASP ${formatCurrency(target.price)}.`,
         ...top.evidence.slice(0, 4),
@@ -392,8 +420,8 @@ function runAnalyzer(
         citation("Competitor scoring model", "deterministic competitor-engine", mart.snapshot.date),
       ],
       suggestedQuestions: [
-        `What trend does ${top.product.asin} show vs ${target.asin}?`,
-        `Are there faster-growing alternatives in ${target.type}?`,
+        `How did ${top.product.asin} perform vs last month?`,
+        "Which products grew revenue fastest this month?",
         "Show competitor movement this month.",
       ],
       warnings: [],
@@ -406,8 +434,10 @@ function runAnalyzer(
     const target = params.matchedProducts[0] ?? scopedProducts[0] ?? mart.products.find((item) => ownBrands.has(normalize(item.brand)))
     if (!target) return unknownOutput(mart, "I couldn't identify which product trend to analyze.")
 
-    const last = target.history[target.history.length - 1]
-    const prev = target.history[target.history.length - 2]
+    const last = target.history.find((point) => point.date === mart.snapshot.date)
+    const prev = mart.previous
+      ? target.history.find((point) => point.date === mart.previous?.date)
+      : undefined
     const revenueMoM = target.revenueMoM
     const unitsMoM = target.unitsMoM
 
@@ -435,7 +465,7 @@ function runAnalyzer(
       ],
       suggestedQuestions: [
         `Who is the biggest competitor to ${target.asin}?`,
-        `Is ${target.asin} losing share in its price band?`,
+        `How did ${target.asin}'s revenue and units change vs last month?`,
         "Show market shift for top competitors.",
       ],
       warnings: [],
@@ -466,6 +496,82 @@ function runAnalyzer(
       ? getBrandRolling12GrandTotals(mart.previous, singleBrand.brand)
       : null
     const requestedRolling12 = isExplicitRolling12Request(params.parsed.normalized)
+    const requestedMultiMonthTrend =
+      /\b(revenue|units|share)\b/.test(params.parsed.normalized) &&
+      /\btrend\b/.test(params.parsed.normalized) &&
+      /\b(3|6|12)[ -]?(month|months|m)\b/.test(params.parsed.normalized)
+
+    if (requestedMultiMonthTrend) {
+      const requestedMonths = params.parsed.plan.historicalWindow === "6m" ? 6 : 12
+      const dates = unique(
+        Array.from(brandKeys).flatMap((brandKey) =>
+          (mart.brandSeries.get(brandKey) ?? []).map((point) => point.date)
+        )
+      ).sort((a, b) => a.localeCompare(b))
+      const windowDates = dates.slice(-requestedMonths)
+      const startDate = windowDates[0]
+      const startPoints = Array.from(brandKeys)
+        .map((brandKey) => (mart.brandSeries.get(brandKey) ?? []).find((point) => point.date === startDate))
+        .filter((point): point is NonNullable<typeof point> => Boolean(point))
+      const startRevenue = sum(startPoints.map((point) => point.revenue))
+      const startUnits = sum(startPoints.map((point) => point.units))
+      const startShare = sum(startPoints.map((point) => point.share))
+
+      if (startDate && startPoints.length) {
+        return {
+          answer: `Over the available ${windowDates.length}-month window, ${labelForScope(params.scope)} revenue changed ${formatPercent(ratio(currentRevenue, startRevenue))}, units changed ${formatPercent(ratio(currentUnits, startUnits))}, and share moved from ${formatSharePercent(startShare)} to ${formatSharePercent(currentShare)}.`,
+          bullets: [
+            `${startDate}: ${formatCurrency(startRevenue)} revenue, ${formatNumber(startUnits)} units, ${formatSharePercent(startShare)} share.`,
+            `${mart.snapshot.date}: ${formatCurrency(currentRevenue)} revenue, ${formatNumber(currentUnits)} units, ${formatSharePercent(currentShare)} share.`,
+            `Net share movement: ${signedPoints(currentShare - startShare)}.`,
+          ],
+          evidence: [
+            ...baseEvidence(mart.snapshot),
+            { label: "Scope", value: labelForScope(params.scope) },
+            { label: "Trend Window", value: `${startDate} to ${mart.snapshot.date}` },
+            { label: "Revenue Change", value: formatPercent(ratio(currentRevenue, startRevenue)) },
+            { label: "Units Change", value: formatPercent(ratio(currentUnits, startUnits)) },
+            { label: "Share Pair", value: `${formatSharePercent(startShare)} to ${formatSharePercent(currentShare)}` },
+          ],
+          confidence: windowDates.length >= 6 ? 0.9 : 0.7,
+          assumptions: ["Multi-month trend uses the available brand-series points ending at the selected snapshot."],
+          citations: [citation("Brand trend", "brandSeries", mart.snapshot.date)],
+          suggestedQuestions: [
+            "Which of our products grew fastest this month?",
+            "Which competitor is threatening our top SKU?",
+            "Where can we grow with lower competitive density?",
+          ],
+          warnings: windowDates.length < requestedMonths
+            ? [`Only ${windowDates.length} months were available for the requested ${requestedMonths}-month trend.`]
+            : [],
+          historicalWindow: params.parsed.plan.historicalWindow,
+        }
+      }
+    }
+
+    if (
+      requestedRolling12 &&
+      !singleBrand &&
+      /\b(this|selected|the) brand\b/.test(params.parsed.normalized)
+    ) {
+      return {
+        answer: "I need the brand name to return a brand-level Rolling 12 grand total; choose Innova or BLCKTEC.",
+        bullets: [
+          "The question does not carry a brand identity on its own.",
+          "Market-level Rolling 12 totals are available when no brand is intended.",
+        ],
+        evidence: baseEvidence(mart.snapshot),
+        confidence: 0.98,
+        assumptions: ["No conversational brand context is inferred from a standalone preset."],
+        citations: [],
+        suggestedQuestions: [
+          "What are Innova's Rolling 12 grand total revenue and units?",
+          "What are BLCKTEC's Rolling 12 grand total revenue and units?",
+          "What are the Rolling 12 month grand total revenue and units?",
+        ],
+        warnings: [],
+      }
+    }
 
     if (requestedRolling12 && !singleBrand) {
       const revenueSeries = mart.snapshot.rolling12?.revenue?.marketSeries ?? []
@@ -499,8 +605,8 @@ function runAnalyzer(
           : [],
         suggestedQuestions: [
           "What are Innova's Rolling 12 grand total revenue and units?",
-          "Which brand leads Rolling 12 revenue?",
-          "How did the market change versus last month?",
+          "What changed in market ranking this month?",
+          "Which brand gained the most share this month?",
         ],
         warnings: [],
       }
@@ -566,9 +672,9 @@ function runAnalyzer(
       suggestedQuestions: [
         singleBrand
           ? `How has ${singleBrand.brand}'s Rolling 12 grand total changed over recent months?`
-          : "What are the Rolling 12 grand total revenue and units for this brand?",
+          : "What are Innova's Rolling 12 grand total revenue and units?",
         "What are competitors doing this month?",
-        "What is our biggest risk right now?",
+        "Which competitor is threatening our top SKU?",
       ],
       warnings: [],
     }
@@ -597,7 +703,7 @@ function runAnalyzer(
       assumptions: ["Comparisons use the immediately previous available snapshot."],
       citations: [citation("Brand movement", "snapshot.brandTotals + previous snapshot", mart.snapshot.date)],
       suggestedQuestions: [
-        "Which competitor is closest to Innova 5610?",
+        "Who is Innova 5610's biggest competitor?",
         "Where is the largest growth opportunity by type?",
         "Which products are rising stars this month?",
       ],
@@ -638,6 +744,19 @@ function runAnalyzer(
         "Where can we grow with lower competitive density?",
       ],
       warnings: [],
+      wantsLlmSynthesis: true,
+      factPack: {
+        analysis: "risk_signal",
+        topSkuRevenueConcentration: round(topOneShare),
+        weakestHighRevenueProduct: weakest
+          ? {
+              brand: weakest.brand,
+              asin: weakest.asin,
+              revenue: round(weakest.revenue),
+              rating: round(weakest.rating),
+            }
+          : null,
+      },
     }
   }
 
@@ -652,7 +771,7 @@ function runAnalyzer(
       const topType = totalRows[0]
       return {
         answer: topType
-          ? `${topType.label} led July product types with ${formatCurrency(topType.revenue)} revenue (${formatPercent(topType.revenueShare)} share) and ${formatNumber(topType.units)} units.`
+          ? `${topType.label} leads product types with ${formatCurrency(topType.revenue)} revenue (${formatSharePercent(topType.revenueShare)} share) and ${formatNumber(topType.units)} units.`
           : "Product type performance is unavailable for this snapshot.",
         bullets: totalRows.map(
           (row) =>
@@ -673,8 +792,8 @@ function runAnalyzer(
         citations: [citation("Type breakdowns", "snapshot.typeBreakdowns.allAsins", mart.snapshot.date)],
         suggestedQuestions: [
           "Which tablet price tier grew fastest?",
-          "Which brands lead handheld revenue?",
-          "Where is Innova underrepresented by product type?",
+          "Which handheld brand is growing fastest by revenue?",
+          "Where can we grow with lower competitive density?",
         ],
         warnings: [],
       }
@@ -701,17 +820,34 @@ function runAnalyzer(
       assumptions: ["Opportunity signal prioritizes large market-weight segments with low own participation."],
       citations: [citation("Type breakdowns", "snapshot.typeBreakdowns", mart.snapshot.date)],
       suggestedQuestions: [
-        "Which product should we prioritize in this segment?",
-        "Who are the strongest competitors in this segment?",
+        "Which segment is our best growth opportunity?",
+        "Compare the top two brands on share, units, and pricing.",
         "What price tier is growing fastest?",
       ],
       warnings: [],
+      wantsLlmSynthesis: true,
+      factPack: {
+        analysis: "opportunity_signal",
+        candidate: candidate
+          ? {
+              segment: candidate.row.label,
+              revenue: round(candidate.row.revenue),
+              marketRevenueShare: round(candidate.row.revenueShare),
+              ownShare: round(candidate.ownShare),
+            }
+          : null,
+        leadingSegments: scopeRows.slice(0, 4).map((row) => ({
+          segment: row.label,
+          revenue: round(row.revenue),
+          revenueShare: round(row.revenueShare),
+        })),
+      },
     }
   }
 
   if (analyzer === "market_size") {
     return {
-      answer: `July total market was ${formatCurrency(mart.snapshot.totals.revenue)} revenue and ${formatNumber(mart.snapshot.totals.units)} units across ${formatNumber(mart.snapshot.totals.asinCount)} ASINs.`,
+      answer: `The ${mart.snapshot.label || mart.snapshot.date} market totaled ${formatCurrency(mart.snapshot.totals.revenue)} revenue and ${formatNumber(mart.snapshot.totals.units)} units across ${formatNumber(mart.snapshot.totals.asinCount)} ASINs.`,
       bullets: [
         `Average market price: ${formatCurrency(mart.snapshot.totals.avgPrice)}.`,
         `Top 3 brand share: ${formatPercent(mart.snapshot.totals.top3Share)}.`,
@@ -724,7 +860,7 @@ function runAnalyzer(
       suggestedQuestions: [
         "Which brand ranked first by revenue?",
         "Which product ranked first by revenue?",
-        "How did the market change versus June?",
+        "What changed in market ranking this month?",
       ],
       warnings: [],
     }
@@ -738,7 +874,7 @@ function runAnalyzer(
     const leader = leaders[0]
     return {
       answer: leader
-        ? `${leader.brand} ranked first by July ${metric} with ${metric === "units" ? `${formatNumber(leader.units)} units` : `${formatCurrency(leader.revenue)} revenue`} and ${formatPercent(leader.share)} revenue share.`
+        ? `${leader.brand} ranks first by ${metric} with ${metric === "units" ? `${formatNumber(leader.units)} units` : `${formatCurrency(leader.revenue)} revenue`} and ${formatSharePercent(leader.share)} revenue share.`
         : "Brand leader data is unavailable for this snapshot.",
       bullets: leaders.slice(0, 5).map(
         (row, index) =>
@@ -760,7 +896,7 @@ function runAnalyzer(
       citations: [citation("Brand totals", "snapshot.brandTotals", mart.snapshot.date)],
       suggestedQuestions: [
         "Which product ranked first by revenue?",
-        "How did the leading brand change versus June?",
+        "What changed in market ranking this month?",
         "Which brand gained the most share?",
       ],
       warnings: [],
@@ -791,8 +927,8 @@ function runAnalyzer(
       assumptions: ["Top-product ranking uses deterministic scope resolution and current snapshot monthly metrics."],
       citations: [citation("Top products", "snapshot.topProducts + brandSheetListings", mart.snapshot.date)],
       suggestedQuestions: [
-        "Who is the biggest competitor to the top product?",
-        "How has the top product trended vs last month?",
+        top[0] ? `Who is the biggest competitor to ${top[0].asin}?` : "What are competitors doing this month?",
+        top[0] ? `How did ${top[0].asin} perform vs last month?` : "Which products are rising fastest now?",
         "Which products are rising fastest now?",
       ],
       warnings: [],
@@ -803,6 +939,684 @@ function runAnalyzer(
     mart,
     "I can analyze product competitors, product trends, market shifts, risks, and opportunities. Tell me a product ASIN or brand to go deeper."
   )
+}
+
+type ThreatCandidate = {
+  product: IndexedProduct
+  score: number
+  coverage: number
+  rankStart: number | null
+  rankCurrent: number | null
+  rankGain: number | null
+  rankMonths: number
+  ownRankGain: number | null
+  revenueGrowthGap: number | null
+  priceUndercut: number | null
+  reviewGain: number | null
+  ownReviewGain: number | null
+}
+
+function analyzeSkuThreat(params: AnalyzerParams): AnalyzerOutput {
+  const { mart } = params
+  const ownBrandSet = new Set<string>(OWN_BRAND_KEYS)
+  const ownTopSku = mart.products
+    .filter((product) => ownBrandSet.has(normalize(product.brand)))
+    .sort((a, b) => b.revenue - a.revenue)[0]
+
+  if (!ownTopSku) {
+    return {
+      ...unknownOutput(mart, "No Innova or BLCKTEC product is present in the current snapshot, so a top-SKU threat cannot be scored."),
+      wantsLlmSynthesis: true,
+      factPack: {
+        analysis: "sku_threat",
+        ownBrands: OWN_BRAND_KEYS,
+        ownTopSku: null,
+        competitorProductCount: mart.products.filter(
+          (product) => !ownBrandSet.has(normalize(product.brand))
+        ).length,
+      },
+    }
+  }
+
+  const competitorProducts = mart.products.filter(
+    (product) => !ownBrandSet.has(normalize(product.brand))
+  )
+  if (!competitorProducts.length) {
+    return {
+      answer: `${ownTopSku.brand} ${shortProductTitle(ownTopSku.title, 52, ownTopSku.brand)} (${ownTopSku.asin}) is the top own SKU, but this snapshot contains no competitor ASINs to score against it.`,
+      bullets: [
+        `Defended SKU: ${formatCurrency(ownTopSku.revenue)} revenue, rank #${ownTopSku.rankRevenue}, price ${formatCurrency(ownTopSku.price)}.`,
+        "Recommendation: restore competitor-ASIN coverage before making a product-defense decision.",
+      ],
+      evidence: [
+        ...baseEvidence(mart.snapshot),
+        { label: "Defended SKU", value: `${ownTopSku.brand} ${ownTopSku.asin}` },
+        { label: "Competitor ASINs", value: "0" },
+      ],
+      confidence: 0.45,
+      assumptions: ["Own brands are Innova and BLCKTEC."],
+      citations: [citation("SKU threat universe", "current snapshot products", mart.snapshot.date)],
+      suggestedQuestions: [
+        `How did ${ownTopSku.asin} perform vs last month?`,
+        "What are competitors doing this month?",
+        "Where can we grow with lower competitive density?",
+      ],
+      warnings: ["Competitor ASIN coverage is missing from the selected snapshot."],
+      wantsLlmSynthesis: true,
+      factPack: {
+        analysis: "sku_threat",
+        ownTopSku: threatProductFact(ownTopSku),
+        competitorProductCount: 0,
+      },
+    }
+  }
+
+  const normalizedOwnType = normalize(ownTopSku.type)
+  const hasUsableOwnType = Boolean(normalizedOwnType && normalizedOwnType !== "unknown")
+  const sameTypeProducts = hasUsableOwnType
+    ? competitorProducts.filter((product) => normalize(product.type) === normalizedOwnType)
+    : competitorProducts
+  const isPriceComparable = (product: IndexedProduct) =>
+    ownTopSku.price <= 0 ||
+    (product.price >= ownTopSku.price * 0.5 && product.price <= ownTopSku.price * 1.5)
+  const strictCandidates = sameTypeProducts.filter(isPriceComparable)
+
+  // If the exact type has no comparable competitor, retain the closest available
+  // adjacent evidence instead of returning an empty ranking.
+  const widenedBeyondType = hasUsableOwnType && sameTypeProducts.length === 0
+  const widenedBeyondPrice = !widenedBeyondType && strictCandidates.length === 0
+  const widenedTypeCandidates = widenedBeyondType
+    ? competitorProducts.filter(isPriceComparable)
+    : []
+  const analysisUniverse = strictCandidates.length
+    ? strictCandidates
+    : widenedBeyondType
+      ? widenedTypeCandidates.length
+        ? widenedTypeCandidates
+        : competitorProducts
+      : sameTypeProducts.length
+        ? sameTypeProducts
+        : competitorProducts
+
+  const threats = analysisUniverse
+    .map((product) => scoreThreatCandidate(product, ownTopSku))
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        (b.priceUndercut ?? Number.NEGATIVE_INFINITY) -
+          (a.priceUndercut ?? Number.NEGATIVE_INFINITY) ||
+        (a.rankCurrent ?? Number.MAX_SAFE_INTEGER) -
+          (b.rankCurrent ?? Number.MAX_SAFE_INTEGER) ||
+        b.product.revenue - a.product.revenue
+    )
+    .slice(0, 3)
+  const topThreat = threats[0]
+
+  if (!topThreat) {
+    return unknownOutput(
+      mart,
+      `No competitor product could be scored against ${ownTopSku.brand} ${ownTopSku.asin}; adjacent competitor coverage is also empty.`
+    )
+  }
+
+  const wideningSentence = widenedBeyondType
+    ? `No same-type competitor is present for ${ownTopSku.type}, so this uses the strongest adjacent-type evidence.`
+    : widenedBeyondPrice
+      ? `No same-type product met the normal price-comparability rule, so this uses the closest same-type evidence.`
+      : ""
+  const why = describeThreatWhy(topThreat, ownTopSku)
+  const anyDegradedThreat = threats.some((threat) => threat.coverage < 1)
+  const threatCoverageWarnings = threats
+    .map((threat, index) => formatThreatCoverageWarning(threat, index + 1))
+    .filter((warning): warning is string => Boolean(warning))
+  const momentumCoverageNote =
+    anyDegradedThreat
+      ? " At least one listed threat score has incomplete factor coverage; its qualifier identifies the degraded score."
+      : ""
+
+  return {
+    answer: `${wideningSentence ? `${wideningSentence} ` : ""}${topThreat.product.brand} ${shortProductTitle(topThreat.product.title, 52, topThreat.product.brand)} (${topThreat.product.asin}) is the most threatening competitor to ${ownTopSku.brand} ${shortProductTitle(ownTopSku.title, 52, ownTopSku.brand)} (${ownTopSku.asin}) because ${why}.${momentumCoverageNote}`,
+    bullets: [
+      ...threats.map((threat, index) => formatThreatBullet(threat, ownTopSku, index + 1)),
+      `Recommendation: defend ${ownTopSku.asin} against ${topThreat.product.asin} with a focused price/value test and weekly rank, revenue-growth, and review monitoring.`,
+    ],
+    evidence: [
+      ...baseEvidence(mart.snapshot),
+      { label: "Defended SKU", value: `${ownTopSku.brand} ${ownTopSku.asin}` },
+      { label: "Primary Threat", value: `${topThreat.product.brand} ${topThreat.product.asin}` },
+      { label: "Threat Score", value: formatThreatScore(topThreat) },
+      { label: "Threat Score Coverage", value: topThreat.coverage.toFixed(2) },
+      {
+        label: "Revenue MoM Pair",
+        value: `${topThreat.product.brand} ${formatPercent(topThreat.product.revenueMoM)} vs ${ownTopSku.brand} ${formatPercent(ownTopSku.revenueMoM)}`,
+      },
+      {
+        label: "Price Pair",
+        value: `${formatCurrency(topThreat.product.price)} vs ${formatCurrency(ownTopSku.price)}`,
+      },
+      ...(topThreat.rankStart !== null
+        ? [
+            {
+              label: "Threat Rank Movement",
+              value: `#${topThreat.rankStart} to #${topThreat.rankCurrent}`,
+            },
+          ]
+        : []),
+    ],
+    confidence:
+      topThreat.rankGain === null && topThreat.revenueGrowthGap === null
+        ? 0.62
+        : widenedBeyondType || widenedBeyondPrice
+          ? 0.76
+          : 0.91,
+    assumptions: [
+      "Own brands are Innova and BLCKTEC; the defended SKU is their highest-revenue current ASIN.",
+      "Comparable products use the defended SKU's exact type and prices from 0.5x to 1.5x its price; adjacent evidence is used only when that set is empty.",
+      "Threat score weights rank convergence 35%, revenue-growth gap 35%, price undercut 20%, and review velocity 10%; missing factors contribute zero and available weights are not renormalized.",
+    ],
+    citations: [
+      citation("SKU threat scoring", "products + product history", mart.snapshot.date),
+      citation("Competitor universe", "current snapshot all brands", mart.snapshot.date),
+    ],
+    suggestedQuestions: [
+      `How did ${ownTopSku.asin} perform vs last month?`,
+      `Who are the closest competitors to ${ownTopSku.asin}?`,
+      "Where can we grow with lower competitive density?",
+    ],
+    warnings: threatCoverageWarnings,
+    wantsLlmSynthesis: true,
+    factPack: {
+      analysis: "sku_threat",
+      snapshot: mart.snapshot.date,
+      comparisonRule: {
+        type: hasUsableOwnType ? ownTopSku.type : "all types because defended type is missing",
+        minPriceMultiple: 0.5,
+        maxPriceMultiple: 1.5,
+        widenedBeyondType,
+        widenedBeyondPrice,
+      },
+      formulaWeights: {
+        rankConvergence: 0.35,
+        revenueGrowthGap: 0.35,
+        priceUndercut: 0.2,
+        reviewVelocityWhenAvailable: 0.1,
+        missingFactorTreatment: "zero contribution; no renormalization",
+      },
+      ownTopSku: threatProductFact(ownTopSku),
+      threats: threats.map((threat) => ({
+        ...threatProductFact(threat.product),
+        threatScore: round(threat.score),
+        threatScoreLabel: formatThreatScore(threat),
+        coverage: round(threat.coverage),
+        rankStart: threat.rankStart,
+        rankCurrent: threat.rankCurrent,
+        rankGain: threat.rankGain,
+        ownRankGain: threat.ownRankGain,
+        revenueGrowthGap: nullableRound(threat.revenueGrowthGap),
+        priceUndercut: nullableRound(threat.priceUndercut),
+        reviewGain: threat.reviewGain,
+        ownReviewGain: threat.ownReviewGain,
+      })),
+    },
+  }
+}
+
+function scoreThreatCandidate(product: IndexedProduct, ownTopSku: IndexedProduct): ThreatCandidate {
+  const candidateRank = recentRankMovement(product)
+  const ownRank = recentRankMovement(ownTopSku)
+  const revenueGrowthGap =
+    product.revenueMoM !== null && ownTopSku.revenueMoM !== null
+      ? product.revenueMoM - ownTopSku.revenueMoM
+      : null
+  const priceUndercut =
+    ownTopSku.price > 0 && product.price > 0
+      ? (ownTopSku.price - product.price) / ownTopSku.price
+      : null
+  const reviewGain = recentReviewGain(product)
+  const ownReviewGain = recentReviewGain(ownTopSku)
+
+  // Each component is normalized to 0-100. Rank compares competitor improvement
+  // against the defended SKU; growth is the MoM gap closure; price rewards an
+  // undercut up to 30%; reviews compare recent review-count gains. Missing factors
+  // contribute zero, and available component weights are never renormalized.
+  const components: Array<{ weight: number; value: number }> = []
+  if (candidateRank.gain !== null && ownRank.gain !== null) {
+    components.push({
+      weight: 0.35,
+      value: clamp(50 + (candidateRank.gain - ownRank.gain) * 5, 0, 100),
+    })
+  }
+  if (revenueGrowthGap !== null) {
+    components.push({
+      weight: 0.35,
+      value: clamp(50 + revenueGrowthGap * 100, 0, 100),
+    })
+  }
+  if (priceUndercut !== null) {
+    components.push({
+      weight: 0.2,
+      value: clamp((priceUndercut / 0.3) * 100, 0, 100),
+    })
+  }
+  if (reviewGain !== null && ownReviewGain !== null) {
+    components.push({
+      weight: 0.1,
+      value: clamp(50 + (reviewGain - ownReviewGain) * 2, 0, 100),
+    })
+  }
+  const weightTotal = sum(components.map((component) => component.weight))
+  const score = sum(components.map((component) => component.weight * component.value))
+
+  return {
+    product,
+    score,
+    coverage: weightTotal,
+    rankStart: candidateRank.start,
+    rankCurrent: product.rankRevenue,
+    rankGain: candidateRank.gain,
+    rankMonths: candidateRank.months,
+    ownRankGain: ownRank.gain,
+    revenueGrowthGap,
+    priceUndercut,
+    reviewGain,
+    ownReviewGain,
+  }
+}
+
+function recentRankMovement(product: IndexedProduct) {
+  const recent = product.history.slice(-3)
+  const currentPoint = recent.at(-1)
+  const startPoint = recent.find(
+    (point) => point.date !== currentPoint?.date && point.rankRevenue !== null
+  )
+  if (!startPoint?.rankRevenue || !currentPoint?.rankRevenue) {
+    return { start: null, gain: null, months: 0 }
+  }
+  return {
+    start: startPoint.rankRevenue,
+    gain: startPoint.rankRevenue - currentPoint.rankRevenue,
+    months: monthSpan(startPoint.date, currentPoint.date),
+  }
+}
+
+function monthSpan(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00Z`)
+  const end = new Date(`${endDate}T00:00:00Z`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 1
+  return Math.max(
+    1,
+    (end.getUTCFullYear() - start.getUTCFullYear()) * 12 +
+      end.getUTCMonth() -
+      start.getUTCMonth()
+  )
+}
+
+function recentReviewGain(product: IndexedProduct) {
+  const recent = product.history.slice(-3)
+  const current = recent.at(-1)
+  const start = recent[0]
+  if (!current || !start || current.date === start.date || current.reviews <= 0 || start.reviews <= 0) {
+    return null
+  }
+  return current.reviews - start.reviews
+}
+
+function describeThreatWhy(threat: ThreatCandidate, ownTopSku: IndexedProduct) {
+  const reasons: string[] = []
+  if (threat.rankStart !== null) {
+    const verb = safe(threat.rankGain) > 0 ? "climbed" : safe(threat.rankGain) < 0 ? "moved down" : "held"
+    reasons.push(
+      `it ${verb} from #${threat.rankStart} to #${threat.rankCurrent} over ${threat.rankMonths === 1 ? "one month" : `${threat.rankMonths} months`}`
+    )
+  }
+  if (threat.priceUndercut !== null) {
+    reasons.push(
+      threat.priceUndercut >= 0
+        ? `it is priced ${(threat.priceUndercut * 100).toFixed(0)}% below our SKU`
+        : `it is priced ${Math.abs(threat.priceUndercut * 100).toFixed(0)}% above our SKU`
+    )
+  }
+  if (threat.revenueGrowthGap !== null) {
+    reasons.push(
+      `its revenue is ${formatPercent(threat.product.revenueMoM)} MoM while ours is ${formatPercent(ownTopSku.revenueMoM)}`
+    )
+  }
+  if (threat.reviewGain !== null && threat.ownReviewGain !== null) {
+    reasons.push(`it added ${formatNumber(threat.reviewGain)} reviews versus our ${formatNumber(threat.ownReviewGain)}`)
+  }
+  return reasons.slice(0, 3).join(", ") || "it has the strongest current revenue among comparable competitor products"
+}
+
+function formatThreatBullet(threat: ThreatCandidate, ownTopSku: IndexedProduct, rank: number) {
+  const rankText = threat.rankStart !== null
+    ? `rank #${threat.rankStart} to #${threat.rankCurrent}`
+    : `current rank #${threat.rankCurrent}`
+  const priceText = threat.priceUndercut !== null
+    ? `${Math.abs(threat.priceUndercut * 100).toFixed(0)}% ${threat.priceUndercut >= 0 ? "below" : "above"} our ${formatCurrency(ownTopSku.price)} price`
+    : "price comparison unavailable"
+  return `#${rank} ${threat.product.brand} ${shortProductTitle(threat.product.title, 52, threat.product.brand)} (${threat.product.asin}): threat score ${formatThreatScore(threat)}; ${rankText}; ${priceText}; revenue ${formatPercent(threat.product.revenueMoM)} MoM vs ours ${formatPercent(ownTopSku.revenueMoM)}.`
+}
+
+function formatThreatScore(threat: ThreatCandidate) {
+  const score = `${threat.score.toFixed(0)}/100`
+  if (threat.coverage >= 1) return score
+  const priceOnly =
+    threat.priceUndercut !== null &&
+    threat.rankGain === null &&
+    threat.revenueGrowthGap === null &&
+    (threat.reviewGain === null || threat.ownReviewGain === null)
+  return priceOnly
+    ? `${score} (price-only)`
+    : `${score} (degraded; ${(threat.coverage * 100).toFixed(0)}% coverage)`
+}
+
+function formatThreatCoverageWarning(threat: ThreatCandidate, rank: number) {
+  if (threat.coverage >= 1) return null
+  const missingFactors: string[] = []
+  if (threat.rankGain === null || threat.ownRankGain === null) {
+    missingFactors.push("rank convergence")
+  }
+  if (threat.revenueGrowthGap === null) {
+    missingFactors.push("revenue MoM gap")
+  }
+  if (threat.priceUndercut === null) {
+    missingFactors.push("price undercut")
+  }
+  if (threat.reviewGain === null || threat.ownReviewGain === null) {
+    missingFactors.push("review velocity")
+  }
+  return `Threat #${rank} ${threat.product.asin} is ${formatThreatScore(threat)} because ${missingFactors.join(", ")} evidence was unavailable; missing factors contribute zero.`
+}
+
+function threatProductFact(product: IndexedProduct) {
+  return {
+    brand: product.brand,
+    title: shortProductTitle(product.title, 52, product.brand),
+    asin: product.asin,
+    type: product.type,
+    price: round(product.price),
+    revenue: round(product.revenue),
+    revenueMoM: nullableRound(product.revenueMoM),
+    rankRevenue: product.rankRevenue,
+    reviews: product.reviews,
+  }
+}
+
+type DensitySegment = {
+  label: string
+  type: string
+  priceBand: string
+  revenue: number
+  revenueShare: number
+  revenueMoM: number | null
+  previousCoverage: number
+  brandCount: number
+  hhi: number
+  effectiveBrandCount: number
+  ownShare: number
+  score: number
+}
+
+function analyzeCompetitiveDensity(params: AnalyzerParams): AnalyzerOutput {
+  const { mart } = params
+  const ownBrandSet = new Set<string>(OWN_BRAND_KEYS)
+  const typeScope = params.parsed.plan.typeScope
+  const scopedProducts = typeScope
+    ? mart.products.filter((product) => matchesTypeScope(product.type, typeScope))
+    : mart.products
+  const analyzedRevenue = sum(scopedProducts.map((product) => product.revenue))
+  const categoryRevenue = mart.snapshot.totals.revenue
+  const overallOwnRevenue = sum(
+    scopedProducts
+      .filter((product) => ownBrandSet.has(normalize(product.brand)))
+      .map((product) => product.revenue)
+  )
+  const overallOwnShare = analyzedRevenue > 0 ? overallOwnRevenue / analyzedRevenue : 0
+  const grouped = new Map<
+    string,
+    {
+      type: string
+      priceBand: string
+      revenue: number
+      previousRevenue: number
+      matchedCurrentRevenue: number
+      ownRevenue: number
+      brandRevenue: Map<string, number>
+    }
+  >()
+
+  for (const product of scopedProducts) {
+    if (product.revenue <= 0) continue
+    const type = product.type.trim() || "Unknown"
+    const priceBand = densityPriceBand(product.price)
+    const key = `${normalize(type)}|${priceBand}`
+    const bucket = grouped.get(key) ?? {
+      type,
+      priceBand,
+      revenue: 0,
+      previousRevenue: 0,
+      matchedCurrentRevenue: 0,
+      ownRevenue: 0,
+      brandRevenue: new Map<string, number>(),
+    }
+    bucket.revenue += product.revenue
+    const previous = mart.previous
+      ? product.history.find((point) => point.date === mart.previous?.date)
+      : undefined
+    if (previous) {
+      bucket.previousRevenue += previous.revenue
+      bucket.matchedCurrentRevenue += product.revenue
+    }
+    if (ownBrandSet.has(normalize(product.brand))) {
+      bucket.ownRevenue += product.revenue
+    }
+    const brandKey = normalize(product.brand) || "unknown"
+    bucket.brandRevenue.set(brandKey, (bucket.brandRevenue.get(brandKey) ?? 0) + product.revenue)
+    grouped.set(key, bucket)
+  }
+
+  const segments = Array.from(grouped.values())
+    .map((bucket): DensitySegment => {
+      const revenueShare = categoryRevenue > 0 ? bucket.revenue / categoryRevenue : 0
+      const hhi = sum(
+        Array.from(bucket.brandRevenue.values()).map((revenue) => {
+          const share = bucket.revenue > 0 ? revenue / bucket.revenue : 0
+          return share * share
+        })
+      )
+      const previousCoverage =
+        bucket.revenue > 0 ? bucket.matchedCurrentRevenue / bucket.revenue : 0
+      const revenueMoM =
+        previousCoverage >= 0.8 && bucket.previousRevenue > 0
+          ? ratio(bucket.matchedCurrentRevenue, bucket.previousRevenue)
+          : null
+      const ownShare = bucket.revenue > 0 ? bucket.ownRevenue / bucket.revenue : 0
+      const brandCount = bucket.brandRevenue.size
+      const effectiveBrandCount = hhi > 0 ? 1 / hhi : 0
+      const brandEase = clamp((effectiveBrandCount - 1) / 11, 0, 1)
+      const hhiEase = 1 - clamp(hhi, 0, 1)
+      const growthQuality = revenueMoM === null ? 0.35 : clamp((revenueMoM + 0.05) / 0.2, 0, 1)
+      const underweight = overallOwnShare > 0
+        ? clamp((overallOwnShare - ownShare) / overallOwnShare, 0, 1)
+        : 0
+
+      // Opportunity score: 30% effective brand breadth, 25% low HHI, 25% stable/
+      // positive matched-ASIN MoM growth, and 20% own-share underweight.
+      const score = brandEase * 30 + hhiEase * 25 + growthQuality * 25 + underweight * 20
+      return {
+        label: `${bucket.type} ${bucket.priceBand}`,
+        type: bucket.type,
+        priceBand: bucket.priceBand,
+        revenue: bucket.revenue,
+        revenueShare,
+        revenueMoM,
+        previousCoverage,
+        brandCount,
+        hhi,
+        effectiveBrandCount,
+        ownShare,
+        score,
+      }
+    })
+    .filter((segment) => segment.revenueShare >= DENSITY_REVENUE_FLOOR_SHARE)
+
+  const strictOpportunities = segments
+    .filter(
+      (segment) =>
+        segment.revenueMoM !== null &&
+        segment.revenueMoM >= -0.05 &&
+        segment.ownShare < overallOwnShare
+    )
+    .sort((a, b) => b.score - a.score || b.revenue - a.revenue)
+  const ranked = (strictOpportunities.length ? strictOpportunities : segments)
+    .sort((a, b) => b.score - a.score || b.revenue - a.revenue)
+    .slice(0, 3)
+  const top = ranked[0]
+
+  if (!top) {
+    return {
+      ...unknownOutput(
+        mart,
+        "No type-by-price segment cleared the 2% category-revenue floor, so there is no reliable lower-density growth segment to recommend."
+      ),
+      wantsLlmSynthesis: true,
+      factPack: {
+        analysis: "competitive_density",
+        analyzedRevenue,
+        revenueFloorShare: DENSITY_REVENUE_FLOOR_SHARE,
+        qualifyingSegments: 0,
+      },
+    }
+  }
+
+  const next = ranked[1]
+  const strictConditionsMet = strictOpportunities.length > 0
+  const topDescription = densitySegmentDescription(top, overallOwnShare)
+  const nextDescription = next ? densitySegmentDescription(next, overallOwnShare) : ""
+
+  return {
+    answer: strictConditionsMet
+      ? `The best lower-density growth segment is ${topDescription}.${next ? ` The next-best option is ${nextDescription}.` : ""}`
+      : `No segment met every density, growth, and own-share condition; the closest option is ${topDescription}.${next ? ` The next closest is ${nextDescription}.` : ""}`,
+    bullets: [
+      ...ranked.map(
+        (segment, index) =>
+          `#${index + 1} ${densitySegmentDescription(segment, overallOwnShare)}; ${formatCurrency(segment.revenue)} segment revenue (${formatSharePercent(segment.revenueShare)} of category).`
+      ),
+      `Recommendation: validate demand and assortment fit in ${top.label}, then test one focused offer before expanding into the next-ranked segment.`,
+    ],
+    evidence: [
+      ...baseEvidence(mart.snapshot),
+      { label: "Top Segment", value: top.label },
+      { label: "Brand Count", value: `${top.brandCount}` },
+      { label: "HHI", value: top.hhi.toFixed(2) },
+      { label: "Segment Revenue MoM", value: densityGrowthDescription(top) },
+      { label: "Previous Revenue Coverage", value: formatSharePercent(top.previousCoverage) },
+      {
+        label: "Own Share Pair",
+        value: `${formatSharePercent(top.ownShare)} segment vs ${formatSharePercent(overallOwnShare)} overall`,
+      },
+    ],
+    confidence: strictConditionsMet ? 0.9 : 0.72,
+    assumptions: [
+      typeScope
+        ? `Analysis is restricted to products matching the parsed ${typeScopeLabel(typeScope)} type scope.`
+        : "No explicit product type was requested, so all product types are analyzed.",
+      "Segments are current-snapshot product type crossed with fixed price bands: <$50, $50-100, $100-200, $200-400, and $400+.",
+      "Segments below 2% of total category revenue are excluded to avoid tiny-cluster false positives.",
+      "Segment MoM growth compares matched ASIN revenue on the actual previous snapshot date and requires at least 80% current-revenue coverage.",
+    ],
+    citations: [
+      citation("Competitive density", "current products grouped by type, price, and brand", mart.snapshot.date),
+      citation("Segment growth", "ASIN product history", mart.snapshot.date),
+    ],
+    suggestedQuestions: [
+      "Which price tier is growing fastest?",
+      "Which segment is our best growth opportunity?",
+      "Which competitor is threatening our top SKU?",
+    ],
+    warnings: [
+      ...(strictConditionsMet
+        ? []
+        : ["No segment met every strict opportunity condition; the answer reports the closest qualifying segment above the revenue floor."]),
+      ...(ranked.some((segment) => segment.previousCoverage < 0.8)
+        ? ["At least one ranked segment has low-confidence MoM because matched-ASIN revenue coverage is below 80%."]
+        : []),
+    ],
+    wantsLlmSynthesis: true,
+    factPack: {
+      analysis: "competitive_density",
+      snapshot: mart.snapshot.date,
+      method: {
+        dimensions: ["product type", "price band"],
+        revenueFloorShare: DENSITY_REVENUE_FLOOR_SHARE,
+        stableGrowthFloor: -0.05,
+        scoreWeights: {
+          effectiveBrandBreadth: 0.3,
+          lowHhi: 0.25,
+          stableOrPositiveGrowth: 0.25,
+          ownShareUnderweight: 0.2,
+        },
+      },
+      overallOwnShare: round(overallOwnShare),
+      strictConditionsMet,
+      segments: ranked.map((segment) => ({
+        label: segment.label,
+        type: segment.type,
+        priceBand: segment.priceBand,
+        revenue: round(segment.revenue),
+        revenueShare: round(segment.revenueShare),
+        revenueMoM: nullableRound(segment.revenueMoM),
+        previousCoverage: round(segment.previousCoverage),
+        growthConfidence: segment.previousCoverage >= 0.8 ? "high" : "low",
+        brandCount: segment.brandCount,
+        hhi: round(segment.hhi),
+        effectiveBrandCount: round(segment.effectiveBrandCount),
+        ownShare: round(segment.ownShare),
+        opportunityScore: round(segment.score),
+      })),
+    },
+  }
+}
+
+function densitySegmentDescription(segment: DensitySegment, overallOwnShare: number) {
+  return `${segment.label}: ${segment.brandCount} brands, HHI ${segment.hhi.toFixed(2)}, ${densityGrowthDescription(segment)}, our share ${formatSharePercent(segment.ownShare)} vs ${formatSharePercent(overallOwnShare)} overall`
+}
+
+function densityGrowthDescription(segment: DensitySegment) {
+  return segment.revenueMoM === null
+    ? `revenue MoM low-confidence (${formatSharePercent(segment.previousCoverage)} matched-revenue coverage)`
+    : `${formatPercent(segment.revenueMoM)} revenue MoM`
+}
+
+function densityPriceBand(price: number) {
+  const normalizedPrice = Math.max(0, safe(price))
+  return DENSITY_PRICE_BANDS.find(
+    (band) => normalizedPrice >= band.min && normalizedPrice < band.max
+  )?.label ?? "$400+"
+}
+
+function shortProductTitle(title: string, maxLength = 52, leadingBrand?: string) {
+  const compact = title.replace(/\s+/g, " ").trim()
+  const escapedBrand = leadingBrand?.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const withoutRepeatedBrand = escapedBrand
+    ? compact.replace(new RegExp(`^${escapedBrand}\\s+`, "i"), "")
+    : compact
+  if (withoutRepeatedBrand.length <= maxLength) return withoutRepeatedBrand
+  return `${withoutRepeatedBrand.slice(0, maxLength - 1).trimEnd()}…`
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function round(value: number, decimals = 4) {
+  const factor = 10 ** decimals
+  return Math.round(value * factor) / factor
+}
+
+function nullableRound(value: number | null) {
+  return value === null ? null : round(value)
 }
 
 function listRolling12Brands(snapshot: SnapshotSummary) {
@@ -838,28 +1652,41 @@ function analyzeFastestGrowth(
   }
 
   if (level === "asin") {
-    const ranked = mart.products
+    const headlineRevenueGate = asinHeadlinePriorRevenueGate(mart)
+    const growthRows = getScopedProducts(mart, params.scope)
       .map((product) => {
         const yoyPoint = findHistoryPoint(product.history, mart.yoy?.date)
+        const previousPoint = findHistoryPoint(product.history, mart.previous?.date)
         const mom = metric === "units" ? safe(product.unitsMoM) : safe(product.revenueMoM)
         const yoy =
           metric === "units"
             ? ratio(product.units, safe(yoyPoint?.units))
             : ratio(product.revenue, safe(yoyPoint?.revenue))
         const growth = growthForWindow(window, mom, yoy)
-        return { product, mom, yoy, growth }
+        const priorRevenue = previousPoint?.revenue ?? null
+        const revenueDelta = priorRevenue === null ? null : product.revenue - priorRevenue
+        return { product, mom, yoy, growth, priorRevenue, revenueDelta }
       })
       .filter((row) => row.growth !== null)
       .sort((a, b) => safe(b.growth) - safe(a.growth))
-      .slice(0, 5)
+    const ranked = growthRows.slice(0, 5)
+    const eligibleHeadline = growthRows.find(
+      (row) => row.priorRevenue !== null && row.priorRevenue >= headlineRevenueGate
+    )
+    const fallbackHeadline = [...growthRows]
+      .filter((row) => row.revenueDelta !== null)
+      .sort((a, b) => safe(b.revenueDelta) - safe(a.revenueDelta))[0]
+    const top = eligibleHeadline ?? fallbackHeadline
+    const usedAbsoluteDeltaFallback = !eligibleHeadline && Boolean(fallbackHeadline)
 
-    const top = ranked[0]
     if (!top) {
       return unknownOutput(mart, "I couldn't find ASIN growth results for the requested scope.")
     }
 
     return {
-      answer: `Fastest ${metric} growth ASIN (${windowLabel(window)}): ${top.product.brand} ${top.product.asin}.`,
+      answer: usedAbsoluteDeltaFallback
+        ? `No ASIN met the prior-month revenue headline gate of ${formatCurrency(headlineRevenueGate)}; using absolute revenue delta instead, ${top.product.brand} ${top.product.asin} had the largest revenue delta at ${formatCurrency(safe(top.revenueDelta))}.`
+        : `Fastest ${metric} growth ASIN (${windowLabel(window)}): ${top.product.brand} ${top.product.asin}.`,
       bullets: ranked.map(
         (row, index) =>
           `#${index + 1} ${row.product.brand} ${row.product.asin}: ${formatPercent(row.growth)} (${windowLabel(window)}), ${formatCurrency(row.product.revenue)} revenue, ${formatNumber(row.product.units)} units.`
@@ -869,16 +1696,23 @@ function analyzeFastestGrowth(
         { label: "Target Level", value: "ASIN" },
         { label: "Window", value: windowLabel(window) },
         { label: "Metric", value: metric.toUpperCase() },
+        { label: "Headline Prior Revenue", value: formatCurrency(top.priorRevenue ?? 0) },
+        { label: "Headline Revenue Gate", value: formatCurrency(headlineRevenueGate) },
       ],
       confidence: 0.86,
-      assumptions: ["ASIN growth compares current month against previous month and prior-year month when available."],
+      assumptions: [
+        "ASIN growth compares current month against previous month and prior-year month when available.",
+        "Percentage-growth headlines require prior-month revenue of at least $10,000 or 0.1% of category revenue, whichever is smaller.",
+      ],
       citations: [citation("ASIN growth", "products + history windows", mart.snapshot.date)],
       suggestedQuestions: [
         `Who is the biggest competitor to ${top.product.asin}?`,
         `Is ${top.product.brand} growth driven by price or units?`,
         "Which brands grew fastest in handheld tools?",
       ],
-      warnings: [],
+      warnings: usedAbsoluteDeltaFallback
+        ? ["No ASIN met the percentage-growth headline revenue gate; the headline uses absolute revenue delta."]
+        : [],
       historicalWindow: "12m",
     }
   }
@@ -935,7 +1769,7 @@ function analyzeFastestGrowth(
     citations: [citation("Brand growth", "snapshot.brandTotals + historical snapshots", mart.snapshot.date)],
     suggestedQuestions: [
       `Show top ASIN contributors for ${top.row.brand}.`,
-      `Is ${top.row.brand} growth driven more by units or ASP?`,
+      `Is ${top.row.brand} growth driven by units or price?`,
       "Who is the fastest rank mover by units this month?",
     ],
     warnings: [],
@@ -953,12 +1787,15 @@ function analyzeFastestRankMover(params: AnalyzerParams): AnalyzerOutput {
   const previousLabel = mart.previous?.label ?? "previous snapshot"
 
   if (targetLevel === "asin") {
-    const ranked = mart.products
+    const ranked = getScopedProducts(mart, params.scope)
       .map((product) => {
         const prev = product.history[product.history.length - 2]
         const currentRank = metric === "units" ? product.rankUnits : product.rankRevenue
         const prevRank = metric === "units" ? prev?.rankUnits ?? null : prev?.rankRevenue ?? null
-        const delta = prevRank !== null && currentRank > 0 ? prevRank - currentRank : null
+        const delta =
+          prevRank !== null && currentRank !== null && currentRank > 0
+            ? prevRank - currentRank
+            : null
         return { product, currentRank, prevRank, delta }
       })
       .filter((row) => row.delta !== null)
@@ -987,7 +1824,7 @@ function analyzeFastestRankMover(params: AnalyzerParams): AnalyzerOutput {
       suggestedQuestions: [
         `How did ${top.product.asin} perform by revenue and units?`,
         `Who competes closest with ${top.product.asin}?`,
-        "Which brand gained rank fastest this month?",
+        "Who is the fastest rank mover by revenue this month?",
       ],
       warnings: [],
     }
@@ -1027,7 +1864,7 @@ function analyzeFastestRankMover(params: AnalyzerParams): AnalyzerOutput {
     suggestedQuestions: [
       `Show top ASIN contributors for ${top.brand}.`,
       `Is ${top.brand} growth driven by units or ASP?`,
-      "Which type segment has the fastest rank shifts?",
+      "Which handheld/tablet/dongle segment is growing fastest MoM and YoY?",
     ],
     warnings: [],
   }
@@ -1075,8 +1912,8 @@ function analyzeTypeGrowth(params: AnalyzerParams): AnalyzerOutput {
       citations: [citation("Type scoped growth", "product history grouped by type and brand", mart.snapshot.date)],
       suggestedQuestions: [
         `Is ${top.brand} in ${typeScopeLabel(typeScope)} growth driven by units or ASP?`,
-        `Who is the fastest rank mover within ${typeScopeLabel(typeScope)}?`,
-        `Show ${top.brand} top ${typeScopeLabel(typeScope)} ASINs.`,
+        `Which products grew revenue fastest in ${typeScopeLabel(typeScope)} this month?`,
+        `Show ${top.brand} top ASINs and past performance.`,
       ],
       warnings: [],
     }
@@ -1115,8 +1952,8 @@ function analyzeTypeGrowth(params: AnalyzerParams): AnalyzerOutput {
     assumptions: ["Type-level growth uses parsed Summary/Analysis type scopes when available."],
     citations: [citation("Type growth", "snapshot.typeBreakdowns.allAsins", mart.snapshot.date)],
     suggestedQuestions: [
-      "Which brands grew fastest inside this type?",
-      "Is growth in this type driven by units or ASP?",
+      `Which brand has the fastest revenue growth in ${top.row.label}?`,
+      `Is ${top.row.label} growth driven by units or price?`,
       "Who is the fastest rank mover by units this month?",
     ],
     warnings: [],
@@ -1151,9 +1988,9 @@ function analyzeGrowthDriver(
       assumptions: ["Growth driver decomposition uses ASP bridge between current and previous month."],
       citations: [citation("Type growth driver", "type-scoped product aggregation", mart.snapshot.date)],
       suggestedQuestions: [
-        `Which brands are driving ${typeScopeLabel(typeScope)} growth?`,
-        `Who is the fastest rank mover in ${typeScopeLabel(typeScope)}?`,
-        "Show top ASIN contributors in this type.",
+        `Which ${typeScopeLabel(typeScope)} brand has the fastest revenue growth?`,
+        `Which products grew revenue fastest in ${typeScopeLabel(typeScope)} this month?`,
+        "Which products grew revenue fastest this month?",
       ],
       warnings: [],
     }
@@ -1196,7 +2033,7 @@ function analyzeGrowthDriver(
       citations: [citation("Brand growth driver", "snapshot.brandTotals + prior snapshot", mart.snapshot.date)],
       suggestedQuestions: [
         `Show top ASIN contributors for ${stats.brand}.`,
-        `How did ${stats.brand} rank move vs last month?`,
+        `Where does ${stats.brand} rank in revenue and units this month?`,
         `Which ${stats.brand} products are growing fastest?`,
       ],
       warnings: [],
@@ -1227,7 +2064,7 @@ function analyzeGrowthDriver(
     assumptions: ["Market driver decomposition uses total monthly revenue/units and ASP bridge vs prior month."],
     citations: [citation("Market growth driver", "snapshot totals vs prior month", mart.snapshot.date)],
     suggestedQuestions: [
-      "Which brands are driving most of this growth?",
+      "Is market growth driven by price or units?",
       "Who is the fastest growth brand by units?",
       "Who is the fastest rank mover this month?",
     ],
@@ -1275,8 +2112,8 @@ function analyzePriceTierGrowth(params: AnalyzerParams): AnalyzerOutput {
       citations: [citation("Price tiers fallback", "snapshot.priceTiers", mart.snapshot.date)],
       suggestedQuestions: [
         "Which handheld/tablet/dongle segment is growing fastest MoM and YoY?",
-        "Who is the fastest growth brand by revenue and by units?",
-        "Which brands are driving most of this growth?",
+        "Who is the fastest growth brand by revenue?",
+        "Who is the fastest growth brand by units?",
       ],
       warnings: ["Detailed price-tier MoM/YoY metrics are not fully available for this month."],
     }
@@ -1299,8 +2136,8 @@ function analyzePriceTierGrowth(params: AnalyzerParams): AnalyzerOutput {
     citations: [citation("Price-tier growth", "snapshot.typeBreakdowns.allAsins", mart.snapshot.date)],
     suggestedQuestions: [
       "Which handheld/tablet/dongle segment is growing fastest MoM and YoY?",
-      "Who is the fastest growth brand by revenue and by units?",
-      "Which brands are driving most of this growth?",
+      "Who is the fastest growth brand by revenue?",
+      "Who is the fastest growth brand by units?",
     ],
     warnings: [],
   }
@@ -1383,7 +2220,7 @@ function analyzeBrandComparison(params: AnalyzerParams): AnalyzerOutput {
     suggestedQuestions: [
       "Which brand is closing the gap fastest?",
       "Who is the fastest rank mover this month?",
-      "What are the Rolling 12 grand total revenue and units for this brand?",
+      `What are ${left.brand}'s Rolling 12 grand total revenue and units?`,
     ],
     warnings: [],
   }
@@ -1391,13 +2228,26 @@ function analyzeBrandComparison(params: AnalyzerParams): AnalyzerOutput {
 
 function analyzeTrendsMomentum(params: AnalyzerParams): AnalyzerOutput {
   const { mart } = params
-  const products = mart.products
-    .map((product) => ({ product, momentum: safe(product.revenueMoM) }))
+  const scopedProducts = getScopedProducts(mart, params.scope)
+  const headlineRevenueGate = asinHeadlinePriorRevenueGate(mart)
+  const products = scopedProducts
+    .map((product) => {
+      const previousPoint = findHistoryPoint(product.history, mart.previous?.date)
+      const priorRevenue = previousPoint?.revenue ?? null
+      return {
+        product,
+        momentum: safe(product.revenueMoM),
+        priorRevenue,
+        revenueDelta: priorRevenue === null ? null : product.revenue - priorRevenue,
+      }
+    })
     .sort((a, b) => b.momentum - a.momentum)
 
   const rising = products.slice(0, 3)
   const declining = [...products].reverse().slice(0, 2)
+  const scopedBrandKeys = new Set(scopedProducts.map((product) => normalize(product.brand)))
   const brandMovers = mart.snapshot.brandTotals
+    .filter((row) => params.scope.mode === "all_brands" || scopedBrandKeys.has(normalize(row.brand)))
     .map((row) => {
       const prev = (mart.previous?.brandTotals ?? []).find((item) => normalize(item.brand) === normalize(row.brand))
       return { brand: row.brand, delta: ratio(row.revenue, safe(prev?.revenue)) }
@@ -1405,13 +2255,22 @@ function analyzeTrendsMomentum(params: AnalyzerParams): AnalyzerOutput {
     .sort((a, b) => b.delta - a.delta)
     .slice(0, 3)
 
-  const topRise = rising[0]
+  const eligibleHeadline = products.find(
+    (item) => item.priorRevenue !== null && item.priorRevenue >= headlineRevenueGate
+  )
+  const fallbackHeadline = [...products]
+    .filter((item) => item.revenueDelta !== null)
+    .sort((a, b) => safe(b.revenueDelta) - safe(a.revenueDelta))[0]
+  const topRise = eligibleHeadline ?? fallbackHeadline
+  const usedAbsoluteDeltaFallback = !eligibleHeadline && Boolean(fallbackHeadline)
   if (!topRise) {
     return unknownOutput(mart, "I couldn't compute momentum signals from this snapshot.")
   }
 
   return {
-    answer: `Top momentum product: ${topRise.product.brand} ${topRise.product.asin} (${formatPercent(topRise.product.revenueMoM)} revenue MoM).`,
+    answer: usedAbsoluteDeltaFallback
+      ? `No product met the prior-month revenue headline gate of ${formatCurrency(headlineRevenueGate)}; using absolute revenue delta instead, ${topRise.product.brand} ${topRise.product.asin} had the largest revenue delta at ${formatCurrency(safe(topRise.revenueDelta))}${declining[0] ? `; ${declining[0].product.brand} ${declining[0].product.asin} declined most at ${formatPercent(declining[0].product.revenueMoM)}` : ""}.`
+      : `${topRise.product.brand} ${topRise.product.asin} grew fastest in the requested scope at ${formatPercent(topRise.product.revenueMoM)} revenue MoM${declining[0] ? `; ${declining[0].product.brand} ${declining[0].product.asin} declined most at ${formatPercent(declining[0].product.revenueMoM)}` : ""}.`,
     bullets: [
       ...rising.map(
         (item, index) =>
@@ -1427,17 +2286,31 @@ function analyzeTrendsMomentum(params: AnalyzerParams): AnalyzerOutput {
       ...baseEvidence(mart.snapshot),
       { label: "Top Momentum Product", value: `${topRise.product.brand} ${topRise.product.asin}` },
       { label: "Revenue MoM", value: formatPercent(topRise.product.revenueMoM) },
+      { label: "Headline Prior Revenue", value: formatCurrency(topRise.priorRevenue ?? 0) },
+      { label: "Headline Revenue Gate", value: formatCurrency(headlineRevenueGate) },
     ],
     confidence: 0.86,
-    assumptions: ["Momentum uses month-over-month change in product and brand revenue."],
+    assumptions: [
+      "Momentum uses month-over-month change in product and brand revenue within the resolved brand scope.",
+      "Percentage-growth headlines require prior-month revenue of at least $10,000 or 0.1% of category revenue, whichever is smaller.",
+    ],
     citations: [citation("Momentum signals", "products + brandTotals vs prior snapshot", mart.snapshot.date)],
     suggestedQuestions: [
-      "Which products are rising fastest now?",
+      params.scope.mode === "own_brands" ? "Which of our products grew fastest this month?" : "Which products are rising fastest now?",
       "Who is the fastest growth brand this month (MoM)?",
       "Who is the fastest rank mover this month?",
     ],
-    warnings: [],
+    warnings: usedAbsoluteDeltaFallback
+      ? ["No product met the percentage-growth headline revenue gate; the headline uses absolute revenue delta."]
+      : [],
   }
+}
+
+function asinHeadlinePriorRevenueGate(mart: AnalyzerParams["mart"]) {
+  return Math.min(
+    ASIN_HEADLINE_PRIOR_REVENUE_MAX,
+    Math.max(0, mart.snapshot.totals.revenue) * ASIN_HEADLINE_CATEGORY_REVENUE_SHARE
+  )
 }
 
 function analyzeRatingReviews(params: AnalyzerParams): AnalyzerOutput {
@@ -1496,7 +2369,7 @@ function analyzeFeatureAnalysis(params: AnalyzerParams): AnalyzerOutput {
 
   return {
     answer:
-      "Feature-level columns are not consistently available in this snapshot, so I used type and price-tier proxies for feature-premium direction.",
+      "An exact feature premium cannot be measured from this snapshot because feature columns are inconsistent; the best available directional proxy is type and price tier.",
     bullets: [
       topTier
         ? `Highest-weight proxy tier: ${topTier.label} (${formatPercent(topTier.revenueShare)} revenue share, avg price ${formatCurrency(topTier.avgPrice)}).`
@@ -1852,7 +2725,7 @@ function resolveOwnBrands(targetBrand?: string, scope?: ResolvedScope) {
   if (scope?.mode === "target_brand" && scope.brands.length) {
     return new Set(scope.brands.map((brand) => normalize(brand)))
   }
-  return new Set(["innova", "blcktec"])
+  return new Set<string>(OWN_BRAND_KEYS)
 }
 
 function resolveBrandScopeSet(scope: ResolvedScope, ownBrands: Set<string>) {
@@ -1875,8 +2748,7 @@ function getScopedProducts(
   }
   const allowed = new Set(scope.brands.map((brand) => normalize(brand)).filter(Boolean))
   if (!allowed.size && scope.mode === "own_brands") {
-    allowed.add("innova")
-    allowed.add("blcktec")
+    for (const brand of OWN_BRAND_KEYS) allowed.add(brand)
   }
   return mart.products.filter((item) => allowed.has(normalize(item.brand)))
 }
@@ -1936,6 +2808,10 @@ function formatNumber(value: number) {
 function formatPercent(value: number | null) {
   if (value === null || Number.isNaN(value)) return "n/a"
   return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)}%`
+}
+
+function formatSharePercent(value: number) {
+  return `${(safe(value) * 100).toFixed(1)}%`
 }
 
 function signedPoints(value: number) {
