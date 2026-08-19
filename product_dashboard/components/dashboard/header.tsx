@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { ChevronDown, CircleHelp, X } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -153,36 +154,42 @@ export function Header({ user }: { user: DashboardUser }) {
         </DropdownMenu>
       </div>
 
-      {menuOpen ? (
-        <div className="md:hidden">
-          <div
-            className="fixed inset-0 z-50 bg-black/40"
-            onClick={() => setMenuOpen(false)}
-          />
-          <div className="fixed inset-y-0 left-0 z-50 w-72 max-w-[80vw] bg-card border-r border-border p-4 flex flex-col gap-1 shadow-xl">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold text-muted-foreground">Pages</span>
-              <button type="button" aria-label="Close menu" onClick={() => setMenuOpen(false)}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={buildHref(item.href)}
-                className={`block rounded-lg px-3 py-2 text-sm font-medium ${
-                  isActive(item.href)
-                    ? "bg-[var(--color-accent)] text-foreground"
-                    : "text-muted-foreground"
-                }`}
+      {menuOpen
+        ? // Portal to <body>: the sticky header's backdrop-filter makes it the
+          // containing block for fixed-position descendants, which squashed the
+          // drawer and backdrop into the header's own box (transparent, unusable).
+          createPortal(
+            <div className="md:hidden" data-print-hidden>
+              <div
+                className="fixed inset-0 z-50 bg-black/40"
                 onClick={() => setMenuOpen(false)}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      ) : null}
+              />
+              <div className="fixed inset-y-0 left-0 z-50 w-72 max-w-[80vw] bg-card border-r border-border p-4 flex flex-col gap-1 shadow-xl">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-muted-foreground">Pages</span>
+                  <button type="button" aria-label="Close menu" onClick={() => setMenuOpen(false)}>
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                {navItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={buildHref(item.href)}
+                    className={`block rounded-lg px-3 py-2 text-sm font-medium ${
+                      isActive(item.href)
+                        ? "bg-[var(--color-accent)] text-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </header>
   )
 }
