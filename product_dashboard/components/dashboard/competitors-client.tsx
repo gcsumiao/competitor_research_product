@@ -375,7 +375,6 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
       <QuickGuide
         pageKey="brands"
         steps={[
-          { id: "category", text: "Switch the product category" },
           { id: "month", text: "Pick a snapshot month" },
           {
             id: "rank-toggle",
@@ -387,7 +386,6 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
       <PageHeader title="Brands" description={headerDescription}>
         <DropdownMenu>
           <DropdownMenuTrigger
-            data-guide="category"
             className={cn(
               buttonVariants({ variant: "outline" }),
               "flex items-center gap-2 bg-transparent text-sm"

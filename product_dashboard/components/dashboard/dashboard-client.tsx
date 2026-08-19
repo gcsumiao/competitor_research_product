@@ -323,7 +323,6 @@ export function DashboardClient({ data }: { data: DashboardData }) {
       <QuickGuide
         pageKey="dashboard"
         steps={[
-          { id: "category", text: "Switch the product category" },
           { id: "month", text: "Pick a snapshot month" },
           { id: "export", text: "Export this page as a PDF" },
           {
@@ -339,7 +338,6 @@ export function DashboardClient({ data }: { data: DashboardData }) {
       >
         <DropdownMenu>
           <DropdownMenuTrigger
-            data-guide="category"
             className={cn(
               buttonVariants({ variant: "outline" }),
               "flex items-center gap-2 bg-transparent text-sm"
