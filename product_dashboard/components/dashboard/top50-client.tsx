@@ -21,7 +21,7 @@ import {
 import type { DashboardData, ProductSummary, SnapshotSummary } from "@/lib/competitor-data"
 import { REVENUE_CHART_COLOR, UNITS_CHART_COLOR } from "@/lib/chart-colors"
 import { cn } from "@/lib/utils"
-import { averagePriceForCategory } from "@/lib/jump-starters-classification"
+import { weightedAveragePriceForCategory } from "@/lib/jump-starters-classification"
 import { formatSnapshotDateFull, formatSnapshotLabelMonthEnd } from "@/lib/snapshot-date"
 import {
   formatChangeLabel,
@@ -412,7 +412,9 @@ function summarizeTop50(
 ) {
   const revenue = products.reduce((sum, item) => sum + item.revenue, 0)
   const units = products.reduce((sum, item) => sum + item.units, 0)
-  const avgPrice = averagePriceForCategory(categoryId, products)
+  // Report-matching overview math: total revenue over total units, never a
+  // mean of the price column (July 2026: 14,112,141.56 / 115,402 = 122.29).
+  const avgPrice = weightedAveragePriceForCategory(categoryId, products)
   const validRatings = products
     .map((item) => item.rating)
     .filter((rating) => Number.isFinite(rating) && rating > 0)

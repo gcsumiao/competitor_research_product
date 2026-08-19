@@ -164,6 +164,26 @@ export function shouldExcludeAvgPriceForCategory(
   return isJumpStarterAccessoryTypeLabel(item.toolType ?? item.typeLabel)
 }
 
+// Revenue-weighted average price over the (category-filtered) rows:
+// sum of monthly revenue divided by sum of monthly units — matching the
+// report's Top 50 overview math, which never averages the price column.
+export function weightedAveragePriceForCategory(
+  categoryId: string | null | undefined,
+  items: Array<PriceCarrier & { revenue?: number | null; units?: number | null }>
+) {
+  let revenue = 0
+  let units = 0
+  for (const item of items) {
+    if (shouldExcludeAvgPriceForCategory(categoryId, item)) continue
+    const itemRevenue = Number(item.revenue ?? 0)
+    const itemUnits = Number(item.units ?? 0)
+    if (!Number.isFinite(itemRevenue) || !Number.isFinite(itemUnits)) continue
+    revenue += itemRevenue
+    units += itemUnits
+  }
+  return units > 0 ? revenue / units : 0
+}
+
 export function averagePriceForCategory(
   categoryId: string | null | undefined,
   items: PriceCarrier[]
