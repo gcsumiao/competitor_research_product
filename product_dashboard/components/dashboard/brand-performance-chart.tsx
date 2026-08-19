@@ -67,6 +67,7 @@ export function BrandPerformanceChart({
         <div
           className="flex w-fit items-center rounded-full border border-border bg-background/40 p-0.5"
           aria-label="Brand monthly trend selector"
+          data-guide="brand-toggle"
         >
           {(Object.keys(BRAND_PALETTES) as BrandPerformanceBrand[]).map((option) => (
             <button

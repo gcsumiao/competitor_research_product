@@ -43,6 +43,7 @@ interface SalesMapProps {
   totalValue: string
   valueFormatter?: (value: number) => string
   toggleControl?: SalesMapControl
+  toggleGuideId?: string
   primaryControl?: SalesMapControl
   secondaryControl?: SalesMapControl
   topDisplayOrder?: "value-first" | "label-first"
@@ -94,6 +95,7 @@ export function SalesMap({
   totalValue,
   valueFormatter,
   toggleControl,
+  toggleGuideId,
   primaryControl,
   secondaryControl,
   topDisplayOrder = "value-first",
@@ -113,7 +115,10 @@ export function SalesMap({
         {toggleControl || primaryControl || secondaryControl ? (
           <div className="flex items-center gap-2">
             {toggleControl ? (
-              <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
+              <div
+                className="flex items-center rounded-full border border-border bg-background/40 p-0.5"
+                data-guide={toggleGuideId}
+              >
                 {toggleControl.options.map((option) => (
                   <button
                     key={option.value}

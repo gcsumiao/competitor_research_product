@@ -6,6 +6,7 @@ import { Calendar, DollarSign, Download, ListOrdered, Package, Star } from "luci
 import { ExportPdfButton } from "@/components/dashboard/export-pdf-button"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { PageHeader } from "@/components/dashboard/page-header"
+import { QuickGuide } from "@/components/dashboard/quick-guide"
 import { CustomerOrders } from "@/components/dashboard/customer-orders"
 import { TopProducts } from "@/components/dashboard/top-products"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
@@ -150,6 +151,18 @@ export function Top50Client({ data }: { data: DashboardData }) {
 
   return (
     <>
+      <QuickGuide
+        pageKey="top50"
+        steps={[
+          { id: "month", text: "Pick a snapshot month" },
+          { id: "export", text: "Export Top 50 as a PDF" },
+          {
+            id: "list-toggle",
+            text: "Rank the Top 50 by revenue or units",
+            placement: "left",
+          },
+        ]}
+      />
       <PageHeader title="Top 50 Products" description={headerDescription}>
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -175,6 +188,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
 
         <DropdownMenu>
           <DropdownMenuTrigger
+            data-guide="month"
             className={cn(
               buttonVariants({ variant: "outline" }),
               "flex items-center gap-2 bg-transparent text-sm"
@@ -195,7 +209,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <ExportPdfButton>
+        <ExportPdfButton dataGuide="export">
           <Download className="w-4 h-4" />
           Export Top 50
         </ExportPdfButton>
@@ -250,7 +264,9 @@ export function Top50Client({ data }: { data: DashboardData }) {
           <CardTitle className="text-base font-medium">
             Top 50 list ({listMode === "revenue" ? "Revenue" : "Units"})
           </CardTitle>
-          {hasUnitsRanking ? <MetricToggle value={listMode} onChange={setListMode} /> : null}
+          {hasUnitsRanking ? (
+            <MetricToggle value={listMode} onChange={setListMode} dataGuide="list-toggle" />
+          ) : null}
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -320,12 +336,17 @@ export function Top50Client({ data }: { data: DashboardData }) {
 function MetricToggle({
   value,
   onChange,
+  dataGuide,
 }: {
   value: Top50Mode
   onChange: (value: Top50Mode) => void
+  dataGuide?: string
 }) {
   return (
-    <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
+    <div
+      className="flex items-center rounded-full border border-border bg-background/40 p-0.5"
+      data-guide={dataGuide}
+    >
       {(["revenue", "units"] as const).map((option) => (
         <button
           key={option}

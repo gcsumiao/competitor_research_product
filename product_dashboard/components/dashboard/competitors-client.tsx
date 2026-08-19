@@ -8,6 +8,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { PageHeader } from "@/components/dashboard/page-header"
 import { ProfitChart } from "@/components/dashboard/profit-chart"
+import { QuickGuide } from "@/components/dashboard/quick-guide"
 import { CustomerOrders } from "@/components/dashboard/customer-orders"
 import { TopProducts } from "@/components/dashboard/top-products"
 import { SalesMap } from "@/components/dashboard/sales-map"
@@ -371,9 +372,22 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
 
   return (
     <>
+      <QuickGuide
+        pageKey="brands"
+        steps={[
+          { id: "category", text: "Switch the product category" },
+          { id: "month", text: "Pick a snapshot month" },
+          {
+            id: "rank-toggle",
+            text: "Rank brands by revenue or units",
+            placement: "left",
+          },
+        ]}
+      />
       <PageHeader title="Brands" description={headerDescription}>
         <DropdownMenu>
           <DropdownMenuTrigger
+            data-guide="category"
             className={cn(
               buttonVariants({ variant: "outline" }),
               "flex items-center gap-2 bg-transparent text-sm"
@@ -393,6 +407,7 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
 
         <DropdownMenu>
           <DropdownMenuTrigger
+            data-guide="month"
             className={cn(
               buttonVariants({ variant: "outline" }),
               "flex items-center gap-2 bg-transparent text-sm"

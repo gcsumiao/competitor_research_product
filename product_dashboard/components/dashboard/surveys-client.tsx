@@ -16,6 +16,7 @@ import {
 
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { PageHeader } from "@/components/dashboard/page-header"
+import { QuickGuide } from "@/components/dashboard/quick-guide"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -104,6 +105,10 @@ export function SurveysClient({ data }: { data: DashboardData }) {
 
   return (
     <>
+      <QuickGuide
+        pageKey="survey"
+        steps={[{ id: "month", text: "Pick a snapshot month" }]}
+      />
       <PageHeader title="Market Survey" description={headerDescription}>
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -126,6 +131,7 @@ export function SurveysClient({ data }: { data: DashboardData }) {
 
         <DropdownMenu>
           <DropdownMenuTrigger
+            data-guide="month"
             className={cn(
               buttonVariants({ variant: "outline" }),
               "flex items-center gap-2 bg-transparent text-sm"

@@ -8,6 +8,7 @@ import { BrandLauncher } from "@/components/consult-me/brand-launcher"
 import { ResearchConsole } from "@/components/consult-me/research-console"
 import { ResultsWorkspace } from "@/components/consult-me/results-workspace"
 import { PageHeader } from "@/components/dashboard/page-header"
+import { QuickGuide } from "@/components/dashboard/quick-guide"
 import {
   resolveDisplayCompanyLabel,
   resolveResearchSubjectForCompany,
@@ -126,11 +127,24 @@ export function ConsultMeClient({
     setExternalTaskIdToLoad(queryTaskId)
   }, [queryTaskId])
 
+  const quickGuide = (
+    <QuickGuide
+      pageKey="consult-me"
+      steps={[
+        { id: "memory", text: "Reopen finished reports anytime", placement: "left" },
+        { id: "ask", text: "Ask for a company deep-dive research report" },
+      ]}
+    />
+  )
+
   if (!codeReaderCategory || !selectedSnapshot) {
     return (
-      <div className="rounded-md border border-border bg-card p-4 text-sm text-muted-foreground">
-        Code Reader snapshot data is unavailable for Consult Me.
-      </div>
+      <>
+        {quickGuide}
+        <div className="rounded-md border border-border bg-card p-4 text-sm text-muted-foreground">
+          Code Reader snapshot data is unavailable for Consult Me.
+        </div>
+      </>
     )
   }
 
@@ -236,6 +250,7 @@ export function ConsultMeClient({
 
   return (
     <>
+      {quickGuide}
       <PageHeader
         title="Consult Me — AI Consultant"
         description="Deep Market Resaerch across all Company/ Market/ Industry"
@@ -311,7 +326,7 @@ function ConsultMeHistorySidebar({
 
   return (
     <aside className="rounded-lg border border-border bg-card p-3">
-      <div className="mb-3">
+      <div className="mb-3" data-guide="memory">
         <p className="text-sm font-semibold text-foreground">Report Memory</p>
         <p className="text-xs text-muted-foreground">
           Companies with previous runs and available deliverables.

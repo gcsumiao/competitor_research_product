@@ -173,7 +173,10 @@ export function AllBrandsRankChart({
         <div>
           <CardTitle className="text-base font-medium">{title}</CardTitle>
         </div>
-        <div className="flex items-center rounded-full border border-border bg-background/40 p-0.5">
+        <div
+          className="flex items-center rounded-full border border-border bg-background/40 p-0.5"
+          data-guide="rank-toggle"
+        >
           <button
             type="button"
             onClick={() => setMetric("revenue")}
