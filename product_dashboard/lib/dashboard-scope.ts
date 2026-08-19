@@ -240,7 +240,10 @@ function getCachedEnvelopeProbeLoader(scope: DashboardScope, categoryId: Categor
         oversized: byteLength > MAX_CACHE_ENTRY_BYTES,
       }
     },
-    ["dashboard-scope-envelope", "v1", scope, categoryId],
+    // v2: cache-bust after the 2026-08-19 review-count re-ingest — prod's
+    // /api/revalidate sits behind Cloudflare JWT until the service token
+    // lands, so data fixes flush by bumping this version instead.
+    ["dashboard-scope-envelope", "v2", scope, categoryId],
     {
       tags: [DASHBOARD_DATA_TAG],
       revalidate: CACHE_REVALIDATE_SECONDS,
@@ -268,7 +271,7 @@ function getCachedCategoryLoader(scope: DashboardScope, categoryId: CategoryId) 
       }
       return entry
     },
-    ["dashboard-scope", "v1", scope, categoryId],
+    ["dashboard-scope", "v2", scope, categoryId],
     {
       tags: [DASHBOARD_DATA_TAG],
       revalidate: CACHE_REVALIDATE_SECONDS,
