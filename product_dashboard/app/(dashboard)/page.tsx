@@ -2,7 +2,7 @@ import { Suspense } from "react"
 import { redirect } from "next/navigation"
 
 import { DashboardClient } from "@/components/dashboard/dashboard-client"
-import { loadOverviewDashboardData } from "@/lib/competitor-data"
+import { loadScopedDashboardData } from "@/lib/dashboard-scope"
 import { prepareDashboardPageRequest, type DashboardPageSearchParams } from "@/lib/dashboard-request"
 import { normalizeSnapshotDate } from "@/lib/snapshot-date"
 
@@ -17,7 +17,7 @@ export default async function DashboardPage({
     searchParams: params,
     forceCodeReaderCategory: true,
   })
-  const data = await loadOverviewDashboardData()
+  const data = await loadScopedDashboardData("overview")
   const codeReader = data.categories.find((category) => category.id === "code_reader_scanner")
   const latestSnapshot = codeReader?.snapshots.at(-1)
   const requestedCategory = firstSearchParam(params.category)

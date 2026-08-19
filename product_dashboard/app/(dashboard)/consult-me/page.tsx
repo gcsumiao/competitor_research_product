@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 
 import { ConsultMeClient } from "@/components/dashboard/consult-me-client"
-import { loadConsultMeDashboardData } from "@/lib/competitor-data"
+import { loadScopedDashboardData } from "@/lib/dashboard-scope"
 import { prepareDashboardPageRequest, type DashboardPageSearchParams } from "@/lib/dashboard-request"
 
 export default async function ConsultMePage({
@@ -13,7 +13,7 @@ export default async function ConsultMePage({
     pathname: "/consult-me",
     searchParams,
   })
-  const data = await loadConsultMeDashboardData()
+  const data = await loadScopedDashboardData("consult")
 
   return (
     <Suspense fallback={null}>

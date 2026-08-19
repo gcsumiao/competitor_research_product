@@ -2,6 +2,12 @@ import type { NextConfig } from "next";
 import path from "node:path";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    staleTimes: {
+      dynamic: 180,
+      static: 300,
+    },
+  },
   turbopack: {
     root: path.resolve(__dirname),
   },

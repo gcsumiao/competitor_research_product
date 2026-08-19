@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 
 import { SurveysClient } from "@/components/dashboard/surveys-client"
-import { loadSurveysDashboardData } from "@/lib/competitor-data"
+import { loadScopedDashboardData } from "@/lib/dashboard-scope"
 import { prepareDashboardPageRequest, type DashboardPageSearchParams } from "@/lib/dashboard-request"
 
 export default async function OrdersPage({
@@ -14,7 +14,7 @@ export default async function OrdersPage({
     searchParams,
     forceCodeReaderCategory: true,
   })
-  const data = await loadSurveysDashboardData()
+  const data = await loadScopedDashboardData("survey")
 
   return (
     <Suspense fallback={null}>
