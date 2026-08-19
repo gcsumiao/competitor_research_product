@@ -16,6 +16,7 @@ import {
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { PageHeader } from "@/components/dashboard/page-header"
 import { ProfitChart } from "@/components/dashboard/profit-chart"
+import { QuickGuide } from "@/components/dashboard/quick-guide"
 import { CustomerOrders } from "@/components/dashboard/customer-orders"
 import { SalesMap } from "@/components/dashboard/sales-map"
 import { TopProducts } from "@/components/dashboard/top-products"
@@ -223,6 +224,7 @@ export function SpecsClient({
 
       <DropdownMenu>
         <DropdownMenuTrigger
+          data-guide="month"
           className={cn(
             buttonVariants({ variant: "outline" }),
             "flex items-center gap-2 bg-transparent text-sm"
@@ -240,6 +242,20 @@ export function SpecsClient({
         </DropdownMenuContent>
       </DropdownMenu>
     </PageHeader>
+  )
+
+  const quickGuide = (
+    <QuickGuide
+      pageKey="types"
+      steps={[
+        {
+          id: "scope",
+          text: "Choose a type scope — Total Tablet or Total Handheld also unlock a price-tier picker",
+        },
+        { id: "month", text: "Pick a snapshot month" },
+        { id: "mix-toggle", text: "Toggle revenue vs units share" },
+      ]}
+    />
   )
 
   if (selectedCategory && selectedCategory.id !== "code_reader_scanner" && activeSnapshot) {
@@ -350,6 +366,7 @@ export function SpecsClient({
     })
     return (
       <>
+        {quickGuide}
         {header}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -577,16 +594,19 @@ export function SpecsClient({
   }
 
   return (
-    <CodeReaderTypesPage
-      activeSnapshot={activeSnapshot}
-      previousSnapshot={previousSnapshot}
-      snapshots={snapshots}
-      categories={categories}
-      selectedCategory={selectedCategory}
-      headerDescription={headerDescription}
-      setCategory={setCategory}
-      setSnapshot={setSnapshot}
-    />
+    <>
+      {quickGuide}
+      <CodeReaderTypesPage
+        activeSnapshot={activeSnapshot}
+        previousSnapshot={previousSnapshot}
+        snapshots={snapshots}
+        categories={categories}
+        selectedCategory={selectedCategory}
+        headerDescription={headerDescription}
+        setCategory={setCategory}
+        setSnapshot={setSnapshot}
+      />
+    </>
   )
 }
 
@@ -642,10 +662,12 @@ function CodeReaderTypesPage({
       sales: row.units,
       revenue: row.revenue,
     }))
+    // Pie slice order is fixed (revenue desc) regardless of the toggle so a
+    // slice keeps its angular position and just tweens in size when switching
+    // revenue <-> units; only the "Top tier" headline follows the metric.
     const mixRows = selectPriceTierMixRows(rows, resolvedScope)
-      .sort((a, b) =>
-        typeMixMetric === "units" ? b.units - a.units : b.revenue - a.revenue
-      )
+      .slice()
+      .sort((a, b) => b.revenue - a.revenue)
     const typeShareItems = mixRows.map((row, index) => ({
       label: row.label,
       value: typeMixMetric === "revenue" ? row.revenue : row.units,
@@ -653,7 +675,11 @@ function CodeReaderTypesPage({
       revenueShare: row.revenueShare,
       unitsShare: row.unitsShare,
     }))
-    const topMixRow = mixRows[0]
+    const topMixRow = mixRows
+      .slice()
+      .sort((a, b) =>
+        typeMixMetric === "units" ? b.units - a.units : b.revenue - a.revenue
+      )[0]
     const topTypeProducts = (activeSnapshot?.topProducts ?? [])
       .filter((product) => productMatchesScope(product, resolvedScope))
       .slice(0, 4)
@@ -733,6 +759,7 @@ function CodeReaderTypesPage({
         <div className="flex flex-wrap items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger
+              data-guide="scope"
               className={cn(
                 buttonVariants({ variant: "outline", size: "lg" }),
                 "min-w-44 justify-between border-2 border-[var(--color-accent)] bg-[var(--color-accent)]/30 px-4 shadow-sm hover:bg-[var(--color-accent)]/40"
@@ -789,6 +816,7 @@ function CodeReaderTypesPage({
 
           <DropdownMenu>
             <DropdownMenuTrigger
+              data-guide="month"
               className={cn(
                 buttonVariants({ variant: "outline" }),
                 "flex items-center gap-2 bg-transparent text-sm"
@@ -876,6 +904,7 @@ function CodeReaderTypesPage({
               { value: "units", label: "Units" },
             ],
           }}
+          toggleGuideId="mix-toggle"
         />
       </div>
 

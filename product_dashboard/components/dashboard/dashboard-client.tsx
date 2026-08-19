@@ -20,6 +20,7 @@ import { ExportPdfButton } from "@/components/dashboard/export-pdf-button"
 import { MetricCard, type MetricCardLogo } from "@/components/dashboard/metric-card"
 import { PageHeader } from "@/components/dashboard/page-header"
 import { ProfitChart } from "@/components/dashboard/profit-chart"
+import { QuickGuide } from "@/components/dashboard/quick-guide"
 import { CustomerOrders } from "@/components/dashboard/customer-orders"
 import { TopProducts } from "@/components/dashboard/top-products"
 import { SalesMap } from "@/components/dashboard/sales-map"
@@ -253,13 +254,17 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   const currentPriceTierRows = buildPriceTierItems(activeSnapshot, resolvedPriceScope)
   const scopeMetric = findPriceScopeMetric(activeSnapshot, resolvedPriceScope, currentPriceTierRows)
 
-  const priceTiers = currentPriceTierRows.map((tier) => ({
-    label: tier.label,
-    value: priceTierMetric === "revenue" ? tier.revenue : tier.units,
-    color: PRICE_TIER_COLORS[tier.scopeKey] ?? PRICE_TIER_FALLBACK_COLOR,
-    revenueShare: tier.revenueShare,
-    unitsShare: tier.unitsShare,
-  }))
+  // Fixed revenue-desc slice order (matching the Types page pie) so toggling
+  // revenue <-> units tweens slice sizes in place instead of reshuffling.
+  const priceTiers = [...currentPriceTierRows]
+    .sort((a, b) => b.revenue - a.revenue)
+    .map((tier) => ({
+      label: tier.label,
+      value: priceTierMetric === "revenue" ? tier.revenue : tier.units,
+      color: PRICE_TIER_COLORS[tier.scopeKey] ?? PRICE_TIER_FALLBACK_COLOR,
+      revenueShare: tier.revenueShare,
+      unitsShare: tier.unitsShare,
+    }))
 
   const topTier = [...priceTiers].sort((a, b) => b.value - a.value)[0]
   const scopeTotalRevenue = scopeMetric?.revenue
@@ -315,12 +320,26 @@ export function DashboardClient({ data }: { data: DashboardData }) {
 
   return (
     <>
+      <QuickGuide
+        pageKey="dashboard"
+        steps={[
+          { id: "category", text: "Switch the product category" },
+          { id: "month", text: "Pick a snapshot month" },
+          { id: "export", text: "Export this page as a PDF" },
+          {
+            id: "brand-toggle",
+            text: "Flip between Innova and BLCKTEC",
+            placement: "left",
+          },
+        ]}
+      />
       <PageHeader
         title="Competitor Market Dashboard"
         description={headerDescription}
       >
         <DropdownMenu>
           <DropdownMenuTrigger
+            data-guide="category"
             className={cn(
               buttonVariants({ variant: "outline" }),
               "flex items-center gap-2 bg-transparent text-sm"
@@ -345,6 +364,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
 
         <DropdownMenu>
           <DropdownMenuTrigger
+            data-guide="month"
             className={cn(
               buttonVariants({ variant: "outline" }),
               "flex items-center gap-2 bg-transparent text-sm"
@@ -365,7 +385,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <ExportPdfButton>
+        <ExportPdfButton dataGuide="export">
           <Upload className="w-4 h-4" />
           Export Report
         </ExportPdfButton>

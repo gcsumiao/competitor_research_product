@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Bell, ChevronDown } from "lucide-react"
+import { ChevronDown, CircleHelp } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -64,8 +64,16 @@ export function Header({ user }: { user: DashboardUser }) {
       </nav>
 
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="rounded-full">
-          <Bell className="w-5 h-5" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-full"
+          aria-label="Replay page guide"
+          title="Page guide"
+          data-guide-anchor
+          onClick={() => window.dispatchEvent(new CustomEvent("quick-guide:replay"))}
+        >
+          <CircleHelp className="w-5 h-5" />
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 cursor-pointer">
