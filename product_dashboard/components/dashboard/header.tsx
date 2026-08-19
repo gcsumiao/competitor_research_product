@@ -68,16 +68,16 @@ export function Header({ user }: { user: DashboardUser }) {
       <div className="flex items-center gap-2 md:hidden">
         <button
           type="button"
-          className="md:hidden"
+          className="md:hidden -ml-2 rounded-lg p-2.5 active:bg-muted"
           aria-label="Open page menu"
           aria-expanded={menuOpen}
           data-guide="menu"
           onClick={() => setMenuOpen(true)}
         >
-          <div className="flex flex-col gap-1">
-            <div className="w-5 h-0.5 bg-foreground" />
-            <div className="w-5 h-0.5 bg-foreground" />
-            <div className="w-3 h-0.5 bg-foreground" />
+          <div className="flex flex-col gap-1.5">
+            <div className="w-6 h-0.5 bg-foreground" />
+            <div className="w-6 h-0.5 bg-foreground" />
+            <div className="w-4 h-0.5 bg-foreground" />
           </div>
         </button>
         <button type="button" className="md:hidden text-left" aria-label="Back to top" onClick={scrollToTop}>
