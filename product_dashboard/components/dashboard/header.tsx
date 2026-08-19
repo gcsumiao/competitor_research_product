@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ChevronDown, CircleHelp } from "lucide-react"
+import { useEffect, useState } from "react"
+import { ChevronDown, CircleHelp, X } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -28,6 +29,7 @@ export function Header({ user }: { user: DashboardUser }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryString = searchParams.toString()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const buildHref = (href: string) => (queryString ? `${href}?${queryString}` : href)
 
@@ -36,9 +38,46 @@ export function Header({ user }: { user: DashboardUser }) {
     return pathname.startsWith(href)
   }
 
+  useEffect(() => {
+    if (!menuOpen) return
+
+    const previousOverflow = document.documentElement.style.overflow
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false)
+    }
+
+    document.documentElement.style.overflow = "hidden"
+    window.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      document.documentElement.style.overflow = previousOverflow
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [menuOpen])
+
   return (
     <header data-print-hidden className="flex items-center justify-between mb-8">
-      <Link href="/" className="flex items-center gap-2">
+      <div className="flex items-center gap-2 md:hidden">
+        <button
+          type="button"
+          className="md:hidden"
+          aria-label="Open page menu"
+          aria-expanded={menuOpen}
+          data-guide="menu"
+          onClick={() => setMenuOpen(true)}
+        >
+          <div className="flex flex-col gap-1">
+            <div className="w-5 h-0.5 bg-foreground" />
+            <div className="w-5 h-0.5 bg-foreground" />
+            <div className="w-3 h-0.5 bg-foreground" />
+          </div>
+        </button>
+        <Link href="/" className="md:hidden">
+          <span className="text-xl font-semibold">Product Market Research Dashboard</span>
+        </Link>
+      </div>
+
+      <Link href="/" className="hidden md:flex items-center gap-2">
         <div className="flex flex-col gap-1">
           <div className="w-5 h-0.5 bg-foreground" />
           <div className="w-5 h-0.5 bg-foreground" />
@@ -101,6 +140,37 @@ export function Header({ user }: { user: DashboardUser }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {menuOpen ? (
+        <div className="md:hidden">
+          <div
+            className="fixed inset-0 z-50 bg-black/40"
+            onClick={() => setMenuOpen(false)}
+          />
+          <div className="fixed inset-y-0 left-0 z-50 w-72 max-w-[80vw] bg-card border-r border-border p-4 flex flex-col gap-1 shadow-xl">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-muted-foreground">Pages</span>
+              <button type="button" aria-label="Close menu" onClick={() => setMenuOpen(false)}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={buildHref(item.href)}
+                className={`block rounded-lg px-3 py-2 text-sm font-medium ${
+                  isActive(item.href)
+                    ? "bg-[var(--color-accent)] text-foreground"
+                    : "text-muted-foreground"
+                }`}
+                onClick={() => setMenuOpen(false)}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </header>
   )
 }
