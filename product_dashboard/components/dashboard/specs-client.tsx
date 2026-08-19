@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Calendar, ChevronDown, Gauge, Layers, Lightbulb, Zap } from "lucide-react"
+import { Calendar, ChevronDown, DollarSign, Layers, Lightbulb, Package, TrendingUp } from "lucide-react"
 import {
   CartesianGrid,
   Legend,
@@ -1429,7 +1429,7 @@ function buildTargetMetricCards(params: {
       ),
       changeSuffix: "MoM",
       isPositiveOutcome: true,
-      icon: Layers,
+      icon: DollarSign,
     },
     {
       title: "Selected Value Units",
@@ -1440,7 +1440,7 @@ function buildTargetMetricCards(params: {
       ),
       changeSuffix: "MoM",
       isPositiveOutcome: true,
-      icon: Gauge,
+      icon: Package,
     },
     {
       title: "Avg Retail Price",
@@ -1451,7 +1451,7 @@ function buildTargetMetricCards(params: {
       ),
       changeSuffix: "MoM",
       isPositiveOutcome: true,
-      icon: Zap,
+      icon: DollarSign,
     },
     {
       title: "Concentration (Top 3)",
@@ -1609,7 +1609,7 @@ function buildCodeReaderMetricCards(
       change: formatChangeLabel(revenueChange),
       changeSuffix: "MoM",
       isPositiveOutcome: (revenueChange ?? 0) >= 0,
-      icon: Layers,
+      icon: DollarSign,
     },
     {
       title: `${scopeLabel} Units`,
@@ -1618,7 +1618,7 @@ function buildCodeReaderMetricCards(
       change: formatChangeLabel(unitsChange),
       changeSuffix: "MoM",
       isPositiveOutcome: (unitsChange ?? 0) >= 0,
-      icon: Gauge,
+      icon: Package,
     },
     {
       title: "Average Price",
@@ -1627,7 +1627,7 @@ function buildCodeReaderMetricCards(
       change: formatChangeLabel(percentFromRatio(current?.avgPriceMoM)),
       changeSuffix: "MoM",
       isPositiveOutcome: true,
-      icon: Zap,
+      icon: DollarSign,
     },
     {
       title: "Revenue YoY",
@@ -1635,7 +1635,7 @@ function buildCodeReaderMetricCards(
       secondaryValue: `Units YoY ${formatChangeLabel(percentFromRatio(current?.unitsYoY))}`,
       change: "Summary sheet",
       isPositiveOutcome: true,
-      icon: Layers,
+      icon: TrendingUp,
     },
   ]
 }
