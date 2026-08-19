@@ -48,7 +48,13 @@ export function QuickGuide({
   steps: QuickGuideStep[]
 }) {
   const stepsSignature = JSON.stringify(steps)
-  const stableSteps = useMemo(() => steps, [stepsSignature])
+  const stableSteps = useMemo<QuickGuideStep[]>(
+    () => [
+      { id: "menu", text: "Tap here to switch pages", placement: "bottom" },
+      ...steps,
+    ],
+    [stepsSignature]
+  )
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null)
   const [overlay, setOverlay] = useState<OverlayState | null>(null)
   const overlayRef = useRef<OverlayState | null>(null)
@@ -82,7 +88,8 @@ export function QuickGuide({
       timers.clear()
     }
 
-    const storageKey = (id: string) => `quick-guide:${pageKey}:${id}`
+    const storageKey = (id: string) =>
+      id === "menu" ? "quick-guide:menu" : `quick-guide:${pageKey}:${id}`
 
     const isDone = (id: string) => {
       try {
@@ -103,7 +110,10 @@ export function QuickGuide({
     const findTargets = () =>
       stableSteps.flatMap((step) => {
         const target = document.querySelector<HTMLElement>(`[data-guide="${step.id}"]`)
-        return target ? [{ step, target }] : []
+        if (!target) return []
+
+        const targetRect = target.getBoundingClientRect()
+        return targetRect.width === 0 && targetRect.height === 0 ? [] : [{ step, target }]
       })
 
     const removeIntroListeners = () => {
@@ -228,7 +238,7 @@ export function QuickGuide({
       const matches = findTargets().filter(({ step }) => includeDone || !isDone(step.id))
       if (!matches.length) {
         attachPeekListeners()
-        return
+        return false
       }
 
       const runId = ++nextRunIdRef.current
@@ -270,11 +280,34 @@ export function QuickGuide({
       }
 
       schedule(() => retractIntro(runId), INTRO_VISIBLE_MS)
+      return true
     }
 
     const replayGuide = () => runIntro(true)
+    const runAutoIntro = () => {
+      const isMobile = window.matchMedia("(max-width: 767px)").matches
+      const autoStorageKey = `quick-guide:auto:${pageKey}`
+
+      if (isMobile) {
+        try {
+          if (window.sessionStorage.getItem(autoStorageKey) === "1") return
+        } catch {
+          // The guide remains usable when session storage is unavailable.
+        }
+      }
+
+      const didRender = runIntro(false)
+      if (isMobile && didRender) {
+        try {
+          window.sessionStorage.setItem(autoStorageKey, "1")
+        } catch {
+          // The guide remains usable when session storage is unavailable.
+        }
+      }
+    }
+
     window.addEventListener("quick-guide:replay", replayGuide)
-    schedule(() => runIntro(false), INTRO_DELAY_MS)
+    schedule(runAutoIntro, INTRO_DELAY_MS)
 
     return () => {
       clearTimers()
