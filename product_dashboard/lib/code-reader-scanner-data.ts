@@ -1965,20 +1965,18 @@ function parseNumber(value: string): number {
  * Bare numbers fall back to the legacy parseShare heuristic.
  */
 function parsePercentValue(value: string): number {
-  const trimmed = value.trim()
-  if (!trimmed) return 0
-  if (trimmed.includes("%")) {
-    const parsed = parseNumber(trimmed)
-    return Number.isFinite(parsed) ? parsed / 100 : 0
-  }
-  return parseShare(trimmed)
+  return parseShare(value)
 }
 
 function parseShare(value: string): number {
-  const parsed = parseNumber(value)
+  const trimmed = value.trim()
+  if (!trimmed) return 0
+  const parsed = parseNumber(trimmed)
   if (!Number.isFinite(parsed)) return 0
-  // Many worksheets store percentages as "23" or "-23" (meaning 23% / -23%).
-  // Normalize those to ratios so downstream UI formatting can safely multiply by 100.
+  // A literal percent sign is unambiguous: "1%" means 1 percent -> 0.01.
+  if (trimmed.includes("%")) return parsed / 100
+  // Bare-number fallback (legacy sheets): "23" means 23% -> 0.23; values in
+  // [-1, 1] are assumed to already be ratios.
   if (Math.abs(parsed) > 1) return parsed / 100
   return parsed
 }

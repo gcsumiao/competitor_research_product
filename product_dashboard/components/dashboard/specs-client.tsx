@@ -881,9 +881,13 @@ function CodeReaderTypesPage({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <CustomerOrders
-          title="Scope trend"
+          title={`${resolvedScopeLabel} trend`}
           subtitle={`${trendMetric === "revenue" ? "Revenue" : "Units"} trend across snapshots`}
-          totalLabel={trendMetric === "revenue" ? "Current scope revenue" : "Current scope units"}
+          totalLabel={
+            trendMetric === "revenue"
+              ? `Current ${resolvedScopeLabel} revenue`
+              : `Current ${resolvedScopeLabel} units`
+          }
           totalValue={trendFormatter(view.currentTrendValue)}
           changeLabel={formatChangeLabel(
             percentChange(view.currentTrendValue, view.previousTrendValue)

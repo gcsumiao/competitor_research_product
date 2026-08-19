@@ -137,8 +137,8 @@ function validateJulyAcceptance(
   }
 
   const expectations = [
-    { brand: "Innova", revenue: 19_177_986.08, units: 117_097, revenueLabel: "$19.2M", unitsLabel: "117K", revenueChange: 2.6, unitsChange: 1.7 },
-    { brand: "BLCKTEC", revenue: 5_289_089.26, units: 45_945, revenueLabel: "$5.3M", unitsLabel: "46K", revenueChange: 3.2, unitsChange: 0.4 },
+    { brand: "Innova", revenue: 19_177_986.08, units: 117_097, revenueLabel: "$19.2M", unitsLabel: "117.1K", revenueChange: 2.6, unitsChange: 1.7 },
+    { brand: "BLCKTEC", revenue: 5_289_089.26, units: 45_945, revenueLabel: "$5.3M", unitsLabel: "45.9K", revenueChange: 3.2, unitsChange: 0.4 },
   ] as const
 
   for (const expectation of expectations) {
@@ -282,8 +282,8 @@ function validateFormatters(failures: Failure[]) {
   assertEqual("format.revenue.38m", formatCodeReaderCurrencyCompact(38_000_000), "$38.0M", failures)
   assertEqual("format.revenue.32m", formatCodeReaderCurrencyCompact(32_352_069), "$32.4M", failures)
   assertEqual("format.revenue.438k", formatCodeReaderCurrencyCompact(438_513), "$438.5K", failures)
-  assertEqual("format.units.117k", formatCodeReaderUnitsCompact(117_097), "117K", failures)
-  assertEqual("format.units.294k", formatCodeReaderUnitsCompact(294_281), "294K", failures)
+  assertEqual("format.units.117k", formatCodeReaderUnitsCompact(117_097), "117.1K", failures)
+  assertEqual("format.units.294k", formatCodeReaderUnitsCompact(294_281), "294.3K", failures)
 }
 
 function assertEqual(scope: string, actual: string, expected: string, failures: Failure[]) {
