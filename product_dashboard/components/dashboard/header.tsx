@@ -55,8 +55,15 @@ export function Header({ user }: { user: DashboardUser }) {
     }
   }, [menuOpen])
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
   return (
-    <header data-print-hidden className="flex items-center justify-between mb-8">
+    <header
+      data-print-hidden
+      className="sticky top-0 z-40 -mx-4 -mt-4 px-4 pt-4 md:-mx-6 md:-mt-6 md:px-6 md:pt-6 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-8 pb-3 bg-background/95 backdrop-blur-sm border-b border-border flex items-center justify-between mb-8"
+    >
       <div className="flex items-center gap-2 md:hidden">
         <button
           type="button"
@@ -72,19 +79,24 @@ export function Header({ user }: { user: DashboardUser }) {
             <div className="w-3 h-0.5 bg-foreground" />
           </div>
         </button>
-        <Link href="/" className="md:hidden">
+        <button type="button" className="md:hidden text-left" aria-label="Back to top" onClick={scrollToTop}>
           <span className="text-xl font-semibold">Product Market Research Dashboard</span>
-        </Link>
+        </button>
       </div>
 
-      <Link href="/" className="hidden md:flex items-center gap-2">
+      <button
+        type="button"
+        className="hidden md:flex items-center gap-2 text-left"
+        aria-label="Back to top"
+        onClick={scrollToTop}
+      >
         <div className="flex flex-col gap-1">
           <div className="w-5 h-0.5 bg-foreground" />
           <div className="w-5 h-0.5 bg-foreground" />
           <div className="w-3 h-0.5 bg-foreground" />
         </div>
         <span className="text-xl font-semibold">Product Market Research Dashboard</span>
-      </Link>
+      </button>
 
       <nav className="hidden md:flex items-center bg-card rounded-full px-2 py-1.5 border border-border">
         {navItems.map((item) => (
