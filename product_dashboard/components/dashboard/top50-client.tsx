@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Calendar, Download, ListOrdered } from "lucide-react"
+import { Calendar, DollarSign, Download, ListOrdered, Package, Star } from "lucide-react"
 
 import { ExportPdfButton } from "@/components/dashboard/export-pdf-button"
 import { MetricCard } from "@/components/dashboard/metric-card"
@@ -101,7 +101,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
       change: formatChangeLabel(percentChange(activeTotals.revenue, previousTotals.revenue)),
       changeSuffix: previousSnapshot ? "MoM" : "",
       isPositiveOutcome: activeTotals.revenue >= previousTotals.revenue,
-      icon: ListOrdered,
+      icon: DollarSign,
     },
     {
       title: hasUnitsRanking ? "Top 50 Units (revenue-ranked)" : "Top 50 Units",
@@ -109,7 +109,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
       change: formatChangeLabel(percentChange(activeTotals.units, previousTotals.units)),
       changeSuffix: previousSnapshot ? "MoM" : "",
       isPositiveOutcome: activeTotals.units >= previousTotals.units,
-      icon: ListOrdered,
+      icon: Package,
     },
     {
       title: "Avg Price (Top 50)",
@@ -117,7 +117,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
       change: formatChangeLabel(percentChange(activeTotals.avgPrice, previousTotals.avgPrice)),
       changeSuffix: previousSnapshot ? "MoM" : "",
       isPositiveOutcome: activeTotals.avgPrice >= previousTotals.avgPrice,
-      icon: ListOrdered,
+      icon: DollarSign,
     },
     {
       title: "Average Ratings",
@@ -127,7 +127,7 @@ export function Top50Client({ data }: { data: DashboardData }) {
         : "n/a",
       changeSuffix: previousSnapshot ? "pts" : "",
       isPositiveOutcome: activeTotals.averageRating >= previousTotals.averageRating,
-      icon: ListOrdered,
+      icon: Star,
     },
   ]
 
