@@ -273,21 +273,22 @@ export function Top50Client({ data }: { data: DashboardData }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Rank</th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Ranking</th>
                   <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">ASIN</th>
-                  <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Title</th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Product Name</th>
                   <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Brand</th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">Type</th>
                   <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Price</th>
                   <th className={cn(
                     "text-right py-3 px-2 text-xs font-medium",
                     listMode === "revenue" ? "text-foreground" : "text-muted-foreground"
-                  )}>Revenue</th>
+                  )}>Est. Monthly Retail Rev</th>
                   <th className={cn(
                     "text-right py-3 px-2 text-xs font-medium",
                     listMode === "units" ? "text-foreground" : "text-muted-foreground"
-                  )}>Units</th>
-                  <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Reviews</th>
-                  <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Rating</th>
+                  )}>Est. Monthly Units Sold</th>
+                  <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground"># of Reviews</th>
+                  <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground">Avg. Rating</th>
                 </tr>
               </thead>
               <tbody>
@@ -307,6 +308,9 @@ export function Top50Client({ data }: { data: DashboardData }) {
                       {truncateLabel(product.title, 70)}
                     </td>
                     <td className="py-3 px-2 text-xs text-muted-foreground">{product.brand}</td>
+                    <td className="py-3 px-2 text-xs text-muted-foreground">
+                      {product.toolType ?? product.subcategory ?? "n/a"}
+                    </td>
                     <td className="py-3 px-2 text-xs text-right">
                       {product.price ? formatCurrency(product.price) : "n/a"}
                     </td>

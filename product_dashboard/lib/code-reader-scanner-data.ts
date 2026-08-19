@@ -1641,7 +1641,10 @@ function parseProductTable(
     "estmonthlyunitssold",
     "quantitymo",
   ])
-  const reviewsCol = findColumn(header, ["reviewcount", "#ofreviews", "totalreviews"])
+  // normalizeText strips "#", so the report's "# of Reviews" header lands as
+  // "ofreviews" — the "#ofreviews" spelling never matched and Top 50 rows
+  // ingested with reviewCount 0.
+  const reviewsCol = findColumn(header, ["reviewcount", "ofreviews", "totalreviews"])
   const toolRatingCol = findColumn(header, ["toolrating", "reviewsrating", "avgrating"])
   const imageCol = findColumn(header, ["imageurl", "image", "imageurllink"])
   const urlCol = findColumn(header, ["url", "link", "column1", "column2"])
