@@ -22,6 +22,7 @@
     "db:verify:parity": "node -r dotenv/config --import tsx scripts/verify-dashboard-parity.mts dotenv_config_path=.env.local",
     "db:verify:code-reader-adjusted": "node -r dotenv/config --import tsx scripts/verify-code-reader-adjusted-rolling12.mts dotenv_config_path=.env.local",
     "verify:code-reader-dashboard": "node --import tsx scripts/verify-code-reader-dashboard.mts",
+    "verify:share-parity": "node --import tsx scripts/verify-share-parity.mts",
     "verify:code-reader-dashboard:postgres": "VERIFY_CODE_READER_POSTGRES=1 node -r dotenv/config --import tsx scripts/verify-code-reader-dashboard.mts dotenv_config_path=.env.local",
     "deploy:check-env": "node -r dotenv/config --import tsx scripts/check-deployment-env.mts dotenv_config_path=.env.local",
     "deploy:smoke": "node -r dotenv/config --import tsx scripts/smoke-dashboard-deployment.mts dotenv_config_path=.env.local",
