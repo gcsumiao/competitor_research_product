@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 
 import { CompetitorsClient } from "@/components/dashboard/competitors-client"
-import { loadBrandsDashboardData } from "@/lib/competitor-data"
+import { loadScopedDashboardData } from "@/lib/dashboard-scope"
 import { prepareDashboardPageRequest, type DashboardPageSearchParams } from "@/lib/dashboard-request"
 
 export default async function CustomersPage({
@@ -14,7 +14,7 @@ export default async function CustomersPage({
     searchParams,
     forceCodeReaderCategory: true,
   })
-  const data = await loadBrandsDashboardData()
+  const data = await loadScopedDashboardData("brands")
 
   return (
     <Suspense fallback={null}>

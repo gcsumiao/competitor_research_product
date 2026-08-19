@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 
 import { Top50Client } from "@/components/dashboard/top50-client"
-import { loadSalesDashboardData } from "@/lib/competitor-data"
+import { loadScopedDashboardData } from "@/lib/dashboard-scope"
 import { prepareDashboardPageRequest, type DashboardPageSearchParams } from "@/lib/dashboard-request"
 
 export default async function SalesPage({
@@ -14,7 +14,7 @@ export default async function SalesPage({
     searchParams,
     forceCodeReaderCategory: true,
   })
-  const data = await loadSalesDashboardData()
+  const data = await loadScopedDashboardData("top50")
 
   return (
     <Suspense fallback={null}>

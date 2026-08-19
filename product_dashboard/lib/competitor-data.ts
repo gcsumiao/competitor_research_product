@@ -290,6 +290,13 @@ const CATEGORY_CONFIG: CategoryConfig[] = [
   },
 ]
 
+export function listDashboardCategoryIds(): CategoryId[] {
+  const deploymentMode = getDashboardDeploymentMode()
+  return CATEGORY_CONFIG
+    .filter((category) => deploymentMode === "full" || category.id === "code_reader_scanner")
+    .map((category) => category.id)
+}
+
 const PRICE_TIERS = [
   { label: "$0-40", min: 0, max: 40 },
   { label: "$40-60", min: 40, max: 60 },

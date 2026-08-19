@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 
 import { ReportsClient } from "@/components/dashboard/reports-client"
-import { loadReportsDashboardData } from "@/lib/competitor-data"
+import { loadScopedDashboardData } from "@/lib/dashboard-scope"
 import { prepareDashboardPageRequest, type DashboardPageSearchParams } from "@/lib/dashboard-request"
 import { loadReportFiles } from "@/lib/report-files"
 
@@ -15,7 +15,7 @@ export default async function ReportsPage({
     searchParams,
     forceCodeReaderCategory: true,
   })
-  const [data, reports] = await Promise.all([loadReportsDashboardData(), loadReportFiles()])
+  const [data, reports] = await Promise.all([loadScopedDashboardData("reports"), loadReportFiles()])
 
   return (
     <Suspense fallback={null}>
