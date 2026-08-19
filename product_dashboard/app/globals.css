@@ -91,18 +91,17 @@
   --sidebar-ring: oklch(0.74 0.04 200);
   --color-positive: oklch(0.62 0.15 145);
   --color-negative: oklch(0.62 0.2 25);
-  /* Tier palette is keyed by category (same tier = same color on every page)
-     and validated with the dataviz palette checker: all 21 pairs clear the
-     normal-vision floor (worst ΔE 15.5); cyan/yellow sit below 3:1 surface
-     contrast and red↔green remains a CVD confusion pair, both relieved by the
-     always-on legend, slice gaps, tooltips, and the breakdown tables. */
-  --color-tier-tablet-800-plus: #8b5cf6;
-  --color-tier-tablet-400-800: #06b6d4;
-  --color-tier-tablet-under-400: #ea580c;
-  --color-tier-handheld-75-plus: #15803d;
+  /* Tier palette is keyed by category (same tier = same color on every page).
+     Per Ginny's decision 2026-08-19: keep the original hues, with the single
+     change that Handheld $75- is yellow instead of pink so it no longer
+     collides with the Tablet $400-$800 red. */
+  --color-tier-tablet-800-plus: #7c3aed;
+  --color-tier-tablet-400-800: #dc2626;
+  --color-tier-tablet-under-400: #d97706;
+  --color-tier-handheld-75-plus: #059669;
   --color-tier-handheld-under-75: #eab308;
-  --color-tier-total-dongle: #1e40af;
-  --color-tier-total-other-tools: #be123c;
+  --color-tier-total-dongle: #2563eb;
+  --color-tier-total-other-tools: #64748b;
 }
 
 .dark {
@@ -139,17 +138,15 @@
   --sidebar-ring: oklch(0.6 0.08 200);
   --color-positive: oklch(0.72 0.14 145);
   --color-negative: oklch(0.74 0.18 25);
-  /* Dark steps of the same tier hues, kept inside the dark lightness band
-     (L 0.48-0.67) with >=3:1 contrast on the dark card; warm pairs cannot
-     spread further inside that band, so the same legend/gap/tooltip relief
-     applies. */
-  --color-tier-tablet-800-plus: #8b5cf6;
-  --color-tier-tablet-400-800: #0891b2;
-  --color-tier-tablet-under-400: #ea580c;
-  --color-tier-handheld-75-plus: #16a34a;
-  --color-tier-handheld-under-75: #a16207;
-  --color-tier-total-dongle: #3b82f6;
-  --color-tier-total-other-tools: #f43f5e;
+  /* Dark steps of the same tier hues; Handheld $75- is the yellow step here
+     too (lighter lemon so it stays apart from the amber Tablet $400- step). */
+  --color-tier-tablet-800-plus: #a78bfa;
+  --color-tier-tablet-400-800: #f87171;
+  --color-tier-tablet-under-400: #fbbf24;
+  --color-tier-handheld-75-plus: #34d399;
+  --color-tier-handheld-under-75: #fde047;
+  --color-tier-total-dongle: #60a5fa;
+  --color-tier-total-other-tools: #94a3b8;
 }
 
 @layer base {
