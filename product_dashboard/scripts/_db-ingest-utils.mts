@@ -183,7 +183,13 @@ export async function triggerRevalidate(input: {
     url.searchParams.set("secret", input.secret)
     url.searchParams.set("tag", tag)
     try {
-      await fetch(url, { method: "POST", headers: cloudflareAccessHeaders() })
+      const response = await fetch(url, { method: "POST", headers: cloudflareAccessHeaders() })
+      if (!response.ok) {
+        console.warn(
+          `Failed to revalidate ${tag}: HTTP ${response.status} from ${url.origin}${url.pathname} ` +
+            "(Cloudflare Access likely blocked it; bump the dashboard-scope cache version or use a CF service token)"
+        )
+      }
     } catch (error) {
       console.warn(`Failed to revalidate ${tag}: ${error instanceof Error ? error.message : error}`)
     }
