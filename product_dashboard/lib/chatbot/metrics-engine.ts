@@ -702,7 +702,7 @@ function runAnalyzer(
             ? ["Rolling 12 grand total is unavailable for this scope."]
             : []),
         singleBrand
-          ? `${singleBrand.brand} rank is #${revenueRank ?? "n/a"} by revenue and #${unitsRank ?? "n/a"} by units.`
+          ? formatBrandRolling12Ranks(singleBrand.brand, revenueRank, unitsRank)
           : `Current scope includes ${currentRows.length} brands in this snapshot.`,
         `Average price is ${formatIntegerPrice(currentAsp)} (${formatPercent(ratio(currentAsp, prevAsp))} MoM). This scope is currently ${strategyLabel}.`,
         `Revenue movement is mainly driven by ${primaryDriver}: units effect ${formatCurrency(unitEffect)}, price effect ${formatCurrency(priceEffect)}.`,
@@ -938,11 +938,11 @@ function runAnalyzer(
     const leader = leaders[0]
     return {
       answer: leader
-        ? `${leader.brand} ranks first by ${metric} with ${metric === "units" ? `${formatNumber(leader.units)} units` : `${formatCurrency(leader.revenue)} revenue`} and ${formatSharePercent(leader.share)} revenue share.`
+        ? `${leader.brand} ranks first by ${metric} this month with ${metric === "units" ? `${formatNumber(leader.units)} units` : `${formatCurrency(leader.revenue)} revenue`} and ${formatSharePercent(leader.share)} revenue share.`
         : "Brand leader data is unavailable for this snapshot.",
       bullets: leaders.slice(0, 5).map(
         (row, index) =>
-          `#${index + 1} ${row.brand}: ${formatCurrency(row.revenue)} revenue, ${formatNumber(row.units)} units, ${formatPercent(row.share)} share.`
+          `#${index + 1} ${row.brand} this month: ${formatCurrency(row.revenue)} revenue, ${formatNumber(row.units)} units, ${formatPercent(row.share)} share.`
       ),
       evidence: [
         ...baseEvidence(mart.snapshot),
@@ -956,7 +956,7 @@ function runAnalyzer(
           : []),
       ],
       confidence: leader ? 0.98 : 0.55,
-      assumptions: ["Brand ranking uses current snapshot brand totals."],
+      assumptions: ["Monthly brand leaderboard uses current snapshot brand totals."],
       citations: [citation("Brand totals", "snapshot.brandTotals", mart.snapshot.date)],
       suggestedQuestions: [
         "Which product ranked first by revenue?",
@@ -1891,24 +1891,24 @@ function analyzeFastestRankMover(params: AnalyzerParams): AnalyzerOutput {
 
   const top = ranked[0]
   if (!top || top.delta === null) {
-    return unknownOutput(mart, "I couldn't compute brand rank movement from available snapshots.")
+    return unknownOutput(mart, "I couldn't compute Rolling 12 brand rank movement from available snapshots.")
   }
 
   return {
-    answer: `Fastest brand rank mover (${metric} rank): ${top.brand} (${signedRankDelta(top.delta)} vs ${previousLabel}).`,
+    answer: `Fastest Rolling 12 brand rank mover (${metric} rank): ${top.brand} (${signedRankDelta(top.delta)} vs ${previousLabel}).`,
     bullets: ranked.map(
       (row, index) =>
-        `#${index + 1} ${row.brand}: ${formatRank(row.prevRank)} -> ${formatRank(row.currentRank)} (${signedRankDelta(row.delta)}), ${formatCurrency(row.revenue)} revenue, ${formatNumber(row.units)} units.`
+        `#${index + 1} ${row.brand}: Rolling 12 ${metric} rank ${formatRank(row.prevRank)} -> ${formatRank(row.currentRank)} (${signedRankDelta(row.delta)}), ${formatCurrency(row.revenue)} revenue, ${formatNumber(row.units)} units.`
     ),
     evidence: [
       ...baseEvidence(mart.snapshot),
       { label: "Target Level", value: "Brand" },
-      { label: "Rank Target", value: rankTarget },
+      { label: "Rolling 12 Rank Target", value: rankTarget.replace(/_/g, " ") },
       { label: "Baseline", value: previousLabel },
     ],
     confidence: 0.87,
-    assumptions: ["Rank mover compares current rank versus immediately previous snapshot rank."],
-    citations: [citation("Brand rank movement", "snapshot.brandTotals rankings", mart.snapshot.date)],
+    assumptions: ["Rolling 12 rank mover compares current rank versus immediately previous snapshot rank."],
+    citations: [citation("Rolling 12 brand rank movement", "snapshot.rolling12 metric brand ranks", mart.snapshot.date)],
     suggestedQuestions: [
       `Show top ASIN contributors for ${top.brand}.`,
       `Is ${top.brand} growth driven by units or ASP?`,
@@ -2065,7 +2065,7 @@ function analyzeGrowthDriver(
       answer: `${stats.brand} performance is mainly ${driver.primaryDriver}-driven this month.`,
       bullets: [
         `${stats.brand} monthly revenue ${formatCurrency(stats.revenue)}, monthly units ${formatNumber(stats.units)}.`,
-        `${stats.brand} rank: #${revenueRank ?? "n/a"} by revenue, #${unitsRank ?? "n/a"} by units.`,
+        formatBrandRolling12Ranks(stats.brand, revenueRank, unitsRank),
         `ASP ${formatIntegerPrice(stats.asp)} and profile is ${toArchetypeLabel(archetype)}.`,
         `Driver split: unit effect ${formatCurrency(driver.unitEffect)}, price effect ${formatCurrency(driver.priceEffect)}.`,
       ],
@@ -2073,15 +2073,21 @@ function analyzeGrowthDriver(
         ...baseEvidence(mart.snapshot),
         { label: "Scope", value: stats.brand },
         { label: "Primary Driver", value: driver.primaryDriver.toUpperCase() },
-        { label: "Revenue Rank", value: `#${revenueRank ?? "n/a"}` },
-        { label: "Units Rank", value: `#${unitsRank ?? "n/a"}` },
+        {
+          label: "Rolling 12 Revenue Rank",
+          value: revenueRank === null ? "outside top table" : `#${revenueRank}`,
+        },
+        {
+          label: "Rolling 12 Units Rank",
+          value: unitsRank === null ? "outside top table" : `#${unitsRank}`,
+        },
       ],
       confidence: 0.9,
       assumptions: ["Brand driver decomposition uses monthly revenue/units and ASP bridge vs prior month."],
       citations: [citation("Brand growth driver", "snapshot.brandTotals + prior snapshot", mart.snapshot.date)],
       suggestedQuestions: [
         `Show top ASIN contributors for ${stats.brand}.`,
-        `Where does ${stats.brand} rank in revenue and units this month?`,
+        `Where does ${stats.brand} rank on Rolling 12 revenue and units?`,
         `Which ${stats.brand} products are growing fastest?`,
       ],
       warnings: [],
@@ -2240,8 +2246,12 @@ function analyzeBrandComparison(params: AnalyzerParams): AnalyzerOutput {
       leftRolling12 && rightRolling12
         ? `Rolling 12 totals: ${left.brand} ${formatCurrency(leftRolling12.revenueGrandTotal)} / ${formatNumber(leftRolling12.unitsGrandTotal)} units vs ${right.brand} ${formatCurrency(rightRolling12.revenueGrandTotal)} / ${formatNumber(rightRolling12.unitsGrandTotal)} units.`
         : "Rolling 12 grand totals are unavailable for one or both brands.",
-      `${left.brand}: rank #${leftRank ?? "n/a"}, ${formatCurrency(left.revenue)} revenue, ${formatNumber(left.units)} units, ASP ${formatIntegerPrice(left.asp)}.`,
-      `${right.brand}: rank #${rightRank ?? "n/a"}, ${formatCurrency(right.revenue)} revenue, ${formatNumber(right.units)} units, ASP ${formatIntegerPrice(right.asp)}.`,
+      leftRank === null
+        ? `${left.brand}: outside the Rolling 12 top-brand table; ${formatCurrency(left.revenue)} monthly revenue, ${formatNumber(left.units)} monthly units, ASP ${formatIntegerPrice(left.asp)}.`
+        : `${left.brand}: Rolling 12 revenue rank #${leftRank}; ${formatCurrency(left.revenue)} monthly revenue, ${formatNumber(left.units)} monthly units, ASP ${formatIntegerPrice(left.asp)}.`,
+      rightRank === null
+        ? `${right.brand}: outside the Rolling 12 top-brand table; ${formatCurrency(right.revenue)} monthly revenue, ${formatNumber(right.units)} monthly units, ASP ${formatIntegerPrice(right.asp)}.`
+        : `${right.brand}: Rolling 12 revenue rank #${rightRank}; ${formatCurrency(right.revenue)} monthly revenue, ${formatNumber(right.units)} monthly units, ASP ${formatIntegerPrice(right.asp)}.`,
       `Gap summary: units ${formatSignedNumber(unitsGap)}, ASP ${formatSignedIntegerPrice(aspGap)}.`,
       `${left.brand} share ${formatPercent(left.revenueShare)} vs ${right.brand} share ${formatPercent(right.revenueShare)}.`,
     ],
@@ -2258,7 +2268,7 @@ function analyzeBrandComparison(params: AnalyzerParams): AnalyzerOutput {
         : []),
     ],
     confidence: 0.87,
-    assumptions: ["Brand comparison uses current-month brand totals and revenue-rank ordering."],
+    assumptions: ["Brand comparison uses current-month totals and Rolling 12 revenue ranks."],
     citations: [
       citation("Brand comparison", "snapshot.brandTotals", mart.snapshot.date),
       ...(leftRolling12 && rightRolling12
@@ -2767,13 +2777,29 @@ function rankForBrandByMetric(
   brandName: string,
   metric: "revenue" | "units"
 ) {
-  const sorted = snapshot.brandTotals
-    .slice()
-    .sort((a, b) =>
-      metric === "revenue" ? b.revenue - a.revenue : b.units - a.units
-    )
-  const index = sorted.findIndex((item) => normalize(item.brand) === normalize(brandName))
-  return index >= 0 ? index + 1 : null
+  const row = snapshot.rolling12?.[metric]?.brands?.find(
+    (item) => normalize(item.brand) === normalize(brandName)
+  )
+  return row?.rank ?? null
+}
+
+function formatBrandRolling12Ranks(
+  brandName: string,
+  revenueRank: number | null,
+  unitsRank: number | null
+) {
+  if (revenueRank === null && unitsRank === null) {
+    return `${brandName} is outside the Rolling 12 top-brand tables for revenue and units.`
+  }
+  const revenuePart =
+    revenueRank === null
+      ? "outside the Rolling 12 revenue top-brand table"
+      : `#${revenueRank} by revenue`
+  const unitsPart =
+    unitsRank === null
+      ? "outside the Rolling 12 units top-brand table"
+      : `#${unitsRank} by units`
+  return `${brandName} ranks ${revenuePart} and ${unitsPart} (Rolling 12).`
 }
 
 function computeBrandArchetypes(mart: NonNullable<ReturnType<typeof buildCodeReaderDataMart>>) {
