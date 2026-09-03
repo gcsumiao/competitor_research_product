@@ -110,6 +110,7 @@ async function main() {
     const monthViolations: Violation[] = []
     const snapshot = await loadCodeReaderScannerSnapshotFromFiles({
       month,
+      ingestMonth: month,
       reportPath,
       analysisPath,
       summaryPath,

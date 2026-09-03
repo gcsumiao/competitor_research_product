@@ -38,6 +38,7 @@ async function main() {
   for (const entry of resolveCodeReaderAdjustedHistoryPaths()) {
     const directSnapshot = await loadCodeReaderScannerSnapshotFromFiles({
       month: entry.month,
+      ingestMonth: entry.month,
       reportPath: entry.reportPath,
       analysisPath: entry.analysisPath,
       summaryPath: null,

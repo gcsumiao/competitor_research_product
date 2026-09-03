@@ -59,6 +59,10 @@ type ParsedRolling = {
   units?: ParsedRollingSection
 }
 
+type RelativeRollingLabel = {
+  suffix: number
+}
+
 type ParsedReport = {
   summaryRows: SummaryRow[]
   summaryBrandRanks?: SummaryBrandRanks
@@ -173,6 +177,7 @@ export async function loadCodeReaderScannerSnapshots(baseDir: string): Promise<S
     ])
     const snapshot = await loadCodeReaderScannerSnapshotFromFiles({
       month,
+      ingestMonth: month,
       reportPath,
       analysisPath,
       summaryPath,
@@ -188,6 +193,7 @@ export async function loadCodeReaderScannerSnapshots(baseDir: string): Promise<S
 
 export async function loadCodeReaderScannerSnapshotFromFiles(params: {
   month: string
+  ingestMonth?: string
   reportPath: string | null
   analysisPath?: string | null
   summaryPath?: string | null
@@ -206,7 +212,7 @@ export async function loadCodeReaderScannerSnapshotFromFiles(params: {
 
   let parsedReport: ParsedReport
   try {
-    parsedReport = await parseReportWorkbook(params.reportPath, issues)
+    parsedReport = await parseReportWorkbook(params.reportPath, issues, params.ingestMonth)
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown parse error"
     console.error(
@@ -237,7 +243,11 @@ export async function loadCodeReaderScannerSnapshotFromFiles(params: {
   return buildSnapshot(snapshotDate, parsedReport, typeBreakdowns, issues)
 }
 
-async function parseReportWorkbook(reportPath: string, issues: DataQualityIssue[]): Promise<ParsedReport> {
+async function parseReportWorkbook(
+  reportPath: string,
+  issues: DataQualityIssue[],
+  ingestMonth?: string
+): Promise<ParsedReport> {
   const workbook = await readWorkbook(reportPath)
 
   const summarySheet = findSheet(workbook, "Summary")
@@ -271,7 +281,9 @@ async function parseReportWorkbook(reportPath: string, issues: DataQualityIssue[
   const summaryBrandRanks = summarySheet
     ? parseSummaryBrandRankTables(summarySheetRows)
     : undefined
-  const rolling12 = rollingSheet ? parseRollingSheet(sheetRows(rollingSheet), issues) : {}
+  const rolling12 = rollingSheet
+    ? parseRollingSheet(sheetRows(rollingSheet), issues, ingestMonth)
+    : {}
   const { revenueProducts, unitsProducts } = top50Sheet
     ? parseDualProductTables(sheetRows(top50Sheet), issues)
     : { revenueProducts: [] as ProductSummary[], unitsProducts: [] as ProductSummary[] }
@@ -288,7 +300,11 @@ async function parseReportWorkbook(reportPath: string, issues: DataQualityIssue[
   }
 }
 
-function parseRollingSheet(rows: string[][], issues: DataQualityIssue[]): ParsedRolling {
+function parseRollingSheet(
+  rows: string[][],
+  issues: DataQualityIssue[],
+  ingestMonth?: string
+): ParsedRolling {
   const headers: Array<{ index: number; metric: "revenue" | "units" }> = []
 
   for (let i = 0; i < rows.length; i += 1) {
@@ -304,9 +320,30 @@ function parseRollingSheet(rows: string[][], issues: DataQualityIssue[]): Parsed
 
   const parsed: ParsedRolling = {}
   for (const entry of headers) {
-    const section = parseRollingSection(rows, entry.index)
+    const section = parseRollingSection(rows, entry.index, entry.metric, issues, ingestMonth)
     if (!section) continue
     parsed[entry.metric] = section
+  }
+
+  if (parsed.revenue && parsed.units) {
+    const revenueLabels = parsed.revenue.monthLabels
+    const unitsLabels = parsed.units.monthLabels
+    const comparedLength = Math.max(revenueLabels.length, unitsLabels.length)
+    let firstDivergentIndex = -1
+    for (let index = 0; index < comparedLength; index += 1) {
+      if (revenueLabels[index] !== unitsLabels[index]) {
+        firstDivergentIndex = index
+        break
+      }
+    }
+
+    if (firstDivergentIndex >= 0) {
+      issues.push({
+        code: "rolling_label_sections_misaligned",
+        severity: "warning",
+        message: `Rolling 12 revenue and units month labels are misaligned: revenue length ${revenueLabels.length}, units length ${unitsLabels.length}; first divergent index ${firstDivergentIndex}.`,
+      })
+    }
   }
 
   if (!parsed.revenue && !parsed.units) {
@@ -320,7 +357,13 @@ function parseRollingSheet(rows: string[][], issues: DataQualityIssue[]): Parsed
   return parsed
 }
 
-function parseRollingSection(rows: string[][], headerIndex: number): ParsedRollingSection | null {
+function parseRollingSection(
+  rows: string[][],
+  headerIndex: number,
+  metric: "revenue" | "units",
+  issues: DataQualityIssue[],
+  ingestMonth?: string
+): ParsedRollingSection | null {
   const header = rows[headerIndex]
   const brandCol = findStrictColumn(header, ["brand"])
   if (brandCol < 0) return null
@@ -337,7 +380,13 @@ function parseRollingSection(rows: string[][], headerIndex: number): ParsedRolli
 
   if (!monthColumns.length) return null
 
-  const monthLabels = monthColumns.map((columnIndex) => getCell(header, columnIndex))
+  const originalMonthLabels = monthColumns.map((columnIndex) => getCell(header, columnIndex))
+  const monthLabels = normalizeRollingMonthLabels(
+    originalMonthLabels,
+    metric,
+    issues,
+    ingestMonth
+  )
   const currentMonthLabel = monthLabels[monthLabels.length - 1]
 
   const brandRows: RollingRow[] = []
@@ -408,6 +457,97 @@ function parseRollingSection(rows: string[][], headerIndex: number): ParsedRolli
     brandRows,
     totalRow,
     totalMarketRow,
+  }
+}
+
+const ROLLING_MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const
+
+function normalizeRollingMonthLabels(
+  labels: string[],
+  metric: "revenue" | "units",
+  issues: DataQualityIssue[],
+  ingestMonth?: string
+): string[] {
+  const relativeLabels = labels.map(parseRelativeRollingLabel)
+  const relativeCount = relativeLabels.filter((label) => label !== null).length
+
+  if (relativeCount === 0) return labels
+
+  if (relativeCount !== labels.length) {
+    issues.push({
+      code: "rolling_relative_labels_mixed",
+      severity: "warning",
+      message: `Rolling 12 ${metric} month labels mix relative and calendar labels; labels were left unchanged.`,
+    })
+    return labels
+  }
+
+  for (let index = 0; index < relativeLabels.length; index += 1) {
+    const label = relativeLabels[index]!
+    const expectedSuffix = labels.length - 1 - index
+    const actualSuffix = label.suffix ?? 0
+    if (actualSuffix !== expectedSuffix) {
+      issues.push({
+        code: "rolling_relative_label_mismatch",
+        severity: "warning",
+        message: `Rolling 12 ${metric} label ${JSON.stringify(labels[index])} at index ${index} has suffix ${actualSuffix}; expected ${expectedSuffix}. Labels were left unchanged.`,
+      })
+      return labels
+    }
+  }
+
+  const parsedIngestMonth = parseIngestMonth(ingestMonth)
+  if (!parsedIngestMonth) {
+    issues.push({
+      code: "rolling_relative_labels",
+      severity: "warning",
+      message: `Rolling 12 ${metric} month labels are relative, but no valid ingest month was provided; labels were left unchanged.`,
+    })
+    return labels
+  }
+
+  const endingMonth = parsedIngestMonth.year * 12 + parsedIngestMonth.monthIndex
+  return labels.map((_, index) => {
+    const monthOffset = labels.length - 1 - index
+    const absoluteMonth = endingMonth - monthOffset
+    const year = Math.floor(absoluteMonth / 12)
+    const monthIndex = absoluteMonth - year * 12
+    const twoDigitYear = String(year).padStart(4, "0").slice(-2)
+    return `${ROLLING_MONTH_NAMES[monthIndex]} '${twoDigitYear}`
+  })
+}
+
+function parseRelativeRollingLabel(label: string): RelativeRollingLabel | null {
+  // normalizeText removes the hyphen before a numeric suffix, so the normalized
+  // equivalent of "Monthly Revenue-11" is "monthlyrevenue11".
+  const match = normalizeText(label).match(/^monthly(revenue|sales|units)(\d+)?$/)
+  if (!match) return null
+  return {
+    suffix: match[2] === undefined ? 0 : Number(match[2]),
+  }
+}
+
+function parseIngestMonth(value: string | undefined) {
+  const match = value?.trim().match(/^(\d{4})(0[1-9]|1[0-2])$/)
+  if (!match) return null
+  const year = Number(match[1])
+  if (year < 2000 || year > 2999) return null
+  return {
+    year,
+    monthIndex: Number(match[2]) - 1,
   }
 }
 

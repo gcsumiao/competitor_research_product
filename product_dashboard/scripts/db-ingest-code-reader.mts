@@ -99,6 +99,7 @@ export async function ingestCodeReaderSnapshots(args: CliArgs) {
     const summaryPath = await resolveOptionalFile(monthDir, ["summary.xlsx"])
     const snapshot = await loadCodeReaderScannerSnapshotFromFiles({
       month,
+      ingestMonth: month,
       reportPath,
       analysisPath,
       summaryPath,
@@ -192,6 +193,7 @@ async function ingestExplicitCodeReaderMonth(args: CliArgs) {
   const effectiveReportFileName = effectiveReportPath ? path.basename(effectiveReportPath) : undefined
   const snapshot = await loadCodeReaderScannerSnapshotFromFiles({
     month,
+    ingestMonth: month,
     reportPath: effectiveReportPath,
     analysisPath: args.formattedAnalysisPath ?? args.analysisPath ?? null,
     summaryPath: args.summaryPath ?? null,
@@ -354,7 +356,7 @@ function parseArgs(argv: string[]): CliArgs {
 
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index]
-    if (value === "--month") args.month = argv[index + 1]
+    if (value === "--month") args.month = argv[index + 1] ?? ""
     if (value === "--archive-dir") args.archiveDir = argv[index + 1] ?? args.archiveDir
     if (value === "--report") args.reportPath = argv[index + 1]
     if (value === "--summary") args.summaryPath = argv[index + 1]
@@ -367,6 +369,10 @@ function parseArgs(argv: string[]): CliArgs {
     if (value === "--revalidate-secret") args.revalidateSecret = argv[index + 1]
     if (value === "--write-file-archive") args.writeFileArchive = true
     if (value === "--skip-revalidate") args.skipRevalidate = true
+  }
+
+  if (args.month !== undefined && !/^\d{6}$/.test(args.month)) {
+    throw new Error("--month must be exactly six digits in YYYYMM format.")
   }
 
   args.revalidateUrl ||= process.env.DASHBOARD_REVALIDATE_URL
