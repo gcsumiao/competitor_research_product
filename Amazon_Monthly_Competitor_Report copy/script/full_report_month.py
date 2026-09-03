@@ -27,6 +27,52 @@ TOP50_EXCLUDED_ASINS_FROM_MONTH = {"202605": {"B000EVYGV4"}}
 BRAND_ALIASES = {
     "edge": "krazy on highways",
 }
+# Generic recovery audits are frozen decisions once written and are replayed on later runs.
+# Delete a month's generic_brand_recovery.csv only when an analyst intentionally wants
+# to re-derive that month, such as after changing GENERIC_RECOVERY_EXTRA_BRANDS.
+GENERIC_BRAND_RECOVERY_START_MONTH = 202608
+GENERIC_RECOVERY_STOPWORDS = {
+    "other",
+    "car",
+    "cars",
+    "auto",
+    "tool",
+    "tools",
+    "obd",
+    "obd2",
+    "obdii",
+    "scanner",
+    "code",
+    "reader",
+    "pro",
+    "plus",
+    "mini",
+    "max",
+    "universal",
+    "professional",
+    "diagnostic",
+    "heavy",
+    "duty",
+    "truck",
+    "wireless",
+    "bluetooth",
+    "smart",
+    "digital",
+}
+GENERIC_RECOVERY_BLOCKED_BRANDS = {"innova", "blcktec"}
+GENERIC_RECOVERY_EXTRA_BRANDS = {"nexiq", "temeda"}
+GENERIC_RECOVERY_IGNORABLE_PREFIX_TOKENS = {"new", "upgraded", "upgrade", "latest", "original"}
+GENERIC_BRAND_RECOVERY_AUDIT_COLUMNS = [
+    "month",
+    "asin",
+    "title",
+    "old_brand",
+    "new_brand",
+    "matched_text",
+    "monthly_units",
+    "monthly_revenue",
+    "action",
+]
 INNOVA_RULE_RAW_PLUS_3P_ACTUAL_ONLY = "raw-plus-3p-actual-only"
 INNOVA_RULE_RAW_PLUS_ACTUAL_OBD = "raw-plus-actual-obd"
 INNOVA_RAW_PRESENT_COL = "_Innova Raw Present"
@@ -63,6 +109,357 @@ def _canonicalize_market_brands(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out["Brand"] = _canonicalize_brand_series(out["Brand"])
     return out
+
+
+def _canonicalize_brand_value(value) -> str:
+    if pd.isna(value):
+        return ""
+    brand = str(value).casefold().strip()
+    if brand in {"", "nan", "none", "<na>"}:
+        return ""
+    return BRAND_ALIASES.get(brand, brand)
+
+
+def _strip_token_punctuation(token: str) -> str:
+    start = 0
+    end = len(token)
+    while start < end and not token[start].isalnum():
+        start += 1
+    while end > start and not token[end - 1].isalnum():
+        end -= 1
+    return token[start:end]
+
+
+def _generic_recovery_tokens(value) -> tuple[str, ...]:
+    if pd.isna(value):
+        return ()
+    return tuple(
+        token
+        for token in (_strip_token_punctuation(part.casefold()) for part in str(value).split())
+        if token
+    )
+
+
+def _valid_generic_recovery_match_text(match_text: str) -> bool:
+    return len(match_text) >= 3 and match_text not in GENERIC_RECOVERY_STOPWORDS
+
+
+def _build_generic_recovery_vocabulary(month_frames: list[pd.DataFrame]) -> dict[str, str]:
+    """Map eligible leading title text to its canonical brand for this run's full window."""
+    vocabulary: dict[str, str] = {}
+    invalid_targets = {"", "generic"} | GENERIC_RECOVERY_STOPWORDS | GENERIC_RECOVERY_BLOCKED_BRANDS
+
+    def add(match_value, canonical_value) -> None:
+        match_tokens = _generic_recovery_tokens(match_value)
+        match_text = " ".join(match_tokens)
+        canonical = _canonicalize_brand_value(canonical_value)
+        if (
+            not _valid_generic_recovery_match_text(match_text)
+            or canonical in invalid_targets
+            or (match_tokens and match_tokens[0] in GENERIC_RECOVERY_BLOCKED_BRANDS)
+        ):
+            return
+        vocabulary[match_text] = canonical
+
+    for frame in month_frames:
+        if "Brand" not in frame.columns:
+            continue
+        for value in frame["Brand"].tolist():
+            canonical = _canonicalize_brand_value(value)
+            add(canonical, canonical)
+
+    for brand in GENERIC_RECOVERY_EXTRA_BRANDS:
+        add(brand, brand)
+
+    for alias, target in BRAND_ALIASES.items():
+        add(alias, target)
+
+    return dict(sorted(vocabulary.items()))
+
+
+def _generic_recovery_blocked_vocabulary() -> dict[str, str]:
+    blocked: dict[str, str] = {}
+
+    def add(match_value, canonical_value) -> None:
+        match_text = " ".join(_generic_recovery_tokens(match_value))
+        canonical = _canonicalize_brand_value(canonical_value)
+        if _valid_generic_recovery_match_text(match_text) and canonical in GENERIC_RECOVERY_BLOCKED_BRANDS:
+            blocked[match_text] = canonical
+
+    for brand in GENERIC_RECOVERY_BLOCKED_BRANDS:
+        raw_match_text = " ".join(_generic_recovery_tokens(brand))
+        raw_canonical = str(brand).casefold().strip()
+        if _valid_generic_recovery_match_text(raw_match_text) and raw_canonical in GENERIC_RECOVERY_BLOCKED_BRANDS:
+            blocked[raw_match_text] = raw_canonical
+        add(brand, brand)
+    for alias, target in BRAND_ALIASES.items():
+        canonical_alias = _canonicalize_brand_value(alias)
+        canonical_target = _canonicalize_brand_value(target)
+        if canonical_alias in GENERIC_RECOVERY_BLOCKED_BRANDS or canonical_target in GENERIC_RECOVERY_BLOCKED_BRANDS:
+            destination = canonical_alias if canonical_alias in GENERIC_RECOVERY_BLOCKED_BRANDS else canonical_target
+            add(alias, destination)
+            add(target, destination)
+
+    return blocked
+
+
+def _generic_recovery_candidates(vocabulary: dict[str, str]) -> list[tuple[str, str, bool]]:
+    candidates = [(match_text, canonical, False) for match_text, canonical in vocabulary.items()]
+    candidates.extend(
+        (match_text, canonical, True) for match_text, canonical in _generic_recovery_blocked_vocabulary().items()
+    )
+    candidates.sort(key=lambda item: (-len(_generic_recovery_tokens(item[0])), item[0], item[1], item[2]))
+    return candidates
+
+
+def _match_leading_generic_recovery_brand(
+    title,
+    candidates: list[tuple[str, str, bool]],
+) -> tuple[str, str, bool] | None:
+    """Return (canonical brand, matched text, is blocked) for the longest leading match."""
+    title_tokens = _generic_recovery_tokens(title)
+    if not title_tokens:
+        return None
+
+    start = 0
+    while start < len(title_tokens):
+        token = title_tokens[start]
+        if token in GENERIC_RECOVERY_IGNORABLE_PREFIX_TOKENS or re.fullmatch(r"(19|20)\d{2}", token):
+            start += 1
+            continue
+        break
+
+    for match_text, canonical, is_blocked in candidates:
+        brand_tokens = _generic_recovery_tokens(match_text)
+        if title_tokens[start : start + len(brand_tokens)] == brand_tokens:
+            return canonical, match_text, is_blocked
+    return None
+
+
+def _generic_brand_recovery_is_active(month: str) -> bool:
+    return int(str(month).strip()) >= GENERIC_BRAND_RECOVERY_START_MONTH
+
+
+def _recover_generic_brands(
+    df: pd.DataFrame,
+    *,
+    month: str,
+    vocabulary: dict[str, str],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Recover eligible generic brands and return an audited frame with a fresh RangeIndex."""
+    out = df.reset_index(drop=True)
+    audit_rows: list[dict] = []
+    removed_indices: list = []
+    if not _generic_brand_recovery_is_active(month) or "Brand" not in out.columns:
+        return out, pd.DataFrame(columns=GENERIC_BRAND_RECOVERY_AUDIT_COLUMNS)
+
+    candidates = _generic_recovery_candidates(vocabulary)
+    generic_mask = out["Brand"].astype(str).str.casefold().str.strip().eq("generic")
+    for idx, row in out.loc[generic_mask].iterrows():
+        match = _match_leading_generic_recovery_brand(row.get("Title"), candidates)
+        if match is None:
+            continue
+        canonical_brand, matched_text, is_blocked = match
+        action = "removed_actuals_brand_row" if is_blocked else "reassigned"
+        old_brand = row.get("Brand")
+        new_brand = old_brand if is_blocked else canonical_brand
+        if is_blocked:
+            removed_indices.append(idx)
+        else:
+            out.at[idx, "Brand"] = canonical_brand
+        audit_rows.append(
+            {
+                "month": str(month),
+                "asin": row.get("ASIN"),
+                "title": row.get("Title"),
+                "old_brand": old_brand,
+                "new_brand": new_brand,
+                "matched_text": matched_text,
+                "monthly_units": row.get("Monthly Sales"),
+                "monthly_revenue": row.get("Monthly Revenue"),
+                "action": action,
+            }
+        )
+
+    if removed_indices:
+        out = out.drop(index=removed_indices).reset_index(drop=True)
+
+    return out, pd.DataFrame(audit_rows, columns=GENERIC_BRAND_RECOVERY_AUDIT_COLUMNS)
+
+
+def _coerce_generic_recovery_audit_metrics(audit: pd.DataFrame) -> pd.DataFrame:
+    out = audit.copy()
+    for column in ("monthly_units", "monthly_revenue"):
+        if column not in out.columns:
+            out[column] = np.nan
+        cleaned = out[column].astype("string").str.replace(r"[$,]", "", regex=True).str.strip()
+        out[column] = pd.to_numeric(cleaned, errors="coerce")
+    return out
+
+
+def _generic_recovery_revenue_total(audit: pd.DataFrame, *, action: str) -> float:
+    if audit.empty:
+        return 0.0
+    revenue = audit.loc[audit["action"].eq(action), "monthly_revenue"]
+    return float(
+        pd.to_numeric(revenue.astype(str).str.replace(r"[^0-9.-]", "", regex=True), errors="coerce").sum()
+    )
+
+
+def _replay_generic_brand_recovery(
+    df: pd.DataFrame,
+    *,
+    month: str,
+    audit: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, int]:
+    out = df.reset_index(drop=True)
+    applied_rows: list[dict] = []
+    mismatches = 0
+
+    for _, decision in audit.iterrows():
+        raw_asin = decision.get("asin")
+        asin = "" if pd.isna(raw_asin) else str(raw_asin).strip()
+        action = str(decision.get("action", "")).strip()
+        new_canonical = _canonicalize_brand_value(decision.get("new_brand"))
+        reason = None
+        if str(decision.get("month", "")).strip() != str(month):
+            reason = "month_mismatch"
+        elif action not in {"reassigned", "removed_actuals_brand_row"}:
+            reason = "unknown_action"
+        elif action == "reassigned" and new_canonical in (
+            {"", "generic"} | GENERIC_RECOVERY_BLOCKED_BRANDS
+        ):
+            reason = "invalid_new_brand"
+        else:
+            if "ASIN" not in out.columns:
+                matching_indices: list[int] = []
+            else:
+                frame_asins = out["ASIN"].map(lambda value: "" if pd.isna(value) else str(value).strip())
+                matching_indices = out.index[frame_asins.eq(asin)].tolist()
+
+            if not matching_indices:
+                reason = "missing_from_frame"
+            elif len(matching_indices) > 1:
+                reason = "duplicated_in_frame"
+            else:
+                idx = matching_indices[0]
+                if "Brand" not in out.columns or _canonicalize_brand_value(out.at[idx, "Brand"]) != "generic":
+                    reason = "no_longer_generic"
+
+        if reason is not None:
+            mismatches += 1
+            print(
+                "WARNING: GENERIC BRAND RECOVERY REPLAY MISMATCH "
+                f"month={month}, asin={asin}, reason={reason}"
+            )
+            continue
+
+        idx = matching_indices[0]
+        if action == "reassigned":
+            out.at[idx, "Brand"] = new_canonical
+        else:
+            out = out.drop(index=idx)
+        applied_rows.append(decision.to_dict())
+
+    applied = pd.DataFrame(applied_rows, columns=audit.columns)
+    return out.reset_index(drop=True), applied, mismatches
+
+
+def _find_unfrozen_generic_recovery_candidates(
+    df: pd.DataFrame,
+    *,
+    vocabulary: dict[str, str],
+    frozen_asins: set[str],
+) -> list[str]:
+    if "Brand" not in df.columns:
+        return []
+
+    candidates = _generic_recovery_candidates(vocabulary)
+    generic_mask = df["Brand"].map(_canonicalize_brand_value).eq("generic")
+    unfrozen_asins: list[str] = []
+    for _, row in df.loc[generic_mask].iterrows():
+        raw_asin = row.get("ASIN")
+        asin = "" if pd.isna(raw_asin) else str(raw_asin).strip()
+        if asin in frozen_asins:
+            continue
+        if _match_leading_generic_recovery_brand(row.get("Title"), candidates) is not None:
+            unfrozen_asins.append(asin)
+    return unfrozen_asins
+
+
+def _read_generic_brand_recovery_audit(audit_path: Path) -> pd.DataFrame:
+    try:
+        audit = pd.read_csv(audit_path, dtype={"asin": "string"})
+    except (pd.errors.EmptyDataError, pd.errors.ParserError) as exc:
+        raise SystemExit(
+            f"Cannot replay generic brand recovery audit {audit_path}: {type(exc).__name__}; "
+            "delete it to re-derive"
+        ) from exc
+
+    required_columns = {"asin", "action", "new_brand"}
+    missing_columns = sorted(required_columns - set(audit.columns))
+    if missing_columns:
+        raise SystemExit(
+            f"Cannot replay generic brand recovery audit {audit_path}: missing required columns "
+            f"{', '.join(missing_columns)}; delete it to re-derive"
+        )
+    audit["action"] = audit["action"].astype("string").fillna("").str.strip()
+    return _coerce_generic_recovery_audit_metrics(audit)
+
+
+def _process_generic_brand_recovery_month(
+    df: pd.DataFrame,
+    *,
+    month: str,
+    vocabulary: dict[str, str],
+    audit_path: Path,
+) -> pd.DataFrame:
+    """Derive or replay a gated recovery audit and emit one summary line."""
+    if not _generic_brand_recovery_is_active(month):
+        return df.copy()
+
+    if audit_path.exists():
+        mode = "replayed"
+        audit = _read_generic_brand_recovery_audit(audit_path)
+        frozen_asins = set(audit["asin"].fillna("").str.strip())
+        recovered, summary_audit, mismatches = _replay_generic_brand_recovery(
+            df,
+            month=month,
+            audit=audit,
+        )
+        unfrozen_asins = _find_unfrozen_generic_recovery_candidates(
+            recovered,
+            vocabulary=vocabulary,
+            frozen_asins=frozen_asins,
+        )
+        unfrozen_candidates = len(unfrozen_asins)
+        if unfrozen_candidates:
+            print(
+                f"WARNING: GENERIC BRAND RECOVERY REPLAY month={month}: {unfrozen_candidates} "
+                "generic rows would match under the current vocabulary but have no frozen decision "
+                f"(delete {audit_path} to re-derive): {', '.join(unfrozen_asins[:10])}"
+            )
+    else:
+        mode = "derived"
+        mismatches = 0
+        unfrozen_candidates = 0
+        recovered, audit = _recover_generic_brands(df, month=month, vocabulary=vocabulary)
+        audit = _coerce_generic_recovery_audit_metrics(audit)
+        audit_path.parent.mkdir(parents=True, exist_ok=True)
+        audit.to_csv(audit_path, index=False)
+        summary_audit = audit
+
+    reassigned = int(summary_audit["action"].eq("reassigned").sum())
+    removed = int(summary_audit["action"].eq("removed_actuals_brand_row").sum())
+    revenue_moved = _generic_recovery_revenue_total(summary_audit, action="reassigned")
+    revenue_removed = _generic_recovery_revenue_total(summary_audit, action="removed_actuals_brand_row")
+    print(
+        f"Generic brand recovery {month} ({mode}): reassigned={reassigned}, "
+        f"removed={removed}, mismatches={mismatches}, "
+        f"unfrozen_candidates={unfrozen_candidates}, revenue_moved={revenue_moved:,.2f}, "
+        f"revenue_removed={revenue_removed:,.2f}"
+    )
+    return recovered
 
 
 def _filter_asins(df: pd.DataFrame, excluded_asins: set[str]) -> pd.DataFrame:
@@ -1047,6 +1444,17 @@ def main() -> int:
         if not p.exists():
             raise SystemExit(f"Missing amazon_obd2 file: {p}")
         markets.append(_canonicalize_market_brands(pd.read_excel(p)))
+
+    # Build one vocabulary from the complete canonicalized window, then recover brands
+    # and remove blocked actuals-brand rows before any downstream rollup.
+    generic_recovery_vocabulary = _build_generic_recovery_vocabulary(markets)
+    for idx, m in enumerate(history):
+        markets[idx] = _process_generic_brand_recovery_month(
+            markets[idx],
+            month=m,
+            vocabulary=generic_recovery_vocabulary,
+            audit_path=base_dir / "script" / "runs" / m / "generic_brand_recovery.csv",
+        )
 
     spec_df = pd.read_excel(spec_path) if spec_path.exists() else None
 

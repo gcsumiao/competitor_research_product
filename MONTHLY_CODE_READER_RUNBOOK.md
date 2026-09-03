@@ -60,9 +60,20 @@ Pipeline stages, in order:
 
 1. **Preprocess** (`script/preprocess_month.py`) → builds `amazon_obd2/amazon_obd2_YYYYMM.xlsx`, checking every last-month ASIN is present and typed.
 2. **Innova rules audit** (`script/audit_innova_monthly_rules.py`) → `script/runs/YYYYMM/innova_monthly_rules_audit.{csv,xlsx}`.
-3. **Raw workbooks** (`script/full_report_month.py`) → into `script output reports/`: `Amazon Competitor Report.xlsx`, `summary.xlsx`, `dashboard_snapshot_rows.json`.
+3. **Raw workbooks** (`script/full_report_month.py`) → into `script output reports/`: `Amazon Competitor Report.xlsx`, `summary.xlsx`, `dashboard_snapshot_rows.json`. Includes **generic brand recovery** (months ≥ 202608, see §2b).
 4. **Dashboard ingest** → runs `product_dashboard/scripts/db-ingest-code-reader.mts` (Node/tsx, env from `product_dashboard/.env.local`) which writes the snapshot tables in Postgres and triggers cache revalidation.
 5. **Formatted deliverables** (`script/automate_final_outputs.py`) → into `YY-MM-reports/` (see §3). Uses the previous month's finals as templates; fails instead of overwriting existing outputs unless `--overwrite-final`.
+
+### 2b. Generic brand recovery (rule active from 202608, no backfill)
+
+Helium10 marks uncaptured brands as `Generic`. From report month **202608** onward, `full_report_month.py` applies a recovery rule to rows with `Brand = generic` (analyst directive 2026-09-02):
+
+- **Reassign:** if the Title *begins* with a known brand (window brands + `GENERIC_RECOVERY_EXTRA_BRANDS`, currently `nexiq`, `temeda`), the row moves to that brand. Mid-title mentions ("… for BMW", "Case for Innova") never match. Stopwords ("Universal", "Smart", …) never match.
+- **Remove:** if the Title begins with **INNOVA or BLCKTEC**, the row is deleted from the month entirely (their numbers come from actuals; a raw generic row would double-represent them).
+- **Audit:** every decision is written to `script/runs/YYYYMM/generic_brand_recovery.csv`, and one summary line prints per gated month (`reassigned= / removed= / mismatches= / unfrozen_candidates= / revenue_moved=`).
+- **Freeze-and-replay:** the FIRST run of a month derives decisions and freezes them in that CSV; every later run (including future months re-loading this month as history) **replays the frozen CSV verbatim** — published numbers can never drift when the rolling window changes. To deliberately re-derive (e.g. after adding an extra brand for the current month), **delete that month's CSV and rerun**. Replay warns loudly (`unfrozen_candidates`) when current data would match rows that have no frozen decision.
+- **Maintenance:** monthly, skim the audit CSV; obvious real brands that stayed generic → add to `GENERIC_RECOVERY_EXTRA_BRANDS` in `full_report_month.py`, delete the current month's CSV, rerun. Never add innova/blcktec.
+- **Always run this via `pnpm prelaunch:code-reader`** — a bare `full_report_month.py` invocation defaults to `amazon_obd2/` instead of the carryover dir and would freeze a smaller decision set (replay will warn, but the pipeline should write the CSV first).
 
 ### If the pipeline pauses
 
