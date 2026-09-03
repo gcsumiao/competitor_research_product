@@ -240,10 +240,11 @@ function getCachedEnvelopeProbeLoader(scope: DashboardScope, categoryId: Categor
         oversized: byteLength > MAX_CACHE_ENTRY_BYTES,
       }
     },
-    // v3: cache-bust after the 2026-09-02 202608 formatted re-ingest (rolling-
-    // label fix) — prod's /api/revalidate sits behind Cloudflare JWT until the
-    // service token lands, so data fixes flush by bumping this version instead.
-    ["dashboard-scope-envelope", "v3", scope, categoryId],
+    // v4: cache-bust after the 2026-09-02 BLCKTEC-exactness re-ingest (v3 was
+    // the rolling-label re-ingest) — prod's /api/revalidate sits behind
+    // Cloudflare JWT until the service token lands, so data fixes flush by
+    // bumping this version instead.
+    ["dashboard-scope-envelope", "v4", scope, categoryId],
     {
       tags: [DASHBOARD_DATA_TAG],
       revalidate: CACHE_REVALIDATE_SECONDS,
@@ -271,7 +272,7 @@ function getCachedCategoryLoader(scope: DashboardScope, categoryId: CategoryId) 
       }
       return entry
     },
-    ["dashboard-scope", "v3", scope, categoryId],
+    ["dashboard-scope", "v4", scope, categoryId],
     {
       tags: [DASHBOARD_DATA_TAG],
       revalidate: CACHE_REVALIDATE_SECONDS,

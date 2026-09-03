@@ -73,6 +73,13 @@ GENERIC_BRAND_RECOVERY_AUDIT_COLUMNS = [
     "monthly_revenue",
     "action",
 ]
+BLCKTEC_UNMATCHED_AUDIT_COLUMNS = [
+    "month",
+    "asin",
+    "title",
+    "raw_monthly_revenue",
+    "raw_monthly_units",
+]
 INNOVA_RULE_RAW_PLUS_3P_ACTUAL_ONLY = "raw-plus-3p-actual-only"
 INNOVA_RULE_RAW_PLUS_ACTUAL_OBD = "raw-plus-actual-obd"
 INNOVA_RAW_PRESENT_COL = "_Innova Raw Present"
@@ -754,7 +761,6 @@ def _read_blcktec(path: Path, month: str, market_df_for_mapping: pd.DataFrame | 
         df["Monthly Revenue"] = _to_number(df["Monthly Revenue"])
         return df[["ASIN", "Monthly Sales", "Monthly Revenue"]]
 
-    xls = pd.ExcelFile(path)
     expected_range = None
     try:
         start = pd.Period(month, freq="M").to_timestamp(how="start")
@@ -763,13 +769,14 @@ def _read_blcktec(path: Path, month: str, market_df_for_mapping: pd.DataFrame | 
     except Exception:
         expected_range = None
 
-    target_sheet = xls.sheet_names[0]
-    if expected_range:
-        for sheet in xls.sheet_names:
-            head = pd.read_excel(path, sheet_name=sheet, header=None, nrows=5)
-            if (head.astype(str) == expected_range).any().any():
-                target_sheet = sheet
-                break
+    with pd.ExcelFile(path) as xls:
+        target_sheet = xls.sheet_names[0]
+        if expected_range:
+            for sheet in xls.sheet_names:
+                head = pd.read_excel(path, sheet_name=sheet, header=None, nrows=5)
+                if (head.astype(str) == expected_range).any().any():
+                    target_sheet = sheet
+                    break
 
     raw = pd.read_excel(path, sheet_name=target_sheet, header=None)
     header_row = None
@@ -783,7 +790,7 @@ def _read_blcktec(path: Path, month: str, market_df_for_mapping: pd.DataFrame | 
     data = raw.iloc[header_row + 1 :, [0, 1, 2]].copy()
     data.columns = ["Code", "Monthly Sales", "Monthly Revenue"]
     data = data.dropna(subset=["Code"])
-    data["Code"] = data["Code"].astype(str).str.strip()
+    data["Code"] = data["Code"].astype(str).str.strip().str.upper()
     data["Monthly Sales"] = _to_number(data["Monthly Sales"])
     data["Monthly Revenue"] = _to_number(data["Monthly Revenue"])
     data = data[~data["Code"].str.lower().isin({"total", "(sales numbers included b2b and non-b2b)"})]
@@ -801,12 +808,55 @@ def _read_blcktec(path: Path, month: str, market_df_for_mapping: pd.DataFrame | 
     if bl.empty:
         raise KeyError("Cannot map BLCKTEC codes -> ASIN: no BLCKTEC rows in current month amazon_obd2.")
 
-    bl["_code"] = bl["Title"].astype(str).str.extract(r"(?i)\bBLCKTEC\s+([0-9]{3}[A-Za-z]?)\b", expand=False)
+    bl["_code"] = (
+        bl["Title"]
+        .astype(str)
+        .str.extract(r"(?i)\bBLCKTEC\s+([0-9]{3}[A-Za-z]?)\b", expand=False)
+        .str.strip()
+        .str.upper()
+    )
     bl = bl.dropna(subset=["_code"]).copy()
-    code_to_asin = dict(zip(bl["_code"].astype(str).str.strip().tolist(), bl["ASIN"].tolist(), strict=False))
+    bl = bl[bl["ASIN"].map(_is_valid_asin_value).astype(bool)].copy()
+    revenue = bl["Monthly Revenue"] if "Monthly Revenue" in bl.columns else pd.Series(np.nan, index=bl.index)
+    sales = bl["Monthly Sales"] if "Monthly Sales" in bl.columns else pd.Series(np.nan, index=bl.index)
+    bl["_mapping_revenue"] = _to_number(revenue).fillna(float("-inf"))
+    bl["_mapping_sales"] = _to_number(sales).fillna(float("-inf"))
+    bl["_frame_order"] = np.arange(len(bl))
+
+    code_to_asin: dict[str, str] = {}
+    for code, group in bl.groupby("_code", sort=False):
+        ranked = group.sort_values(
+            ["_mapping_revenue", "_mapping_sales", "_frame_order"],
+            ascending=[False, False, True],
+            kind="stable",
+        )
+        chosen_asin = ranked.iloc[0]["ASIN"]
+        code_to_asin[code] = chosen_asin
+        if len(ranked) > 1:
+            losing_asins = ",".join(ranked.iloc[1:]["ASIN"].astype(str).tolist())
+            print(
+                f"BLCKTEC duplicate code mapping code={code}: "
+                f"chosen_asin={chosen_asin}, losing_asins={losing_asins}"
+            )
 
     mapped = data.copy()
     mapped["ASIN"] = mapped["Code"].map(code_to_asin)
+    unmapped = (
+        mapped.loc[mapped["ASIN"].isna(), ["Code", "Monthly Sales", "Monthly Revenue"]]
+        .groupby("Code", sort=False, as_index=False)[["Monthly Sales", "Monthly Revenue"]]
+        .sum()
+    )
+    if not unmapped.empty:
+        details = "; ".join(
+            f"code={row['Code']}, revenue={float(row['Monthly Revenue']):,.2f}, "
+            f"units={float(row['Monthly Sales']):,.0f}"
+            for _, row in unmapped.iterrows()
+        )
+        raise KeyError(
+            "Cannot map BLCKTEC workbook codes -> ASIN from current month amazon_obd2: "
+            f"{details}. Add a current-month BLCKTEC row whose title carries this model code "
+            "(or rerun via the carryover-zero pipeline route so the listing carries forward)."
+        )
     mapped = mapped.dropna(subset=["ASIN"]).copy()
     return mapped[["ASIN", "Monthly Sales", "Monthly Revenue"]]
 
@@ -843,6 +893,69 @@ def _apply_actuals(market_df: pd.DataFrame, actual_df: pd.DataFrame, brand: str,
     market_df.loc[mask, "Monthly Sales"] = market_df.loc[mask, "ASIN"].map(actual_map["Monthly Sales"])
     market_df.loc[mask, "Monthly Revenue"] = market_df.loc[mask, "ASIN"].map(actual_map["Monthly Revenue"])
     return market_df
+
+
+def _drop_unmatched_blcktec_rows(
+    market_df: pd.DataFrame,
+    actual_df: pd.DataFrame,
+    *,
+    month: str,
+    audit_path: Path,
+) -> pd.DataFrame:
+    """Drop current-month BLCKTEC rows outside the mapped actuals set and audit them."""
+    if actual_df.empty:
+        audit_path.unlink(missing_ok=True)
+        print(f"WARNING: BLCKTEC actuals empty for {month}; exactness not enforced.")
+        return market_df.copy()
+
+    out = market_df.copy()
+    market_asins = _clean_asin(out["ASIN"])
+    actual_asins = set(
+        _clean_asin(actual_df["ASIN"])
+        .loc[actual_df["ASIN"].map(_is_valid_asin_value)]
+        .tolist()
+    )
+    brand_mask = _canonicalize_brand_series(out["Brand"]).eq("blcktec")
+    drop_mask = brand_mask & ~market_asins.isin(actual_asins)
+    dropped = out.loc[drop_mask]
+
+    def dropped_values(column: str) -> list:
+        if column not in dropped.columns:
+            return [np.nan] * len(dropped)
+        return dropped[column].tolist()
+
+    audit = pd.DataFrame(
+        {
+            "month": [str(month)] * len(dropped),
+            "asin": market_asins.loc[drop_mask].tolist(),
+            "title": dropped_values("Title"),
+            "raw_monthly_revenue": dropped_values("Monthly Revenue"),
+            "raw_monthly_units": dropped_values("Monthly Sales"),
+        },
+        columns=BLCKTEC_UNMATCHED_AUDIT_COLUMNS,
+    )
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
+    audit.to_csv(audit_path, index=False)
+
+    raw_revenue = dropped["Monthly Revenue"] if "Monthly Revenue" in dropped.columns else pd.Series(dtype=float)
+    dropped_revenue = float(_to_number(raw_revenue).fillna(0).sum())
+    print(
+        f"BLCKTEC actuals exactness {month}: dropped={len(dropped)}, "
+        f"revenue_dropped={dropped_revenue:,.2f}"
+    )
+    kept = out.loc[~drop_mask]
+    kept_brand = kept.loc[_canonicalize_brand_series(kept["Brand"]).eq("blcktec")]
+    kept_rev = float(_to_number(kept_brand.get("Monthly Revenue", pd.Series(dtype=float))).fillna(0).sum())
+    kept_units = float(_to_number(kept_brand.get("Monthly Sales", pd.Series(dtype=float))).fillna(0).sum())
+    actual_rev = float(_to_number(actual_df["Monthly Revenue"]).fillna(0).sum())
+    actual_units = float(_to_number(actual_df["Monthly Sales"]).fillna(0).sum())
+    if round(kept_rev, 2) != round(actual_rev, 2) or round(kept_units) != round(actual_units):
+        print(
+            f"WARNING: BLCKTEC exactness violated for {month}: kept "
+            f"{kept_rev:,.2f}/{kept_units:,.0f} vs actuals {actual_rev:,.2f}/{actual_units:,.0f} "
+            "(duplicate market ASINs inside the actuals set?)"
+        )
+    return kept.copy()
 
 
 def _set_avg_price_for_asins(df: pd.DataFrame, asins: set[str]) -> pd.DataFrame:
@@ -1548,6 +1661,12 @@ def main() -> int:
         month=month,
     )
     markets[-1] = _apply_actuals(markets[-1], blcktec_actual, "blcktec", spec_df=spec_df)
+    markets[-1] = _drop_unmatched_blcktec_rows(
+        markets[-1],
+        blcktec_actual,
+        month=month,
+        audit_path=base_dir / "script" / "runs" / month / "blcktec_unmatched_dropped.csv",
+    )
 
     # Fill missing metadata for Innova/BLCKTEC from current+historical OBD2s, then recompute avg Price.
     markets[-1] = _fill_metadata_from_history(cur=markets[-1], history=markets, spec_df=spec_df, raw_meta=raw_meta)
