@@ -60,6 +60,12 @@ test("limits automation to the explicit smoke and revalidation surface", () => {
   assert.equal(isAutomationRouteAllowed("/api/revalidate", "POST"), true)
   assert.equal(isAutomationRouteAllowed("/profile", "GET"), false)
   assert.equal(isAutomationRouteAllowed("/api/consult-me/research", "POST"), false)
+
+  // The auto-intel pipeline reads the brand export with its service token.
+  assert.equal(isAutomationRouteAllowed("/api/export/brands", "GET"), true)
+  assert.equal(isAutomationRouteAllowed("/api/export/brands", "HEAD"), true)
+  assert.equal(isAutomationRouteAllowed("/api/export/brands", "POST"), false)
+  assert.equal(isAutomationRouteAllowed("/api/export", "GET"), false)
 })
 
 test("extracts Entra group ids and profile values from nested identity data", () => {

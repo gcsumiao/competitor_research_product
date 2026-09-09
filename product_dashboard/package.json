@@ -28,6 +28,7 @@
     "deploy:smoke": "node -r dotenv/config --import tsx scripts/smoke-dashboard-deployment.mts dotenv_config_path=.env.local",
     "neon:branch-audit": "node -r dotenv/config --import tsx scripts/neon-branch-audit.mts dotenv_config_path=.env.local",
     "test:access": "node --import tsx --test tests/cloudflare-access-core.test.ts tests/cloudflare-pages-proxy.test.ts",
+    "test:export": "node --import tsx --test tests/brand-export.test.ts",
     "test:unit": "node --import tsx --test tests/dashboard-runtime-read-only.test.ts tests/consult-me-history-read-only.test.ts tests/consult-me-brief.test.ts tests/neon-branch-audit.test.ts tests/code-reader-rolling-labels.test.ts tests/price-tier-scheme.test.ts tests/code-reader-price-tiers.test.ts tests/price-tier-mix.test.ts tests/brand-category-mix.test.ts",
     "chat:evals": "node --import tsx lib/chatbot/evals/run-evals.ts"
   },
