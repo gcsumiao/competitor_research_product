@@ -40,6 +40,7 @@ import type {
 } from "@/lib/competitor-data"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
 import { averagePriceForCategory } from "@/lib/jump-starters-classification"
+import { resolvePriceTierMetric, type PriceTierMetric } from "@/lib/price-tier-metric"
 import { cn } from "@/lib/utils"
 import {
   formatSnapshotDateFull,
@@ -157,7 +158,10 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   const isCodeReader = selectedCategory?.id === "code_reader_scanner"
 
   const [priceScope, setPriceScope] = useState("all_asins")
-  const [priceTierMetric, setPriceTierMetric] = useState<"revenue" | "units">("revenue")
+  const [priceTierMetric, setPriceTierMetric] = useState<PriceTierMetric>("revenue")
+  // Non-code tiers have no units and no toggle; derive so the raw choice is
+  // kept for when the user returns to code reader.
+  const tierMetric = resolvePriceTierMetric(isCodeReader, priceTierMetric)
   const [marketTrendMetric, setMarketTrendMetric] = useState<"units" | "revenue">("revenue")
   const [topAsinsMetric, setTopAsinsMetric] = useState<"units" | "revenue">("revenue")
   const [brandPerformanceBrand, setBrandPerformanceBrand] =
@@ -260,7 +264,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     .sort((a, b) => b.revenue - a.revenue)
     .map((tier) => ({
       label: tier.label,
-      value: priceTierMetric === "revenue" ? tier.revenue : tier.units,
+      value: tierMetric === "revenue" ? tier.revenue : tier.units,
       color: PRICE_TIER_COLORS[tier.scopeKey] ?? PRICE_TIER_FALLBACK_COLOR,
       revenueShare: tier.revenueShare,
       unitsShare: tier.unitsShare,
@@ -272,10 +276,10 @@ export function DashboardClient({ data }: { data: DashboardData }) {
   const scopeTotalUnits = scopeMetric?.units
     ?? currentPriceTierRows.reduce((sum, row) => sum + row.units, 0)
   const scopeMoM = ratioToPercent(
-    priceTierMetric === "revenue" ? scopeMetric?.revenueMoM : scopeMetric?.unitsMoM
+    tierMetric === "revenue" ? scopeMetric?.revenueMoM : scopeMetric?.unitsMoM
   )
   const scopeYoY = ratioToPercent(
-    priceTierMetric === "revenue" ? scopeMetric?.revenueYoY : scopeMetric?.unitsYoY
+    tierMetric === "revenue" ? scopeMetric?.revenueYoY : scopeMetric?.unitsYoY
   )
 
   const issueCount = (activeSnapshot?.qualityIssues ?? []).length
@@ -576,13 +580,13 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         </div>
         <div className="lg:col-span-2 h-full">
           <SalesMap
-            title={priceTierMetric === "revenue" ? "Price tier mix" : "Units tier mix"}
-            subtitle={priceTierMetric === "revenue"
+            title={tierMetric === "revenue" ? "Price tier mix" : "Units tier mix"}
+            subtitle={tierMetric === "revenue"
               ? "Revenue share by selected scope"
               : "Units share by selected scope"}
             items={priceTiers}
             topLabel={topTier?.label ?? "n/a"}
-            topValue={priceTierMetric === "revenue"
+            topValue={tierMetric === "revenue"
               ? (isCodeReader
                   ? formatCodeReaderCurrencyCompact(topTier?.value ?? 0)
                   : formatCurrencyCompact(topTier?.value ?? 0))
@@ -599,8 +603,8 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             topDisplayOrder={isCodeReader ? "label-first" : "value-first"}
             growthDisplay={isCodeReader ? "paired" : "default"}
             highlightPrimaryControl={isCodeReader}
-            totalLabel={priceTierMetric === "revenue" ? "Total revenue" : "Total units"}
-            totalValue={priceTierMetric === "revenue"
+            totalLabel={tierMetric === "revenue" ? "Total revenue" : "Total units"}
+            totalValue={tierMetric === "revenue"
               ? (isCodeReader
                   ? formatCodeReaderCurrencyCompact(scopeTotalRevenue)
                   : formatCurrencyCompact(scopeTotalRevenue))
@@ -608,7 +612,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                   ? formatCodeReaderUnitsCompact(scopeTotalUnits)
                   : formatNumberCompact(scopeTotalUnits))}
             valueFormatter={(value) =>
-              priceTierMetric === "revenue"
+              tierMetric === "revenue"
                 ? (isCodeReader
                     ? formatCodeReaderCurrencyCompact(value)
                     : formatCurrencyCompact(value))
@@ -618,7 +622,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             }
             toggleControl={isCodeReader ? {
               value: priceTierMetric,
-              onChange: (value) => setPriceTierMetric(value as "revenue" | "units"),
+              onChange: (value) => setPriceTierMetric(value as PriceTierMetric),
               options: [
                 { value: "revenue", label: "Revenue" },
                 { value: "units", label: "Units" },
