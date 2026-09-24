@@ -4,7 +4,7 @@ import { redirect } from "next/navigation"
 import { DashboardClient } from "@/components/dashboard/dashboard-client"
 import { loadScopedDashboardData } from "@/lib/dashboard-scope"
 import { prepareDashboardPageRequest, type DashboardPageSearchParams } from "@/lib/dashboard-request"
-import { normalizeSnapshotDate } from "@/lib/snapshot-date"
+import { resolveOverviewRedirect } from "@/lib/overview-redirect"
 
 export default async function DashboardPage({
   searchParams,
@@ -18,22 +18,9 @@ export default async function DashboardPage({
     forceCodeReaderCategory: true,
   })
   const data = await loadScopedDashboardData("overview")
-  const codeReader = data.categories.find((category) => category.id === "code_reader_scanner")
-  const latestSnapshot = codeReader?.snapshots.at(-1)
-  const requestedCategory = firstSearchParam(params.category)
-  const requestedSnapshot = normalizeSnapshotDate(firstSearchParam(params.snapshot) ?? "")
-  const hasRequestedSnapshot = codeReader?.snapshots.some(
-    (snapshot) => snapshot.date === requestedSnapshot
-  )
-
-  if (
-    latestSnapshot &&
-    (requestedCategory !== "code_reader_scanner" || !hasRequestedSnapshot)
-  ) {
-    const target = new URLSearchParams()
-    target.set("category", "code_reader_scanner")
-    target.set("snapshot", latestSnapshot.date)
-    redirect(`/?${target.toString()}`)
+  const redirectTarget = resolveOverviewRedirect(data.categories, params)
+  if (redirectTarget) {
+    redirect(redirectTarget)
   }
 
   return (
@@ -41,8 +28,4 @@ export default async function DashboardPage({
       <DashboardClient data={data} />
     </Suspense>
   )
-}
-
-function firstSearchParam(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value
 }
