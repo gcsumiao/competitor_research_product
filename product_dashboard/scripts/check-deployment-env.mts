@@ -28,6 +28,7 @@ const PREVIEW_OPTIONAL_ENV_KEYS: ReadonlySet<string> = new Set(["DASHBOARD_REVAL
 const TRUTHY_ENV_VALUES = ["1", "true", "yes", "on"]
 
 const NEON_OWNER_ROLE = "neondb_owner"
+const PREVIEW_READ_ONLY_ROLE = "dashboard_preview_ro"
 
 function main() {
   const target = parseTarget(process.argv.slice(2))
@@ -74,12 +75,14 @@ function main() {
     if (!readOnly) {
       result.errors.push("DASHBOARD_DB_READ_ONLY must be set to 1/true for preview deployments.")
     }
+    // Exact match decides: any role other than the read-only one (not just the owner) fails.
     for (const name of ["DATABASE_URL", "DATABASE_URL_UNPOOLED"] as const) {
-      if (safeUsername(env[name] ?? "") === NEON_OWNER_ROLE) {
-        result.errors.push(
-          `${name} uses the ${NEON_OWNER_ROLE} role; preview must use the read-only role (dashboard_preview_ro).`
-        )
-      }
+      if (!env[name]?.trim()) continue // already reported as missing
+      const role = safeUsername(env[name] ?? "")
+      if (role === PREVIEW_READ_ONLY_ROLE) continue
+      const found = role === null ? "no parseable role" : `role ${role}`
+      const hint = role === NEON_OWNER_ROLE ? " (the owner role can write to production)" : ""
+      result.errors.push(`${name} uses ${found}${hint}; preview must use exactly ${PREVIEW_READ_ONLY_ROLE}.`)
     }
   }
 
