@@ -15,7 +15,7 @@ This dashboard is designed to run on:
    - Production scope: `DATABASE_URL` / `DATABASE_URL_UNPOOLED` for the `production` branch.
    - Preview scope: plain (non-branch) `DATABASE_URL` / `DATABASE_URL_UNPOOLED` for role `dashboard_preview_ro` on the production endpoint, plus `DASHBOARD_DB_READ_ONLY=1`.
 
-   Create the read-only role once on the production branch (Neon SQL editor, as `neondb_owner`; use a generated password, Neon rejects weak ones):
+   Create the read-only role once on the production branch (Neon SQL editor, as `neondb_owner`; use a generated password, e.g. `openssl rand -base64 24`):
 
    ```sql
    CREATE ROLE dashboard_preview_ro LOGIN PASSWORD '<generated-password>';
