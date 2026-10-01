@@ -35,6 +35,19 @@ export function isPostgresDashboardSource() {
   return getDashboardDataSource() === "postgres"
 }
 
+const READ_ONLY_TRUE_VALUES = ["1", "true", "yes", "on"]
+const READ_ONLY_FALSE_VALUES = ["0", "false", "no", "off"]
+
+export function isDashboardDbReadOnly(): boolean {
+  const configured = (process.env.DASHBOARD_DB_READ_ONLY ?? "").trim().toLowerCase()
+  if (READ_ONLY_TRUE_VALUES.includes(configured)) return true
+  if (READ_ONLY_FALSE_VALUES.includes(configured)) return false
+
+  // Preview deployments share the production Neon branch through a read-only role,
+  // so they must never attempt runtime writes unless explicitly opted out.
+  return process.env.VERCEL_ENV === "preview"
+}
+
 export function getDashboardRevalidateSecret() {
   return (process.env.DASHBOARD_REVALIDATE_SECRET ?? "").trim()
 }
