@@ -1,6 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
 import {
+  collectCursorPages,
   evaluateBranches,
   isProtectedNeonBranch,
   selectPrunableBranches,
@@ -10,6 +11,8 @@ import {
 const NEON_API_BASE_URL = "https://console.neon.tech/api/v2"
 const DEFAULT_PROJECT_ID = "bold-haze-58127872"
 const DEFAULT_BRANCH_MAX = 2
+// listProjectBranches is cursor-paginated (`limit` 1..10000, `cursor` = previous `pagination.next`).
+const BRANCH_PAGE_LIMIT = 10_000
 const PRUNE_PREFIXES = ["preview/"]
 const FORBIDDEN_PREFIXES = ["preview/"]
 const FORBIDDEN_NAMES = ["vercel-dev"]
@@ -178,12 +181,31 @@ function reportExplicitDeleteNames(branches: NeonBranchSummary[], names: string[
 }
 
 async function listBranches(projectId: string, apiKey: string): Promise<NeonBranchSummary[]> {
-  const payload = await neonRequest("GET", `/projects/${encodeURIComponent(projectId)}/branches`, apiKey)
-  const rawBranches = (payload as { branches?: unknown } | null)?.branches
-  if (!Array.isArray(rawBranches)) {
-    throw new Error("Unexpected Neon API response: missing branches array.")
-  }
+  const rawBranches = await collectCursorPages<unknown>(async (cursor) => {
+    // Fixed sort on every page keeps the cursor order stable (the API default sorts by updated_at).
+    const query = new URLSearchParams({ limit: String(BRANCH_PAGE_LIMIT), sort_by: "created_at", sort_order: "asc" })
+    if (cursor !== undefined) query.set("cursor", cursor)
+    const payload = await neonRequest("GET", `/projects/${encodeURIComponent(projectId)}/branches?${query}`, apiKey)
+    const record = (payload ?? {}) as { branches?: unknown; pagination?: unknown }
+    if (!Array.isArray(record.branches)) {
+      throw new Error("Unexpected Neon API response: missing branches array.")
+    }
+    return { items: record.branches as unknown[], next: readPaginationNext(record.pagination) }
+  })
   return rawBranches.map(toBranchSummary)
+}
+
+function readPaginationNext(pagination: unknown): string | undefined {
+  if (pagination === undefined || pagination === null) return undefined
+  if (typeof pagination !== "object") {
+    throw new Error("Unexpected Neon API response: pagination is not an object.")
+  }
+  const next = (pagination as { next?: unknown }).next
+  if (next === undefined || next === null) return undefined
+  if (typeof next !== "string") {
+    throw new Error("Unexpected Neon API response: pagination.next is not a string.")
+  }
+  return next
 }
 
 async function deleteBranch(projectId: string, apiKey: string, branchId: string) {

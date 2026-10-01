@@ -58,3 +58,40 @@ export function selectPrunableBranches(
     )
   })
 }
+
+export type CursorPage<T> = {
+  items: T[]
+  next?: string | null
+}
+
+// Follows a cursor-paginated listing until a page has no `next` cursor or comes back empty,
+// and returns every page's items in order. Fails hard (instead of returning a possibly
+// truncated list) when a cursor repeats or the page cap is hit, so a misbehaving API cannot
+// loop forever or silently drop branches from the budget count.
+export async function collectCursorPages<T>(
+  fetchPage: (cursor: string | undefined) => Promise<CursorPage<T>>,
+  opts: { maxPages?: number } = {}
+): Promise<T[]> {
+  const maxPages = opts.maxPages ?? 1_000
+  const items: T[] = []
+  const seenCursors = new Set<string>()
+  let cursor: string | undefined
+
+  for (let page = 1; ; page += 1) {
+    const result = await fetchPage(cursor)
+    items.push(...result.items)
+
+    const next = result.next ?? ""
+    if (next === "" || result.items.length === 0) return items
+    if (seenCursors.has(next)) {
+      throw new Error(
+        `Pagination cursor ${JSON.stringify(next)} repeated after page ${page}; refusing to continue with a possibly incomplete list.`
+      )
+    }
+    if (page >= maxPages) {
+      throw new Error(`Pagination did not finish within ${maxPages} pages; refusing to continue with a possibly incomplete list.`)
+    }
+    seenCursors.add(next)
+    cursor = next
+  }
+}
