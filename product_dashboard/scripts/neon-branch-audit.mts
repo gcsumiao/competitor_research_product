@@ -165,10 +165,12 @@ function parseMax(value: string | undefined, source: string) {
     return undefined
   }
   const trimmed = value.trim()
-  if (!/^\d+$/.test(trimmed)) {
+  const parsed = /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN
+  // Digits beyond Number.MAX_SAFE_INTEGER round silently (or become Infinity), so reject them too.
+  if (!Number.isSafeInteger(parsed)) {
     throw new UsageError(`${source} must be a non-negative integer (got ${JSON.stringify(trimmed)}).`)
   }
-  return Number(trimmed)
+  return parsed
 }
 
 function reportExplicitDeleteNames(branches: NeonBranchSummary[], names: string[]) {
