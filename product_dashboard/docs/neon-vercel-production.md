@@ -29,7 +29,7 @@ This dashboard is designed to run on:
 
 ## 2. Vercel environment contract
 
-Use the values in [`.env.vercel.example`](/Users/sumiaoc/competitor_research_product/product_dashboard/.env.vercel.example) as the contract.
+Use the values in `.env.vercel.example` (local, gitignored — ask the maintainer for a copy) as the contract.
 
 There are two contracts, one per Vercel scope. Each list below matches what `scripts/check-deployment-env.mts` checks in that mode; the notes say where an item is guidance the check does not enforce.
 
