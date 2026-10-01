@@ -20,7 +20,7 @@ import {
   upsertConsultMeHistoryRecordInDb,
 } from "@/lib/db/consult-me"
 import { hasDatabaseConnection } from "@/lib/db/client"
-import { isPostgresDashboardSource } from "@/lib/dashboard-runtime"
+import { isDashboardDbReadOnly, isPostgresDashboardSource } from "@/lib/dashboard-runtime"
 
 const HISTORY_FILE = path.resolve(process.cwd(), "data", "consult-me-history.json")
 const HISTORY_VERSION = 2
@@ -30,6 +30,13 @@ type HistoryFileShape = {
   version: number
   records: ConsultMeHistoryRecord[]
   hiddenSeedTaskIds?: string[]
+}
+
+export class HistoryStoreReadOnlyError extends Error {
+  constructor() {
+    super("Consult Me history is read-only in preview deployments.")
+    this.name = "HistoryStoreReadOnlyError"
+  }
 }
 
 type HistoryUpsertPatch = {
@@ -48,27 +55,16 @@ type HistoryUpsertPatch = {
 
 export async function upsertConsultMeHistoryRecord(patch: HistoryUpsertPatch) {
   const now = new Date().toISOString()
+  if (isDashboardDbReadOnly()) {
+    // Read-only deployments (Vercel previews on the production branch) report the
+    // would-be record to the caller without reading or persisting any history.
+    return buildHistoryRecord(patch, null, now)
+  }
+
   const { records, hiddenSeedTaskIds } = await readHistoryState()
   const index = records.findIndex((record) => record.taskId === patch.taskId)
   const existing = index >= 0 ? records[index] : null
-
-  const next: ConsultMeHistoryRecord = {
-    taskId: patch.taskId,
-    companyKey: patch.companyKey ?? existing?.companyKey ?? "",
-    companyLabel: patch.companyLabel ?? existing?.companyLabel ?? "",
-    researchType: patch.researchType ?? existing?.researchType ?? "custom",
-    researchSubject: patch.researchSubject ?? existing?.researchSubject ?? "",
-    status: patch.status ?? existing?.status ?? "queued",
-    hasReport: patch.hasReport ?? existing?.hasReport ?? false,
-    deliverables: sanitizeDeliverables(patch.deliverables ?? existing?.deliverables ?? []),
-    createdAt: existing?.createdAt ?? patch.createdAt ?? now,
-    updatedAt: patch.updatedAt ?? now,
-    completedAt: patch.completedAt ?? existing?.completedAt,
-  }
-
-  if (next.status === "completed" && next.hasReport && !next.completedAt) {
-    next.completedAt = next.updatedAt
-  }
+  const next = buildHistoryRecord(patch, existing, now)
 
   if (index >= 0) {
     records[index] = next
@@ -130,6 +126,7 @@ export async function listConsultMeHistory(): Promise<ConsultMeHistoryResponse> 
 }
 
 export async function deleteConsultMeHistoryByCompany(companyKey: string) {
+  if (isDashboardDbReadOnly()) throw new HistoryStoreReadOnlyError()
   const normalized = normalizeCompanyKey(companyKey)
   if (!normalized) return { deletedCount: 0 }
   if (shouldUseDatabaseHistoryStore()) {
@@ -170,6 +167,7 @@ export async function deleteConsultMeHistoryByCompany(companyKey: string) {
 }
 
 export async function deleteConsultMeHistoryByTask(taskId: string) {
+  if (isDashboardDbReadOnly()) throw new HistoryStoreReadOnlyError()
   const normalized = taskId.trim()
   if (!normalized) return { deletedCount: 0 }
   if (shouldUseDatabaseHistoryStore()) {
@@ -204,6 +202,32 @@ export async function deleteConsultMeHistoryByTask(taskId: string) {
     await writeHistoryState({ records: filtered, hiddenSeedTaskIds })
   }
   return { deletedCount }
+}
+
+function buildHistoryRecord(
+  patch: HistoryUpsertPatch,
+  existing: ConsultMeHistoryRecord | null,
+  now: string
+): ConsultMeHistoryRecord {
+  const next: ConsultMeHistoryRecord = {
+    taskId: patch.taskId,
+    companyKey: patch.companyKey ?? existing?.companyKey ?? "",
+    companyLabel: patch.companyLabel ?? existing?.companyLabel ?? "",
+    researchType: patch.researchType ?? existing?.researchType ?? "custom",
+    researchSubject: patch.researchSubject ?? existing?.researchSubject ?? "",
+    status: patch.status ?? existing?.status ?? "queued",
+    hasReport: patch.hasReport ?? existing?.hasReport ?? false,
+    deliverables: sanitizeDeliverables(patch.deliverables ?? existing?.deliverables ?? []),
+    createdAt: existing?.createdAt ?? patch.createdAt ?? now,
+    updatedAt: patch.updatedAt ?? now,
+    completedAt: patch.completedAt ?? existing?.completedAt,
+  }
+
+  if (next.status === "completed" && next.hasReport && !next.completedAt) {
+    next.completedAt = next.updatedAt
+  }
+
+  return next
 }
 
 function summarizeCompanies(records: ConsultMeHistoryRecord[]): ConsultMeCompanyHistory[] {
@@ -305,6 +329,7 @@ async function writeHistoryState(state: {
   records: ConsultMeHistoryRecord[]
   hiddenSeedTaskIds: string[]
 }) {
+  if (isDashboardDbReadOnly()) return
   if (shouldUseDatabaseHistoryStore()) return
   const dir = path.dirname(HISTORY_FILE)
   await mkdir(dir, { recursive: true })
