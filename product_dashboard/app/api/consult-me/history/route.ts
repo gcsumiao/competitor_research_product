@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import {
   deleteConsultMeHistoryByCompany,
   deleteConsultMeHistoryByTask,
+  HistoryStoreReadOnlyError,
   listConsultMeHistory,
 } from "@/lib/consult-me/history-store"
 
@@ -39,6 +40,12 @@ export async function DELETE(request: Request) {
     const result = await deleteConsultMeHistoryByCompany(companyKey)
     return NextResponse.json(result)
   } catch (error) {
+    if (error instanceof HistoryStoreReadOnlyError) {
+      return NextResponse.json(
+        { error: "Consult Me history is read-only in preview deployments.", readOnly: true },
+        { status: 409 }
+      )
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to delete consult-me history" },
       { status: 500 }
