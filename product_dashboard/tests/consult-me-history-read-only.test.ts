@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import test, { after, afterEach } from "node:test"
+import test, { after, afterEach, before } from "node:test"
 
 const ENV_KEYS = [
   "DASHBOARD_DATA_SOURCE",
@@ -11,7 +11,8 @@ const ENV_KEYS = [
   "DASHBOARD_DB_READ_ONLY",
   "VERCEL_ENV",
 ] as const
-const ORIGINAL_ENV = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]))
+// Snapshotted in before() so this file never reads process.env at module scope.
+let originalEnv: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>> = {}
 const UNREACHABLE_DATABASE_URL = "postgresql://x:y@127.0.0.1:1/x"
 
 const ORIGINAL_CWD = process.cwd()
@@ -45,9 +46,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
 
+before(() => {
+  originalEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]))
+})
+
 afterEach(() => {
   for (const key of ENV_KEYS) {
-    const original = ORIGINAL_ENV[key]
+    const original = originalEnv[key]
     if (original === undefined) {
       delete process.env[key]
     } else {

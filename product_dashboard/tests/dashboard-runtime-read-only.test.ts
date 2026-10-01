@@ -1,10 +1,11 @@
 import assert from "node:assert/strict"
-import test, { afterEach } from "node:test"
+import test, { afterEach, before } from "node:test"
 
 import { isDashboardDbReadOnly } from "../lib/dashboard-runtime.ts"
 
 const ENV_KEYS = ["DASHBOARD_DB_READ_ONLY", "VERCEL_ENV"] as const
-const ORIGINAL_ENV = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]))
+// Snapshotted in before() so this file never reads process.env at module scope.
+let originalEnv: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>> = {}
 
 function setEnv(values: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>>) {
   for (const key of ENV_KEYS) {
@@ -17,9 +18,13 @@ function setEnv(values: Partial<Record<(typeof ENV_KEYS)[number], string | undef
   }
 }
 
+before(() => {
+  originalEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]))
+})
+
 afterEach(() => {
   for (const key of ENV_KEYS) {
-    const original = ORIGINAL_ENV[key]
+    const original = originalEnv[key]
     if (original === undefined) {
       delete process.env[key]
     } else {
