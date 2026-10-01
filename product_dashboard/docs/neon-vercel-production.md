@@ -31,22 +31,35 @@ This dashboard is designed to run on:
 
 Use the values in [`.env.vercel.example`](/Users/sumiaoc/competitor_research_product/product_dashboard/.env.vercel.example) as the contract.
 
-Required runtime envs:
+There are two contracts, one per Vercel scope. Each list below matches what `scripts/check-deployment-env.mts` checks in that mode; the notes say where an item is guidance the check does not enforce.
 
-- `DATABASE_URL`
-- `DATABASE_URL_UNPOOLED`
+### Production (`pnpm deploy:check-env`)
+
+- `DATABASE_URL`: Neon pooled runtime URL for the `production` branch, role `neondb_owner`
+- `DATABASE_URL_UNPOOLED`: Neon direct URL for migrations and ingest, role `neondb_owner`
 - `DASHBOARD_DATA_SOURCE=postgres`
 - `DASHBOARD_DEPLOYMENT_MODE=full`
 - `DASHBOARD_REVALIDATE_SECRET`
-- `DASHBOARD_REVALIDATE_URL`
-- `DASHBOARD_DB_READ_ONLY=1` (Preview only; must be unset/false in Production)
+- `DASHBOARD_REVALIDATE_URL`: must be https; use the exact deployed Production URL (not enforced; the check warns when its host differs from `VERCEL_URL`)
+- `DASHBOARD_DB_READ_ONLY` unset or false (the check fails if it is truthy while `VERCEL_ENV=production`)
 
-Rules:
+The check prints the role of both URLs but does not enforce `neondb_owner`; confirm it in the output.
 
-- `DATABASE_URL` must be the Neon pooled runtime URL.
-- `DATABASE_URL_UNPOOLED` must be the Neon direct URL for migrations and ingest.
-- `DASHBOARD_REVALIDATE_URL` must be the exact deployed URL for the environment you are targeting (optional in Preview).
-- Preview must use the `dashboard_preview_ro` role (never `neondb_owner`) with `DASHBOARD_DB_READ_ONLY=1`; Consult Me history is read-only there (deletes return 409).
+### Preview (`pnpm deploy:check-env -- --target preview`)
+
+- `DATABASE_URL` / `DATABASE_URL_UNPOOLED`: pooled and direct URLs of the production endpoint, both with role exactly `dashboard_preview_ro` (any other role fails, including `neondb_owner`)
+- `DASHBOARD_DB_READ_ONLY=1` (`1`, `true`, `yes` or `on`)
+- `DASHBOARD_DATA_SOURCE=postgres`
+- `DASHBOARD_REVALIDATE_SECRET`
+- `DASHBOARD_DEPLOYMENT_MODE`: must be present; its value is not enforced
+- `DASHBOARD_REVALIDATE_URL`: optional (ingest only revalidates Production); if set, it must be https
+
+Consult Me history is read-only in Preview (deletes return 409).
+
+### Rules for both
+
+- `DATABASE_URL` and `DATABASE_URL_UNPOOLED` must use `postgres://` or `postgresql://` and must not be identical (pooled runtime URL vs direct URL).
+- With `CF_ACCESS_ENABLED=true`, `CF_ACCESS_TEAM_DOMAIN` (an `https://*.cloudflareaccess.com` URL), `CF_ACCESS_AUDIENCES`, `CF_ACCESS_USERS_GROUP_ID`, `CF_ACCESS_ADMIN_GROUP_ID` and `CF_ACCESS_AUTOMATION_CLIENT_ID` are required; otherwise the check only warns that the origin accepts direct traffic.
 - Keep `file` mode in code for rollback only during the first production release.
 
 Validate envs before cutover:
