@@ -129,13 +129,14 @@ Production reads a **Neon Postgres** (PG 17), not your local Docker DB, so the d
    git commit -m "Add <Month> YYYY code reader dashboard data"
    git push origin main
    ```
-   Vercel's GitHub integration auto-builds and deploys **`main`** to production (project `product-market-research`, Root Directory = `product_dashboard`, configured in the Vercel dashboard — there is no `vercel.json`). Other branches produce Preview deploys with Neon preview DB branches.
+   Vercel's GitHub integration auto-builds and deploys **`main`** to production (project `product-market-research`, Root Directory = `product_dashboard`, configured in the Vercel dashboard — there is no `vercel.json`). Other branches produce Preview deploys that read the production Neon branch through the read-only `dashboard_preview_ro` role (no Neon branches are created).
 3. **Production env vars** (set in Vercel, names only): `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `DASHBOARD_DATA_SOURCE=postgres`, `DASHBOARD_DEPLOYMENT_MODE` (`code_reader_only` on Vercel), `DASHBOARD_REVALIDATE_SECRET`, `DASHBOARD_REVALIDATE_URL`, plus optional `OPENAI_API_KEY`/`OPENAI_MODEL` for chatbot polish.
 4. **Post-deploy checks:**
    ```bash
    pnpm deploy:check-env
    pnpm db:verify:parity          # file vs Postgres parity
    pnpm deploy:smoke -- --base-url https://<production-domain>
+   pnpm neon:branch-audit         # Neon branch budget (expect 1 branch: production)
    ```
 
 Reference: `product_dashboard/docs/neon-vercel-production.md` and `product_dashboard/docs/monthly-operator-checklists.md`.

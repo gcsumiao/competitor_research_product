@@ -53,6 +53,8 @@ cd "/Users/sumiaoc/competitor_research_product/Amazon_Monthly_Competitor_Report 
   --missing-mode carryover_zero
 ```
 
+11. After the production deploy, verify the Neon branch budget from the repo root: `pnpm -C product_dashboard neon:branch-audit` (expect 1 branch).
+
 ## Non-code monthly checklist
 
 1. Drop the new month raw CSVs into the configured category folder under the active non-code root.
