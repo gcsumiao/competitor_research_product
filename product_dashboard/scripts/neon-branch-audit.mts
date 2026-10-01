@@ -3,6 +3,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import {
   collectCursorPages,
   evaluateBranches,
+  hasCompleteProtectionMetadata,
   isProtectedNeonBranch,
   selectPrunableBranches,
   type NeonBranchSummary,
@@ -28,7 +29,7 @@ const USAGE = `Usage: pnpm neon:branch-audit [-- [--max N] [--prune [--delete <n
   --yes             Actually delete the prune candidates (requires --prune).
 
 Env: NEON_API_KEY (required), NEON_PROJECT_ID (default ${DEFAULT_PROJECT_ID}), NEON_BRANCH_MAX (default ${DEFAULT_BRANCH_MAX}).
-Default, primary and protected branches are never pruned.`
+Default, primary and protected branches, and any branch whose default/protected flag is missing, are never pruned.`
 
 class UsageError extends Error {
   constructor(message: string) {
@@ -57,7 +58,8 @@ async function main() {
   const max = args.max ?? parseMax(process.env.NEON_BRANCH_MAX, "NEON_BRANCH_MAX") ?? DEFAULT_BRANCH_MAX
   const auditOpts = { max, forbiddenPrefixes: FORBIDDEN_PREFIXES, forbiddenNames: FORBIDDEN_NAMES }
 
-  let branches = await listBranches(projectId, apiKey)
+  // Pruning refuses to run on incomplete protection metadata; the audit-only path warns.
+  let branches = await listBranches(projectId, apiKey, { strictProtection: args.prune })
   console.log(`Neon project ${projectId}: ${branches.length} branch(es)`)
   printBranchTable(branches)
 
@@ -75,6 +77,9 @@ async function main() {
     if (!args.yes) {
       console.log("Dry run only. Re-run with --prune --yes to delete these branches.")
     } else if (candidates.length > 0) {
+      // No project-level cross-check: GET /projects/{project_id} exposes no default-branch id
+      // (Neon API v2 spec, checked 2026-10-01), so the per-branch default/protected flags,
+      // which strict listing above guarantees are present, are the guard.
       console.log("")
       for (const branch of candidates) {
         try {
@@ -87,7 +92,8 @@ async function main() {
       }
 
       const deletedIds = new Set(candidates.map((branch) => branch.id))
-      branches = await listBranches(projectId, apiKey)
+      // Report-only re-list after the deletes: warn instead of throwing so the results still print.
+      branches = await listBranches(projectId, apiKey, { strictProtection: false })
       console.log("")
       console.log(`After prune: ${branches.length} branch(es)`)
       printBranchTable(branches)
@@ -180,7 +186,11 @@ function reportExplicitDeleteNames(branches: NeonBranchSummary[], names: string[
   }
 }
 
-async function listBranches(projectId: string, apiKey: string): Promise<NeonBranchSummary[]> {
+async function listBranches(
+  projectId: string,
+  apiKey: string,
+  opts: { strictProtection: boolean }
+): Promise<NeonBranchSummary[]> {
   const rawBranches = await collectCursorPages<unknown>(async (cursor) => {
     // Fixed sort on every page keeps the cursor order stable (the API default sorts by updated_at).
     const query = new URLSearchParams({ limit: String(BRANCH_PAGE_LIMIT), sort_by: "created_at", sort_order: "asc" })
@@ -192,7 +202,7 @@ async function listBranches(projectId: string, apiKey: string): Promise<NeonBran
     }
     return { items: record.branches as unknown[], next: readPaginationNext(record.pagination) }
   })
-  return rawBranches.map(toBranchSummary)
+  return rawBranches.map((raw) => toBranchSummary(raw, opts))
 }
 
 function readPaginationNext(pagination: unknown): string | undefined {
@@ -216,12 +226,12 @@ async function deleteBranch(projectId: string, apiKey: string, branchId: string)
   )
 }
 
-function toBranchSummary(raw: unknown): NeonBranchSummary {
+function toBranchSummary(raw: unknown, opts: { strictProtection: boolean }): NeonBranchSummary {
   const record = (raw ?? {}) as Record<string, unknown>
   if (typeof record.id !== "string" || typeof record.name !== "string") {
     throw new Error("Unexpected Neon API response: branch without string id/name.")
   }
-  return {
+  const summary: NeonBranchSummary = {
     id: record.id,
     name: record.name,
     default: typeof record.default === "boolean" ? record.default : undefined,
@@ -232,6 +242,16 @@ function toBranchSummary(raw: unknown): NeonBranchSummary {
     current_state: typeof record.current_state === "string" ? record.current_state : undefined,
     logical_size: typeof record.logical_size === "number" ? record.logical_size : null,
   }
+
+  if (!hasCompleteProtectionMetadata(summary)) {
+    if (opts.strictProtection) {
+      throw new Error(`Neon API returned incomplete protection metadata for ${summary.name}; refusing to prune.`)
+    }
+    console.warn(
+      `WARNING: Neon API returned incomplete protection metadata for ${summary.name} (${summary.id}); treating it as protected.`
+    )
+  }
+  return summary
 }
 
 async function neonRequest(method: "GET" | "DELETE", apiPath: string, apiKey: string): Promise<unknown> {

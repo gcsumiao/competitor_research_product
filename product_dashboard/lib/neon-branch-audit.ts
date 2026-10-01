@@ -43,8 +43,15 @@ export function evaluateBranches(
   return { ok: violations.length === 0, count, violations }
 }
 
+// The Neon API marks `default` and `protected` as required booleans. Fail closed: a branch is
+// only prunable when it is explicitly non-default and unprotected (and not the deprecated
+// `primary`); missing or non-boolean flags count as protected.
 export function isProtectedNeonBranch(branch: NeonBranchSummary) {
-  return branch.default === true || branch.primary === true || branch.protected === true
+  return !(branch.default === false && branch.protected === false && branch.primary !== true)
+}
+
+export function hasCompleteProtectionMetadata(branch: NeonBranchSummary) {
+  return typeof branch.default === "boolean" && typeof branch.protected === "boolean"
 }
 
 export function selectPrunableBranches(
