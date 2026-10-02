@@ -225,7 +225,7 @@ BASE_ROW_COLUMNS: tuple[str, ...] = (
 ENRICHED_ROW_COLUMNS: tuple[str, ...] = BASE_ROW_COLUMNS + GAUGE_ENRICHMENT_COLUMNS + MODELB_COLUMNS
 ROW_COLUMNS = BASE_ROW_COLUMNS   # alias: "the row contract" means the base columns; classifier output is ENRICHED_ROW_COLUMNS
 # Percent fields (*_pct) are stored as FRACTIONS (Helium 10 "-32" -> -0.32); missing/N/A -> NaN, never 0 (finding 17).
-# last_year_units: missing -> NaN (never 0); brand YoY = paired sums over ASINs where BOTH current and last-year are present; show coverage; never average listing YoY %.
+# last_year_units: missing -> NaN (never 0). Helium 10 'Last Year Sales' semantics are UNVERIFIED: never divide units_month by it and never derive a YoY from it; show it as reported. Per-listing 'Sales YoY %' is never averaged or summed (only sign counts / revenue shares of listings with data).
 # bsr / subcategory_bsr: missing -> NaN (never 0).
 SOURCE_SETS: tuple[str, ...] = ("code_reader", "gauge", "both")
 # Dedupe winner within a source (finding 13), compared lexicographically:
