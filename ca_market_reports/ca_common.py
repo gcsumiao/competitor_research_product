@@ -98,6 +98,10 @@ def manifest_name(month: str) -> str:
 def memo_name(month: str) -> str:
     return f"CA_OBD_Gauge_Market_Memo_{month}.md"
 
+def combined_gauge_report_name(month: str) -> str:
+    """CA + US OBD gauge workbook (side-by-side comparison; lands in the CA-OBD-GAUGE outputs dir)."""
+    return f"CA_US_OBD_Gauge_Competitor_Report_{month}.xlsx"
+
 BACKUP_SUBDIR = "_backup"          # <out_dir>/_backup/<name>.<YYYYMMDD-HHMMSS>.xlsx
 RUNBOOK_FILE = "RUNBOOK.md"
 
@@ -299,6 +303,32 @@ GAUGE_TAIL_SHEETS: tuple[str, ...] = ("All Products", "Dedupe & Classification A
 # "All Products" = every union row (all classes) with gauge_class, gauge_in_scope, gauge_device_scope, borderline -> completeness check (V18 role all_rows).
 # Gauge "Innova" tab = (a) one line "Innova gauge/HUD device listings in this dataset: 0" (static count, role innova) and
 # (b) the app-capable Innova hardware list from the code-reader set (role modelb_top filter brand_key=="innova").
+# --- Combined CA + US gauge workbook (user request 2026-10-02): frozen sheet names, table titles and roles ---
+COMBINED_MARKETS: tuple[str, str] = ("CA", "US")
+COMBINED_FIXED_SHEETS: tuple[str, ...] = ("Read Me", "Summary", "Top 50 CA", "Top 50 US", "Innova")      # then brand tabs, then:
+COMBINED_MODEL_SHEETS: tuple[str, ...] = ("Price Ladder (Model A)", "Feature Matrix (Model A)", "App-Gauge Proxy (Model B)")  # CA analyses, unchanged
+COMBINED_TAIL_SHEETS: tuple[str, ...] = ("US vs CA Same-ASIN", "All Products", "Dedupe & Classification Audit", "Excluded", "Source & Method", "Metadata")
+# Summary tables, in this vertical order (role in brackets); every table is ONE table with CA and US columns side by side
+COMBINED_SUMMARY_TITLES: dict[str, tuple[str, str]] = {
+    "key_figures": ("Key figures", "kpi"),                                              # rows = KPIs, columns CA (CAD) | US (USD)
+    "share":       ("Gauge share of the code-reader market", "kpi"),                    # ONE row: (b) all core gauge devices; CA block | US block; share columns bold
+    "brands":      ("Brand summary — CA vs US", "summary_brands"),                      # Brand | CA # Listings | CA Monthly Rev (CAD) | CA Monthly Units | CA Rev Share | CA Avg Rating | US … ; residual per market; Total
+    "subtypes":    ("Sub-type mix — CA vs US", "subtype_mix"),                          # rows = device sub-types + "GPS-only HUD (adjacent)" + Total
+    "tier_ca":     ("Price tier × sub-type — CA (CAD)", "tier_matrix"),                 # rows = sub-types + Total; columns per tier: "<tier> Rev (CAD)", "<tier> Units"; last pair "All tiers"
+    "tier_us":     ("Price tier × sub-type — US (USD)", "tier_matrix"),
+    "fuel":        ("Fuel split — CA vs US", "subtype_mix"),                            # rows = (fuel, sub-type) + per-fuel subtotal + Total; columns CA # ASINs | CA Rev | CA Units | US # ASINs | US Rev | US Units
+}
+COMBINED_SHARE_ROW_LABEL = "(b) All core gauge devices (CR ∪ gauge export)"
+# Market highlight: header fills per market block (CA purple, US blue) and a faint data tint; applied to every side-by-side table
+FILL_MARKET_HEADER: dict[str, str] = {"CA": "D9D2E9", "US": "DCE6F1"}
+FILL_MARKET_DATA: dict[str, str] = {"CA": "F4F1F9", "US": "F3F7FB"}
+# Brand tabs: a brand qualifies if it meets the brand-tab rule in EITHER market; layout = rows 1-6 title/subtitle/KPI block with CA | US columns,
+# then four ranking tables in this order with Total rows: "CA — Rank by Revenue", "CA — Rank by Units", "US — Rank by Revenue", "US — Rank by Units"
+COMBINED_BRAND_TABLE_TITLES: tuple[str, ...] = ("CA — Rank by Revenue", "CA — Rank by Units", "US — Rank by Revenue", "US — Rank by Units")
+# All Products / Excluded / Audit sheets hold two stacked tables titled "<table> — CA" and "<table> — US" (ASIN uniqueness is per table)
+for _s in COMBINED_FIXED_SHEETS + COMBINED_MODEL_SHEETS + COMBINED_TAIL_SHEETS:
+    assert len(_s) <= 31, _s
+
 GAUGE_BRAND_TAB_MIN_REVENUE = 1000.0   # brand gets a tab if device revenue >= this ...
 GAUGE_BRAND_TAB_MIN_ASINS = 3          # ... or it has at least this many device ASINs
 SUMMARY_TOP_BRANDS = 25
