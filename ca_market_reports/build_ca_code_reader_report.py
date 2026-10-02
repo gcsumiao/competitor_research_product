@@ -25,7 +25,12 @@ from ca_market_reports.ca_xlsx_style import Book, ColumnSpec as Col, TableSpec
 
 MARKET = C.MARKETS["CA"]
 SCOPE_NOTE = "Single month; no MoM/Rolling-12; tier thresholds are nominal US break points in CAD"
-TREND_NOTE = "Helium 10 estimates; paired-ASIN cohort only; not pipeline history"
+TREND_NOTE = ("Helium 10 'Sales YoY %' is a per-listing vendor estimate; it is never averaged or summed. "
+              "'Last Year Sales' is shown as reported and must not be divided into monthly units.")
+LAST_YEAR_HEADER = "Last Year Sales (Helium 10 field; semantics unverified)"
+TREND_PROXY_HEADERS: tuple[str, ...] = ("Brand", "Monthly Rev (CAD)", "Monthly Units", LAST_YEAR_HEADER,
+                                        "# Listings with Helium 10 YoY data", "# Listings with YoY > 0", "# Listings with YoY < 0",
+                                        "Revenue share of listings with YoY > 0", "Revenue share of listings with YoY data")
 PIVOT_NOTE = ("Avg Price = revenue ÷ units. Brand rows: Qty by % / Revenue by % = share within the tier. "
               "Tier Total row: share of the full CA code-reader market.")
 
@@ -246,12 +251,19 @@ def tier_pivot(sub: pd.DataFrame, label: str, *, top_n: int, market_units: float
 
 
 def _trend_row(sub: pd.DataFrame) -> dict:
-    paired = sub[sub["last_year_units"].notna() & sub["units_month"].notna()]
-    cur, ly = float(paired["units_month"].sum()), float(paired["last_year_units"].sum())
+    """Helium 10 trend fields as reported. 'Last Year Sales' is a plain sum over the listings that carry it (blank when none)
+    and is never related to monthly units; listing 'Sales YoY %' values are only counted by sign, never averaged or summed."""
     rev = float(sub["revenue_month"].sum())
-    return {"rev": rev, "units": float(sub["units_month"].sum()), "units_paired": cur, "ly_paired": ly,
-            "yoy": (cur / ly - 1.0) if ly > 0 else float("nan"),
-            "coverage": X.safe_div(float(paired["revenue_month"].sum()), rev), "n_yoy": int(len(paired))}
+    ly = sub["last_year_units"].dropna()
+    yoy = sub["yoy_units_pct"]
+    return {"rev": rev, "units": float(sub["units_month"].sum()),
+            "ly_sum": float(ly.sum()) if len(ly) else float("nan"),
+            "n_yoy": int(yoy.notna().sum()), "n_pos": int((yoy > 0).sum()), "n_neg": int((yoy < 0).sum()),
+            "rev_pos": X.safe_div(float(sub.loc[yoy > 0, "revenue_month"].sum()), rev),
+            "rev_yoy": X.safe_div(float(sub.loc[yoy.notna(), "revenue_month"].sum()), rev)}
+
+
+TREND_FIELDS: tuple[str, ...] = ("brand", "rev", "units", "ly_sum", "n_yoy", "n_pos", "n_neg", "rev_pos", "rev_yoy")
 
 
 def trend_proxy(df: pd.DataFrame, *, top_n: int) -> tuple[pd.DataFrame, dict | None, dict]:
@@ -261,7 +273,7 @@ def trend_proxy(df: pd.DataFrame, *, top_n: int) -> tuple[pd.DataFrame, dict | N
         d = _trend_row(df[df["brand_key"] == key])
         d.update(brand=display, brand_key=key)
         rows.append(d)
-    full = pd.DataFrame(rows, columns=["brand", "brand_key", "rev", "units", "units_paired", "ly_paired", "yoy", "coverage", "n_yoy"])
+    full = pd.DataFrame(rows, columns=list(TREND_FIELDS) + ["brand_key"])
     shown = full.head(top_n).reset_index(drop=True)
     rest = list(full["brand_key"].iloc[top_n:])
     residual = None
@@ -319,15 +331,13 @@ def build_analysis_book(ctx: Ctx) -> Book:
 
     # Trend Proxy
     ws = book.sheet("Trend Proxy")
-    cols = [Col("Brand", "brand", "text", 26), Col(f"Monthly Rev ({ccy})", "rev", "money", 15), Col("Monthly Units", "units", "int", 12),
-            Col("Monthly Units (paired cohort)", "units_paired", "int", 14),
-            Col("Last Year Units (paired cohort)", "ly_paired", "int", 14), Col("Units YoY % (paired sums)", "yoy", "pct", 13),
-            Col("Cohort coverage % (revenue)", "coverage", "pct", 14), Col("# Listings with YoY data", "n_yoy", "int", 13)]
+    kinds = (("brand", "text", 26), ("rev", "money", 15), ("units", "int", 12), ("ly_sum", "int", 18), ("n_yoy", "int", 14),
+             ("n_pos", "int", 12), ("n_neg", "int", 12), ("rev_pos", "pct", 15), ("rev_yoy", "pct", 15))
+    headers = [h.replace("(CAD)", f"({ccy})") for h in TREND_PROXY_HEADERS]
+    cols = [Col(h, f, k, w) for h, (f, k, w) in zip(headers, kinds, strict=True)]
     shown, residual, total = trend_proxy(df, top_n=C.SUMMARY_TOP_BRANDS)
-    book.table(ws, TableSpec("Trend Proxy", "trend_proxy", f"Trend proxy — Helium 10 last-year units by brand ({ctx.mon})", cols, shown,
-                             X.fit(total, cols), X.fit(residual, cols), ("CA",), subtitle=ctx.sub,
-                             note=TREND_NOTE + ". Paired cohort = listings with both a current and a last-year unit estimate; "
-                                               "YoY = paired current units ÷ paired last-year units − 1.",
+    book.table(ws, TableSpec("Trend Proxy", "trend_proxy", f"Trend proxy — Helium 10 trend fields by brand, as reported ({ctx.mon})",
+                             cols, shown, X.fit(total, cols), X.fit(residual, cols), ("CA",), subtitle=ctx.sub, note=TREND_NOTE,
                              dataset_filter="all CA code-reader rows"), 1)
 
     # Type Coverage
