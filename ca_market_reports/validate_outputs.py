@@ -23,6 +23,15 @@ review queue is a loader artifact), the raw-input part of V19, the Bully Dog par
 --skip accepts only the IDs in SKIPPABLE (each has a documented reason); any other ID is an argument error.
 
 Memo (V20): tags inside inline code spans (`...`) are literal mentions of the tag syntax, not citations, and are ignored.
+
+Combined CA + US gauge workbook (ca_common "Combined CA + US gauge workbook" block): CA_US_OBD_Gauge_Competitor_Report_<m>.xlsx
+in the CA gauge out dir, registry runs/<m>/table_registry_CAUS_<m>.json. --combined auto (default) validates it when present and
+treats it as optional when absent (V15 evidence says "combined: absent"); --combined require makes its absence a FAIL;
+--combined off ignores it. It adds evidence to the existing 23 lines and FAILs the same check ids. Every registered table of the
+combined workbook is bound to a market block: Top 50 CA/US by sheet, "CA — …"/"… — CA" (optionally followed by a "(…)" suffix)
+by title, Model A/B sheets CA, else a single allowed_markets entry; tables with no market are side-by-side tables whose columns
+carry the market as a "CA "/"US " prefix. Side-by-side Summary tables are re-derived by their frozen titles
+(COMBINED_SUMMARY_TITLES); their core / device scope comes from the registry dataset_filter ("core devices…" | "gauge_device_scope…").
 """
 from __future__ import annotations
 
@@ -72,6 +81,28 @@ MONEY_TOL = 0.01
 EXACT_TOL = 1e-6
 SHARE_TOL = 1e-6
 MAX_LISTED = 8
+# Combined CA + US gauge workbook
+COMBINED_SCOPE = "CAUS"                     # run_file(runs_dir, m, "table_registry", "CAUS", "json"); registry "market" field
+COMBINED_MODES: tuple[str, ...] = ("auto", "require", "off")
+COMBINED_SHORT = C.combined_gauge_report_name("202601").split("_202")[0]       # evidence prefix (no month)
+COMBINED_KIND = "combined"
+# Key figures rows (Measure | CA | US) -> (scope, measure). "# device ASINs with sales > 0" counts CORE devices, as the
+# single-market "# core device ASINs with sales > 0" KPI does (FLAGGED: the spec label drops "core").
+COMBINED_KEY_FIGURES: dict[str, tuple[str, str]] = {
+    "Core device revenue": ("core", "rev"), "Core device units": ("core", "units"), "# core device ASINs": ("core", "n"),
+    "# device ASINs with sales > 0": ("core", "n_sales"), "Incl. borderline revenue": ("device", "rev"),
+    "Accessories revenue": ("accessory", "rev"), "Adjacent GPS-only HUD revenue": ("adjacent", "rev")}
+COMBINED_V0X_KPI: dict[str, str] = {"Monthly Rev": "Core device revenue", "Monthly Units": "Core device units",
+                                    "# of Listings": "# core device ASINs"}
+COMBINED_BASE_SYNONYMS: dict[str, str] = {"Rev": "Monthly Rev", "Units": "Monthly Units", "Rev Share": "Rev share"}
+COMBINED_CA_ONLY_SHEETS: tuple[str, ...] = ("Top 50 CA",) + C.COMBINED_MODEL_SHEETS
+COMBINED_US_ONLY_SHEETS: tuple[str, ...] = ("Top 50 US",)
+COMBINED_BRAND_ROLES: tuple[str, ...] = ("brand_tab_revenue", "brand_tab_units", "brand_tab_revenue", "brand_tab_units")
+_MARKET_LEAD_RE = re.compile(r"^(CA|US) — ")
+_MARKET_TAIL_RE = re.compile(r" — (CA|US)(?: \([^)]*\))?$")
+_MARKET_PREFIX_RE = re.compile(r"^(CA|US)(?: (.*))?$")
+_TIER_HDR_RE = re.compile(r"^(?P<tier>.+) (?P<what>Rev|Units)(?: \((?P<ccy>CAD|USD)\))?$")
+ALL_TIERS_LABEL = "All tiers"
 
 LOG = logging.getLogger("ca_market_reports")
 
@@ -152,10 +183,39 @@ def _close(a: float, b: float, tol: float) -> bool:
 class WB:
     name: str
     path: Path
-    market: str          # CA | US
-    kind: str            # cr | gauge
+    market: str          # CA | US | CAUS (combined)
+    kind: str            # cr | gauge | combined
     book: Any = None     # openpyxl workbook (formulas kept) or None when the file is missing
     missing: bool = False
+
+
+def combined_table_market(entry: dict) -> tuple[str | None, str | None, str | None]:
+    """(market, home, conflict) of a combined-workbook registry entry.
+
+    market = the single market block the table belongs to (None: side-by-side / market-neutral table);
+    home   = the market used for link domains and unlabelled columns (Same-ASIN keeps the CA workbook's CA home);
+    conflict = a text when the sheet/title naming and a single allowed_markets entry disagree (reported by V07)."""
+    sheet, title = entry["sheet"], entry.get("title") or ""
+    allowed = list(entry.get("allowed_markets") or [])
+    named = None
+    if sheet in ("Top 50 CA", "Top 50 US"):
+        named = sheet[-2:]
+    else:
+        mm = _MARKET_LEAD_RE.match(title) or _MARKET_TAIL_RE.search(title)
+        if mm:
+            named = mm.group(1)
+        elif sheet in C.COMBINED_MODEL_SHEETS:
+            named = "CA"
+    single = allowed[0] if len(allowed) == 1 else None
+    conflict = None
+    if named and single and named != single:
+        conflict = f"sheet/title name market {named} but allowed_markets is {allowed}"
+    mk = named or single
+    if mk:
+        return mk, mk, conflict
+    if sheet == "US vs CA Same-ASIN":
+        return None, "CA", None
+    return None, None, None
 
 
 class Table:
@@ -177,13 +237,20 @@ class Table:
         self.total_row = entry["total_row"]
         self.residual_row = entry["residual_row"]
         self.filter = entry.get("dataset_filter", "")
+        if wb.kind == COMBINED_KIND:
+            self.market, self.home, self.market_conflict = combined_table_market(entry)
+        else:
+            self.market = self.home = wb.market
+            self.market_conflict = None
         if self.header_row is not None:
             got = [self.ws.cell(self.header_row, self.first_col + j).value for j in range(len(self.columns))]
             if got != self.columns:
-                raise ValueError(f"{wb.name}!{self.sheet}/{self.role}: header row {self.header_row} {got} != registry {self.columns}")
+                raise ValueError(f"{self.label}: header row {self.header_row} {got} != registry {self.columns}")
 
     @property
     def label(self) -> str:
+        if self.wb.kind == COMBINED_KIND:          # several combined tables share sheet + role: the title disambiguates
+            return f"{self.wb.name}!{self.sheet}/{self.role}[{self.e.get('title') or ''}]"
         return f"{self.wb.name}!{self.sheet}/{self.role}"
 
     @property
@@ -251,6 +318,65 @@ RANK_BY_UNITS_ROLES: tuple[str, ...] = ("top_by_units", "brand_tab_units")
 
 def _base(h: str) -> str:
     return _CCY_SUFFIX.sub("", h)
+
+
+def split_market(h: str) -> tuple[str | None, str]:
+    """'CA Monthly Rev (CAD)' -> ('CA', 'Monthly Rev (CAD)'); 'US' -> ('US', ''); 'Price (USD)' -> (None, 'Price (USD)')."""
+    mm = _MARKET_PREFIX_RE.match(h)
+    return (mm.group(1), mm.group(2) or "") if mm else (None, h)
+
+
+def cbase(h: str) -> tuple[str | None, str]:
+    """(market prefix, metric base) of a combined-workbook header: prefix and currency suffix stripped, short forms
+    ('Rev', 'Units', 'Rev Share') mapped to the standard bases."""
+    mk, rest = split_market(h)
+    b = _base(rest)
+    return mk, COMBINED_BASE_SYNONYMS.get(b, b)
+
+
+def header_currency_markets(h: str) -> set[str]:
+    return {mk for mk, tok in (("CA", "(CAD)"), ("US", "(USD)")) if tok in h}
+
+
+def combined_header_problems(h: str, table_market: str | None) -> list[str]:
+    """V07 header rules of the combined workbook (both currencies are allowed in the workbook, each column labelled once):
+    no cross-currency ratio ('ratio' with CAD and USD, or with 'Rev' and no currency), never both currencies in one header,
+    a 'CA '/'US ' block prefix must agree with its '(CAD)'/'(USD)' token, and a single-market table carries only its own
+    currency/market."""
+    probs: list[str] = []
+    prefix, _ = split_market(h)
+    toks = header_currency_markets(h)
+    if "ratio" in h.lower() and (("CAD" in h and "USD" in h) or (re.search(r"\bRev\b", h) and not toks)):
+        probs.append(f"cross-currency ratio column {h!r}")
+    elif len(toks) > 1:
+        probs.append(f"header {h!r} carries both currencies")
+    tok = next(iter(toks)) if len(toks) == 1 else None
+    if prefix and tok and prefix != tok:
+        probs.append(f"header {h!r}: {prefix} block labelled {C.MARKETS[tok].currency}")
+    if table_market and tok and tok != table_market:
+        probs.append(f"header {h!r} carries {C.MARKETS[tok].currency} in a {table_market} table")
+    if table_market and prefix and prefix != table_market:
+        probs.append(f"header {h!r} names the {prefix} block in a {table_market} table")
+    return probs
+
+
+_DUAL_CCY_SUFFIX = re.compile(r" \((?:CAD|USD)(?: ?[|/] ?(?:CAD|USD))*\)$")
+# Brand-tab KPI labels with no single currency (Metric | CA | US): the label names the measure only. FLAGGED: the spec
+# freezes no brand-tab KPI labels; "Rev share within market" is the builder track's wording for the brand's revenue share.
+COMBINED_KPI_LABEL_ALIASES: dict[str, str] = {"Rev share within market": "Rev share"}
+
+
+def kpi_label_base(label: str) -> str:
+    """'Monthly Rev (CAD | USD)' -> 'Monthly Rev'; aliases of COMBINED_KPI_LABEL_ALIASES mapped; else the label itself."""
+    b = _DUAL_CCY_SUFFIX.sub("", label)
+    return COMBINED_KPI_LABEL_ALIASES.get(b, b)
+
+
+def gauge_tier(price: Any) -> str:
+    """GAUGE_TIERS label of a price (half-open), '' for a missing price. Re-implemented here, never imported."""
+    if price is None or (isinstance(price, float) and math.isnan(price)):
+        return ""
+    return next(lbl for lbl, lo, hi in C.GAUGE_TIERS if lo <= float(price) < hi)
 
 
 def weighted_rating(df: pd.DataFrame) -> float:
@@ -441,6 +567,9 @@ class Validator:
         self.data = Lazy(lambda: derive_data(a))
         self.books = Lazy(self._load_books)
         self.registry = Lazy(self._load_registry)
+        self.cregistry = Lazy(self._load_combined_registry)
+        self.cname = C.combined_gauge_report_name(self.m)
+        self.combined_mode = getattr(a, "combined", "auto")
 
     # ---------------------------------------------------------------- inputs
     def _load_books(self) -> dict[str, WB]:
@@ -456,7 +585,46 @@ class Validator:
             else:
                 wb.missing = True
             out[name] = wb
+        if self.combined_mode != "off":
+            p = self.out_dirs["gauge_CA"] / self.cname
+            wb = WB(self.cname, p, COMBINED_SCOPE, COMBINED_KIND)
+            if p.exists():
+                wb.book = load_workbook(p, data_only=False)
+                out[self.cname] = wb
+            elif self.combined_mode == "require":
+                wb.missing = True
+                out[self.cname] = wb
+            # auto + absent: the combined workbook is optional and simply not part of this run
         return out
+
+    def _load_combined_registry(self) -> dict:
+        p = C.run_file(Path(self.a.runs_dir), self.m, "table_registry", COMBINED_SCOPE, "json")
+        if not p.exists():
+            raise FileNotFoundError(f"combined table registry missing: {p}")
+        r = json.loads(p.read_text(encoding="utf-8"))
+        if (r.get("market"), r.get("month")) != (COMBINED_SCOPE, self.m):
+            raise ValueError(f"{p.name}: registry for {r.get('market')}/{r.get('month')}, expected {COMBINED_SCOPE}/{self.m}")
+        return r
+
+    def combined(self) -> WB | None:
+        """The combined workbook when present (None when absent in auto mode or --combined off)."""
+        w = self.books.get().get(self.cname)
+        if w is None:
+            return None
+        if w.missing:
+            raise FileNotFoundError(f"combined workbook missing (--combined require): {w.path}")
+        return w
+
+    def combined_state(self) -> str:
+        if self.combined_mode == "off":
+            return "combined: off (--combined off)"
+        w = self.books.get().get(self.cname)
+        if w is None:
+            return f"combined: absent ({self.cname} not in {self.out_dirs['gauge_CA']}; optional)"
+        return f"combined: {'missing' if w.missing else 'present'} ({self.cname})"
+
+    def reg_for(self, w: WB) -> dict:
+        return self.cregistry.get() if w.kind == COMBINED_KIND else self.registry.get()[w.market]
 
     def _load_registry(self) -> dict[str, dict]:
         reg = {}
@@ -483,7 +651,7 @@ class Validator:
         return ok, [f"workbook missing: {w.path}" for w in missing]
 
     def tables(self, w: WB, role: str | None = None, sheet: str | None = None) -> list[Table]:
-        reg = self.registry.get()[w.market]
+        reg = self.reg_for(w)
         if w.name not in reg["workbooks"]:
             raise KeyError(f"{w.name} not in the {w.market} table registry")
         out = []
@@ -525,15 +693,21 @@ class Validator:
             return f"raw dir absent ({self.a.raw_dir}); {src}"
         return f"dataset from --from-normalized {self.a.from_normalized}, not the raw exports"
 
-    def union(self, w: WB) -> pd.DataFrame:
+    def union_mk(self, mk: str | None) -> pd.DataFrame:
+        if mk not in ("CA", "US"):
+            raise ValueError(f"no market for this table ({mk!r}): cannot pick a dataset")
         d = self.data.get()
-        u = d.ca_u if w.market == "CA" else d.us_u
+        u = d.ca_u if mk == "CA" else d.us_u
         if u is None:
-            raise ValueError(f"no {w.market} dataset (US raw dirs absent and no --us-from-normalized)")
+            raise ValueError(f"no {mk} dataset (US raw dirs absent and no --us-from-normalized)")
         return u
 
-    def frame_for(self, t: Table) -> tuple[pd.DataFrame, pd.DataFrame] | None:
-        """(rows the table covers, share denominator) from the registry dataset_filter; None for tables without dataset rows."""
+    def union(self, w: WB) -> pd.DataFrame:
+        return self.union_mk(w.market)
+
+    def frame_for(self, t: Table, mk: str | None = None) -> tuple[pd.DataFrame, pd.DataFrame] | None:
+        """(rows the table covers, share denominator) from the registry dataset_filter; None for tables without dataset rows.
+        mk: the market block to read (combined side-by-side tables); default the table's home market."""
         f = t.filter
         d = self.data.get()
         if t.wb.kind == "cr":
@@ -552,11 +726,11 @@ class Validator:
             if t.role == "kpi":
                 den = base
             return sub, den
-        u = self.union(t.wb)
-        core = u[u["_core"]]
         if f.startswith("core devices, both markets") or f.startswith("asin in CA union") or f in (
                 "", "GAUGE_CLASSES", "apps", "see metric labels") or f.startswith(("dedupe_audit rows", "classification decisions")):
             return None
+        u = self.union_mk(mk or t.home)
+        core = u[u["_core"]]
         if f.startswith("core devices"):
             sub, den_base = core, core
         elif f == "gauge_device_scope":
@@ -609,7 +783,148 @@ class Validator:
                 probs.append(f"{name} Summary Total {what} {got} != re-derived {exp:,.2f} ({scope})")
             else:
                 ev.append(f"{name.split('_202')[0]} {got:,.2f}")
+        cw = self.combined()
+        if cw is not None:
+            p, e = self._combined_summary(cw, header_base, tol, fn)
+            probs += p
+            ev.append(e)
         return _outcome(probs, f"{what} == re-derived dataset ({'; '.join(ev)})")
+
+    # ---------------------------------------------------------------- combined workbook: shared helpers
+    def ctitled(self, w: WB, key: str) -> Table:
+        title, role = C.COMBINED_SUMMARY_TITLES[key]
+        return self.titled(w, role, "Summary", title)
+
+    def cmarket_table(self, w: WB, role: str, sheet: str, mk: str) -> Table:
+        ts = [t for t in self.tables(w, role, sheet) if t.market == mk]
+        if len(ts) != 1:
+            raise ValueError(f"{w.name}: expected one {role!r} table for {mk} on {sheet}, found {len(ts)}")
+        return ts[0]
+
+    @staticmethod
+    def market_col(t: Table, mk: str) -> str:
+        """The single column of market block mk in a Measure | CA | US table."""
+        cols = [h for h in t.columns[1:] if split_market(h)[0] == mk]
+        if len(cols) != 1:
+            raise KeyError(f"{t.label}: expected one {mk} column, found {cols}")
+        return cols[0]
+
+    @staticmethod
+    def label_rows(t: Table, probs: list[str], rows: range | list[int] | None = None) -> dict[str, int]:
+        out: dict[str, int] = {}
+        for r in (t.data_rows if rows is None else rows):
+            v = t.ws.cell(r, t.first_col).value
+            if _is_blank(v):
+                probs.append(f"{t.label} row {r}: blank row label")
+                continue
+            if str(v) in out:
+                probs.append(f"{t.label}: row label {v!r} twice")
+            out[str(v)] = r
+        return out
+
+    @staticmethod
+    def mcols(t: Table, probs: list[str], *, label_cols: int = 1) -> dict[tuple[str, str], str]:
+        """{(market, metric base): header} of a side-by-side table; non-label columns without a market prefix and unknown
+        metrics are reported once."""
+        out: dict[tuple[str, str], str] = {}
+        probe = pd.DataFrame({"asin": [], "revenue_month": [], "units_month": [], "review_count": [], "rating": [],
+                              "last_year_units": [], "yoy_units_pct": [], "_app_capable": []})
+        for h in t.columns[label_cols:]:
+            mk, b = cbase(h)
+            if mk is None:
+                probs.append(f"{t.label}: column {h!r} carries no CA/US block prefix")
+                continue
+            if metric(b, probe, probe) is None:
+                probs.append(f"{t.label}: column {h!r} has no re-derivation rule")
+                continue
+            if (mk, b) in out:
+                probs.append(f"{t.label}: two {mk} {b!r} columns")
+            out[(mk, b)] = h
+        return out
+
+    def _ccmp(self, t: Table, r: int, h: str, exp: float, tol: float, empty: bool, probs: list[str]) -> None:
+        """_cmp, except that a blank cell is accepted for a market block with no dataset rows (no listings there)."""
+        if empty and _is_blank(t.cell(r, h).value):
+            return
+        self._cmp(t, r, h, exp, tol, probs)
+
+    def cmp_block(self, t: Table, r: int, mc: dict[tuple[str, str], str], subs: dict[str, pd.DataFrame],
+                  dens: dict[str, pd.DataFrame], probs: list[str], *, blank_shares: bool = False) -> int:
+        n = 0
+        for (mk, b), h in mc.items():
+            sub = subs[mk]
+            if blank_shares and b in SHARE_HEADERS:
+                e, tol = float("nan"), SHARE_TOL
+            else:
+                e, tol = metric(b, sub, dens[mk])
+            self._ccmp(t, r, h, e, tol, len(sub) == 0, probs)
+            n += 1
+        return n
+
+    def scope_frame(self, t: Table, mk: str) -> pd.DataFrame:
+        """Core / device-scope rows of market mk, chosen by the table's registry dataset_filter."""
+        u = self.union_mk(mk)
+        if t.filter.startswith("core devices"):
+            return u[u["_core"]]
+        if t.filter.startswith(("gauge_device_scope", "device scope")):
+            return u[u["gauge_device_scope"]]
+        raise ValueError(f"{t.label}: dataset_filter {t.filter!r} names no scope ('core devices…' | 'gauge_device_scope…')")
+
+    def kf_values(self, mk: str) -> dict[str, tuple[float, float]]:
+        u = self.union_mk(mk)
+        sc = {"core": u[u["_core"]], "device": u[u["gauge_device_scope"]],
+              "accessory": u[u["gauge_class"].isin(C.GAUGE_ACCESSORY_CLASSES)],
+              "adjacent": u[u["gauge_class"].isin(C.GAUGE_ADJACENT_CLASSES)]}
+        out = {}
+        for label, (scope, what) in COMBINED_KEY_FIGURES.items():
+            f = sc[scope]
+            out[label] = {"rev": (float(f["revenue_month"].sum()), MONEY_TOL), "units": (float(f["units_month"].sum()), EXACT_TOL),
+                          "n": (float(f["asin"].nunique()), EXACT_TOL),
+                          "n_sales": (float((f["units_month"] > 0).sum()), EXACT_TOL)}[what]
+        return out
+
+    def _c_key_figures(self, t: Table) -> tuple[list[str], int]:
+        probs: list[str] = []
+        rows = self.label_rows(t, probs)
+        probs += [f"{t.label}: Key figures row {k!r} missing" for k in COMBINED_KEY_FIGURES if k not in rows]
+        probs += [f"{t.label}: Key figures row {k!r} has no re-derivation rule" for k in rows if k not in COMBINED_KEY_FIGURES]
+        n = 0
+        for mk in C.COMBINED_MARKETS:
+            h = self.market_col(t, mk)
+            exp = self.kf_values(mk)
+            for label, r in rows.items():
+                if label in exp:
+                    self._cmp(t, r, h, *exp[label], probs)
+                    n += 1
+        return probs, n
+
+    def _combined_summary(self, w: WB, header_base: str, tol: float, fn: Callable[[pd.DataFrame], float]) -> tuple[list[str], str]:
+        """V01-V03 on the combined workbook: the brand table Total and the Key figures row, per market block."""
+        probs, ev = [], []
+        bt, kt = self.ctitled(w, "brands"), self.ctitled(w, "key_figures")
+        kpi_rows = self.label_rows(kt, probs)
+        kpi_label = COMBINED_V0X_KPI[header_base]
+        for mk in C.COMBINED_MARKETS:
+            u = self.union_mk(mk)
+            exp = fn(u[u["_core"]])
+            h = next((c for c in bt.columns if cbase(c) == (mk, header_base)), None)
+            if h is None:
+                probs.append(f"{bt.label}: no {mk} {header_base!r} column")
+            elif bt.total_row is None:
+                probs.append(f"{bt.label}: no Total row")
+            else:
+                got = _num(bt.cell(bt.total_row, h).value)
+                if got is None or not _close(got, exp, tol):
+                    probs.append(f"{bt.label} Total {h!r} {got} != re-derived {exp:,.2f} ({mk} core devices)")
+            if kpi_label not in kpi_rows:
+                probs.append(f"{kt.label}: no {kpi_label!r} row")
+            else:
+                kh = self.market_col(kt, mk)
+                got = _num(kt.cell(kpi_rows[kpi_label], kh).value)
+                if got is None or not _close(got, exp, tol):
+                    probs.append(f"{kt.label} {kpi_label!r} {mk} {got} != re-derived {exp:,.2f} ({mk} core devices)")
+            ev.append(f"{mk} {exp:,.2f}")
+        return probs, f"{COMBINED_SHORT} {' / '.join(ev)} (brand Total + Key figures)"
 
     def v01(self):
         return self._v_summary("Monthly Rev", MONEY_TOL, "revenue", lambda f: float(f["revenue_month"].sum()))
@@ -641,12 +956,24 @@ class Validator:
         books, probs = self.present_books()
         ev, n_tables, n_rows = [], 0, 0
         for w in books:
+            if w.kind == COMBINED_KIND:
+                probs += self._combined_rank_structure(w)
             for t, by in self._ranking_tables(w):
                 fr = self.frame_for(t)
                 if fr is None:
                     raise ValueError(f"{t.label}: ranked table without a dataset_filter rule ({t.filter!r})")
                 exp = self.expected_order(fr[0], by)
                 n_tables += 1
+                if w.kind == COMBINED_KIND:
+                    blank_rows = [r for r in t.data_rows if _is_blank(t.cell(r, "ASIN").value)]
+                    if "placeholder_rows" in t.e and sorted(t.e["placeholder_rows"]) != blank_rows:
+                        probs.append(f"{t.label}: registry placeholder_rows {t.e['placeholder_rows']} != rows without an ASIN "
+                                     f"{blank_rows}")
+                    if len(exp) == 0:
+                        # an empty market block: one text row (blank ASIN) or no data row, and nothing else
+                        if t.n_rows > 1 or (t.n_rows == 1 and not blank_rows):
+                            probs.append(f"{t.label}: {t.n_rows} listing rows shown but the {t.market} scope is empty")
+                        continue
                 if t.n_rows > len(exp):
                     probs.append(f"{t.label}: {t.n_rows} rows shown but the dataset scope has {len(exp)}")
                 rev_h = next(h for h in t.columns if _base(h) in REV_BASES)
@@ -668,13 +995,42 @@ class Validator:
                     probs.append(f"{t.label} (by {by}): {len(bad)} rows out of order/mismatched: {bad[0]}")
                 if t.role == "top_by_revenue" and t.sheet == "Top 50" and len(exp):
                     ev.append(f"{w.name.split('_202')[0]} rank 1 {float(exp['revenue_month'].iloc[0]):,.2f}")
+                if t.role == "top_by_revenue" and w.kind == COMBINED_KIND and t.sheet in ("Top 50 CA", "Top 50 US") and len(exp):
+                    ev.append(f"{COMBINED_SHORT} {t.sheet} rank 1 {float(exp['revenue_month'].iloc[0]):,.2f}")
         return _outcome(probs, f"{n_tables} ranked tables ({n_rows} rows) match the independently sorted dataset "
                                f"(Ranking, ASIN, revenue, units); " + "; ".join(ev))
+
+    def combined_brand_sheets(self, w: WB) -> list[str]:
+        names = w.book.sheetnames
+        tail = len(C.COMBINED_MODEL_SHEETS) + len(C.COMBINED_TAIL_SHEETS)
+        return names[len(C.COMBINED_FIXED_SHEETS):len(names) - tail]
+
+    def _combined_rank_structure(self, w: WB) -> list[str]:
+        """Top 50 CA / US carry one top_by_revenue + one top_by_units table each; every brand tab carries the four ranking
+        tables COMBINED_BRAND_TABLE_TITLES in order (CA revenue, CA units, US revenue, US units)."""
+        probs = []
+        for sheet in ("Top 50 CA", "Top 50 US"):
+            for role in ("top_by_revenue", "top_by_units"):
+                n = len(self.tables(w, role, sheet))
+                if n != 1:
+                    probs.append(f"{w.name}!{sheet}: {n} {role} tables (expected 1)")
+        want = list(zip(C.COMBINED_BRAND_TABLE_TITLES, COMBINED_BRAND_ROLES))
+        for sheet in self.combined_brand_sheets(w):
+            got = [(t.e.get("title"), t.role) for t in self.tables(w, sheet=sheet) if t.role in COMBINED_BRAND_ROLES]
+            if got != want:
+                probs.append(f"{w.name}!{sheet}: ranking tables {got} != {want}")
+        return probs
 
     def v05(self):
         books, probs = self.present_books()
         n_tables = n_cols = 0
+        cev = ""
         for w in books:
+            if w.kind == COMBINED_KIND:
+                p, nt, nc = self._v05_combined(w)
+                probs += p
+                cev = f"; {COMBINED_SHORT}: {nc} share columns in {nt} tables sum to 1 within each market block"
+                continue
             for t in self.tables(w):
                 if t.header_row is None:
                     continue
@@ -694,13 +1050,43 @@ class Validator:
                     if abs(s - 1.0) > SHARE_TOL:
                         probs.append(f"{t.label} '{h}' sums to {s:.9f}")
                 n_tables += counted
-        return _outcome(probs, f"{n_cols} share columns in {n_tables} tables sum to 1 ± {SHARE_TOL:g} (displayed + residual)")
+        return _outcome(probs, f"{n_cols} share columns in {n_tables} tables sum to 1 ± {SHARE_TOL:g} (displayed + residual)"
+                        + cev)
+
+    def _v05_combined(self, w: WB) -> tuple[list[str], int, int]:
+        """Share columns (per market block: 'CA Rev Share', 'US Rev share', …) sum to 1 over displayed + residual rows. The
+        GPS-only HUD (adjacent) row of a sub-type mix sits outside the device Total and is not summed."""
+        probs: list[str] = []
+        adjacent = {C.GAUGE_SUBTYPE_LABELS[c] for c in C.GAUGE_ADJACENT_CLASSES}
+        n_tables = n_cols = 0
+        for t in self.tables(w):
+            share_cols = [h for h in t.columns if cbase(h)[1] in SHARE_HEADERS]
+            if not share_cols:
+                continue
+            rows = list(t.data_rows) + ([t.residual_row] if t.residual_row else [])
+            if t.role == "subtype_mix":
+                rows = [r for r in rows if str(t.ws.cell(r, t.first_col).value) not in adjacent]
+            counted = False
+            for h in share_cols:
+                vals = [v for v in (_num(x) for x in t.values(h, rows)) if v is not None]
+                if not vals:
+                    continue
+                counted = True
+                n_cols += 1
+                s = sum(vals)
+                if abs(s - 1.0) > SHARE_TOL:
+                    probs.append(f"{t.label} '{h}' sums to {s:.9f}")
+            n_tables += counted
+        return probs, n_tables, n_cols
 
     def v06(self):
         books, probs = self.present_books()
         n_links = n_urls = 0
+        c_links = c_urls = 0
         rx = C.ALLOWED_FORMULA_RES
         for w in books:
+            combined = w.kind == COMBINED_KIND
+            l0, u0 = n_links, n_urls
             allowed_cells: set[tuple[str, str]] = set()
             for t in self.tables(w):
                 link_cols = [h for h in t.columns if h == "Link" or h.startswith("Link ")]
@@ -709,10 +1095,19 @@ class Validator:
                 if not t.has("ASIN"):
                     probs.append(f"{t.label}: link/URL column without an ASIN column")
                     continue
+                if t.home is None and (t.has("URL") or any(h not in ("Link US", "Link CA") for h in link_cols)):
+                    probs.append(f"{t.label}: link/URL column in a table without a market (the row domain is undeterminable)")
+                    continue
                 for r in t.data_rows:
                     asin = t.cell(r, "ASIN").value
+                    if combined and _is_blank(asin):
+                        # empty-market text row: no link and no URL allowed on it
+                        for h in link_cols + (["URL"] if t.has("URL") else []):
+                            if not _is_blank(t.cell(r, h).value):
+                                probs.append(f"{t.label} {t.cell(r, h).coordinate}: link/URL on a row without an ASIN")
+                        continue
                     for h in link_cols:
-                        tld = "com" if h == "Link US" else "ca" if h == "Link CA" else ("ca" if w.market == "CA" else "com")
+                        tld = "com" if h == "Link US" else "ca" if h == "Link CA" else ("ca" if t.home == "CA" else "com")
                         c = t.cell(r, h)
                         allowed_cells.add((t.sheet, c.coordinate))
                         v = c.value
@@ -723,7 +1118,7 @@ class Validator:
                             probs.append(f"{t.label} {c.coordinate}: link {mm.group('tld')}/{mm.group('asin')} != row {tld}/{asin}")
                         n_links += 1
                     if t.has("URL"):
-                        dom = C.MARKETS[w.market].domain
+                        dom = C.MARKETS[t.home].domain
                         u = t.cell(r, "URL").value
                         if u != f"https://{dom}/dp/{asin}":
                             probs.append(f"{t.label} row {r}: URL {u!r} != https://{dom}/dp/{asin}")
@@ -740,7 +1135,17 @@ class Validator:
                         elif (w.market == "CA" and isinstance(c.value, str) and "amazon.com" in c.value
                               and ws.title not in C.CA_SHEETS_ALLOWING_US):
                             probs.append(f"{w.name}!{ws.title}!{c.coordinate}: amazon.com text on a CA-only sheet")
-        return _outcome(probs, f"{n_links} HYPERLINKs and {n_urls} URL cells match ALLOWED_FORMULA_RES, row ASIN and market domain")
+                        elif combined and isinstance(c.value, str):
+                            if "amazon.com" in c.value and ws.title in COMBINED_CA_ONLY_SHEETS:
+                                probs.append(f"{w.name}!{ws.title}!{c.coordinate}: amazon.com text on a CA-only sheet")
+                            if "amazon.ca" in c.value and ws.title in COMBINED_US_ONLY_SHEETS:
+                                probs.append(f"{w.name}!{ws.title}!{c.coordinate}: amazon.ca text on a US-only sheet")
+            if combined:
+                c_links, c_urls = n_links - l0, n_urls - u0
+        cev = (f"; {COMBINED_SHORT}: {c_links} HYPERLINKs / {c_urls} URLs by row market (CA tables amazon.ca, US tables "
+               f"amazon.com, Same-ASIN Link CA/US)" if self.cname in {w.name for w in books} else "")
+        return _outcome(probs, f"{n_links} HYPERLINKs and {n_urls} URL cells match ALLOWED_FORMULA_RES, row ASIN and market domain"
+                        + cev)
 
     @staticmethod
     def _col_market(h: str, own: str) -> str:
@@ -753,7 +1158,14 @@ class Validator:
     def v07(self):
         books, probs = self.present_books()
         n = 0
+        cev = ""
         for w in books:
+            if w.kind == COMBINED_KIND:
+                p, nc, nh = self._v07_combined(w)
+                probs += p
+                cev = (f"; {COMBINED_SHORT}: {nc} money cells in their block currency, {nh} headers labelled per block, "
+                       f"no cross-currency ratio")
+                continue
             for t in self.tables(w):
                 kpi_style = t.columns == ["Metric", "Value"]
                 if t.header_row is None and not kpi_style:
@@ -798,7 +1210,84 @@ class Validator:
                             probs.append(f"{w.name}!{ws.title}!{c.coordinate}: CA$ format in the US workbook")
                         if w.market == "CA" and us_fmt and ws.title not in C.CA_SHEETS_ALLOWING_US:
                             probs.append(f"{w.name}!{ws.title}!{c.coordinate}: USD format outside CA_SHEETS_ALLOWING_US")
-        return _outcome(probs, f"{n} money cells carry their table currency (CA$ / $), headers carry (CAD)/(USD)")
+        return _outcome(probs, f"{n} money cells carry their table currency (CA$ / $), headers carry (CAD)/(USD)" + cev)
+
+    def _v07_combined(self, w: WB) -> tuple[list[str], int, int]:
+        """Both currencies are legal in the combined workbook, but every money column belongs to exactly one market block:
+        the '(CAD)'/'(USD)' token, else the 'CA '/'US ' block prefix (side-by-side tables), else the table's market. Money
+        formats follow that block; a single-market table names its currency in every money header; no cross-currency ratio
+        columns; money cells outside every registered table are refused (their market is undeterminable)."""
+        probs: list[str] = []
+        covered: set[tuple[str, int, int]] = set()
+        n_money = n_hdr = 0
+        for t in self.tables(w):
+            if t.market_conflict:
+                probs.append(f"{t.label}: {t.market_conflict}")
+            rows = list(t.data_rows) + [r for r in (t.total_row, t.residual_row) if r]
+            kpi_style = t.columns == ["Metric", "Value"]
+            cms = t.e.get("column_markets")
+            if cms is not None and len(cms) != len(t.columns):
+                probs.append(f"{t.label}: registry column_markets {cms} do not match the {len(t.columns)} columns")
+                cms = None
+            for j, h in enumerate(t.columns):
+                col = t.first_col + j
+                covered.update((t.sheet, r, col) for r in rows)
+                if kpi_style:
+                    continue
+                hp = combined_header_problems(h, t.market)
+                probs += [f"{t.label}: {p}" for p in hp]
+                prefix, _ = split_market(h)
+                toks = header_currency_markets(h)
+                link_mk = h[-2:] if h in ("Link CA", "Link US") else None      # V06's explicit-domain link columns
+                named = (next(iter(toks)) if len(toks) == 1 else None) or prefix or link_mk
+                mk = named or t.market or t.home
+                if cms is not None and cms[j] is not None and mk is not None and cms[j] != mk:
+                    probs.append(f"{t.label}: column {h!r} reads as {mk} but the registry column_markets say {cms[j]}")
+                cells = [t.ws.cell(r, col) for r in rows]
+                nums = [c for c in cells if _num(c.value) is not None]
+                money = [c for c in nums if "$" in (c.number_format or "")]
+                rev_like = bool(re.search(r"\b(Rev|Price|Revenue)\b", h)) and bool(nums) and not any(
+                    "%" in (c.number_format or "") for c in nums)
+                if money or rev_like:
+                    n_hdr += 1
+                    labelled = bool(toks) or (prefix is not None and t.market is None)
+                    if not labelled:
+                        want = f"({C.MARKETS[mk].currency})" if mk else "(CAD)/(USD) or a CA/US block prefix"
+                        probs.append(f"{t.label}: money column {h!r} lacks {want}")
+                if money and mk is None:
+                    probs.append(f"{t.label}: money column {h!r} belongs to no market block")
+                    continue
+                for c in money:
+                    probs += self._fmt_problem(t, c, mk)
+                n_money += len(money)
+            if kpi_style:     # label/value blocks (Innova counts, Same-ASIN count): money labels carry their currency
+                for r in t.data_rows:
+                    label, vc = t.ws.cell(r, t.first_col).value, t.ws.cell(r, t.first_col + 1)
+                    if _num(vc.value) is None or "$" not in (vc.number_format or ""):
+                        continue
+                    mk = self._col_market(str(label), t.home or "")
+                    if mk not in C.MARKETS:
+                        probs.append(f"{t.label} {vc.coordinate}: money KPI {label!r} belongs to no market block")
+                        continue
+                    n_money += 1
+                    probs += self._fmt_problem(t, vc, mk)
+            if t.header_row is not None:
+                covered.update((t.sheet, t.header_row, t.first_col + j) for j in range(len(t.columns)))
+        for ws in w.book.worksheets:
+            for row in ws.iter_rows():
+                for c in row:
+                    fmt = c.number_format or ""
+                    if "$" not in fmt or _num(c.value) is None:
+                        continue
+                    ca_fmt = "CA$" in fmt
+                    if (ws.title, c.row, c.column) not in covered:
+                        probs.append(f"{w.name}!{ws.title}!{c.coordinate}: money cell outside every registered table "
+                                     f"(market undeterminable)")
+                    if ws.title in COMBINED_US_ONLY_SHEETS and ca_fmt:
+                        probs.append(f"{w.name}!{ws.title}!{c.coordinate}: CA$ format on a US-only sheet")
+                    if ws.title in COMBINED_CA_ONLY_SHEETS and not ca_fmt:
+                        probs.append(f"{w.name}!{ws.title}!{c.coordinate}: USD format on a CA-only sheet")
+        return probs, n_money, n_hdr
 
     @staticmethod
     def _fmt_problem(t: Table, c, mk: str) -> list[str]:
@@ -886,7 +1375,15 @@ class Validator:
     def v09(self):
         books, probs = self.present_books()
         n_tot = n_cells = n_special = 0
+        cev = ""
         for w in books:
+            if w.kind == COMBINED_KIND:
+                p, nt, nc = self._v09_combined(w)
+                probs += p
+                cev = (f"; {COMBINED_SHORT}: {nt} tables ({nc} cells) re-derived per market block (Key figures, share row, "
+                       f"brands, sub-type mix, tier × sub-type rev + units, fuel subtotals + Total, brand-tab KPIs, Totals, "
+                       f"Innova B3/B4)")
+                continue
             for t in self.tables(w):
                 special = self._special_rules(t)
                 if special is not None:
@@ -902,41 +1399,359 @@ class Validator:
                     continue
                 if t.total_row is None:
                     continue
-                exp = self._expected_cells(t)
-                if exp is None:
-                    raise ValueError(f"{t.label}: Total row but dataset_filter {t.filter!r} covers no rows")
+                p, n = self._check_total_table(t)
+                probs += p
                 n_tot += 1
-                known = {h for h, _, _ in exp}
-                for h in t.columns:
-                    v = t.cell(t.total_row, h).value
-                    if h not in known and _num(v) is not None:
-                        probs.append(f"{t.label}: Total cell {h!r}={v} has no re-derivation rule")
-                for h, e, tol in exp:
-                    got = _num(t.cell(t.total_row, h).value)
-                    n_cells += 1
-                    if got is None:
-                        if not math.isnan(e):
-                            probs.append(f"{t.label} Total {h!r} blank != {e:,.4f}")
-                    elif not _close(got, e, tol):
-                        probs.append(f"{t.label} Total {h!r} {got:,.4f} != re-derived {e:,.4f}")
-                # additivity: displayed rows + residual == Total for revenue/units
-                rows = list(t.data_rows) + ([t.residual_row] if t.residual_row else [])
-                for h in t.columns:
-                    b = _base(h[3:] if t.role.startswith("benchmark") and h[:3] in ("CA ", "US ") else h)
-                    if b not in REV_BASES | UNIT_BASES and not (t.role == "tier_matrix" and h != t.columns[0]):
-                        continue
-                    tv = _num(t.cell(t.total_row, h).value)
-                    if tv is None:
-                        continue
-                    s = sum(x for x in (_num(v) for v in t.values(h, rows)) if x is not None)
-                    if not _close(s, tv, MONEY_TOL * max(1, len(rows))):
-                        probs.append(f"{t.label} '{h}': rows + residual {s:,.2f} != Total {tv:,.2f}")
-                # residual present where truncated
-                full = self._entities(t)
-                if full is not None and full > t.n_rows and t.residual_row is None:
-                    probs.append(f"{t.label}: {t.n_rows} rows shown of {full} but no residual row")
+                n_cells += n
         return _outcome(probs, f"{n_tot} Total rows + {n_special} share/fuel/count/app-matrix tables ({n_cells} cells) == "
-                               f"full filtered dataset; rows + residual add up")
+                               f"full filtered dataset; rows + residual add up" + cev)
+
+    def _check_total_table(self, t: Table) -> tuple[list[str], int]:
+        """Total row == the full filtered dataset; displayed rows + residual == Total; residual present where truncated."""
+        probs: list[str] = []
+        n_cells = 0
+        exp = self._expected_cells(t)
+        if exp is None:
+            raise ValueError(f"{t.label}: Total row but dataset_filter {t.filter!r} covers no rows")
+        known = {h for h, _, _ in exp}
+        for h in t.columns:
+            v = t.cell(t.total_row, h).value
+            if h not in known and _num(v) is not None:
+                probs.append(f"{t.label}: Total cell {h!r}={v} has no re-derivation rule")
+        for h, e, tol in exp:
+            got = _num(t.cell(t.total_row, h).value)
+            n_cells += 1
+            if got is None:
+                if not math.isnan(e):
+                    probs.append(f"{t.label} Total {h!r} blank != {e:,.4f}")
+            elif not _close(got, e, tol):
+                probs.append(f"{t.label} Total {h!r} {got:,.4f} != re-derived {e:,.4f}")
+        # additivity: displayed rows + residual == Total for revenue/units
+        rows = list(t.data_rows) + ([t.residual_row] if t.residual_row else [])
+        for h in t.columns:
+            b = _base(h[3:] if t.role.startswith("benchmark") and h[:3] in ("CA ", "US ") else h)
+            if b not in REV_BASES | UNIT_BASES and not (t.role == "tier_matrix" and h != t.columns[0]):
+                continue
+            tv = _num(t.cell(t.total_row, h).value)
+            if tv is None:
+                continue
+            s = sum(x for x in (_num(v) for v in t.values(h, rows)) if x is not None)
+            if not _close(s, tv, MONEY_TOL * max(1, len(rows))):
+                probs.append(f"{t.label} '{h}': rows + residual {s:,.2f} != Total {tv:,.2f}")
+        # residual present where truncated
+        full = self._entities(t)
+        if full is not None and full > t.n_rows and t.residual_row is None:
+            probs.append(f"{t.label}: {t.n_rows} rows shown of {full} but no residual row")
+        return probs, n_cells
+
+    # ---------------------------------------------------------------- V09 combined workbook
+    def _v09_combined(self, w: WB) -> tuple[list[str], int, int]:
+        probs = self._combined_structure(w)
+        n_tables = n_cells = 0
+        for t in self.tables(w):
+            rule = self._combined_rule(t)
+            if rule == "skip":
+                continue
+            if rule is not None:
+                p, n = rule(t)
+            elif t.role == "kpi":
+                p, n = (self._brand_kpi(t), t.n_rows) if t.market else (
+                    [f"{t.label}: kpi table without a market block or a combined rule"], 0)
+            elif t.total_row is None:
+                continue
+            elif t.home is None:
+                p, n = [f"{t.label}: Total row in a table without a market block (no re-derivation rule)"], 0
+            else:
+                p, n = self._check_total_table(t)
+            probs += p
+            n_tables += 1
+            n_cells += n
+        p, n = self._c_innova(w)
+        return probs + p, n_tables + 1, n_cells + n
+
+    def _combined_rule(self, t: Table):
+        title = t.e.get("title") or ""
+        if t.sheet == "Summary":
+            rules = {"key_figures": self._c_key_figures, "share": self._c_share, "brands": self._c_brands,
+                     "subtypes": self._c_subtypes, "tier_ca": self._c_tier, "tier_us": self._c_tier, "fuel": self._c_fuel}
+            for key, (ttl, role) in C.COMBINED_SUMMARY_TITLES.items():
+                if title == ttl and t.role == role:
+                    return rules[key]
+        if t.role == "kpi" and t.sheet == "Innova":
+            return "skip"                       # B3 / B4: _c_innova (one rule for both cells)
+        if t.role == "kpi" and t.sheet == "US vs CA Same-ASIN":
+            return lambda tt: (self._check_number(tt, tt.ws.cell(tt.first, tt.first_col + 1), len(self.same_asin_set())), 1)
+        if t.role == "modelb_app_matrix":
+            return self._check_app_matrix
+        if t.role == "kpi" and t.market is None:
+            return self._c_brand_kpi
+        return None
+
+    def _combined_structure(self, w: WB) -> list[str]:
+        """Sheet order (fixed, brand tabs, model + tail sheets) and the frozen Summary tables, once each, in their order."""
+        probs = []
+        names = w.book.sheetnames
+        fixed, tail = list(C.COMBINED_FIXED_SHEETS), list(C.COMBINED_MODEL_SHEETS + C.COMBINED_TAIL_SHEETS)
+        if names[:len(fixed)] != fixed or names[len(names) - len(tail):] != tail:
+            probs.append(f"{w.name}: sheets {names} != {fixed} + brand tabs + {tail}")
+        entry = self.cregistry.get()["workbooks"].get(w.name, {})
+        bsm = {v for k, v in entry.get("brand_sheet_map", {}).items() if v != "Innova"}
+        tabs = set(self.combined_brand_sheets(w))
+        if tabs != bsm:
+            probs.append(f"{w.name}: brand tabs {sorted(tabs)} != registry brand_sheet_map {sorted(bsm)}")
+        tops = []
+        for key, (title, role) in C.COMBINED_SUMMARY_TITLES.items():
+            ts = [t for t in self.tables(w, role, "Summary") if t.e.get("title") == title]
+            if len(ts) != 1:
+                probs.append(f"{w.name}!Summary: {len(ts)} {role!r} tables titled {title!r} (expected 1)")
+            else:
+                tops.append(ts[0].header_row or ts[0].first)
+        if tops != sorted(tops):
+            probs.append(f"{w.name}!Summary: tables out of the frozen vertical order {list(C.COMBINED_SUMMARY_TITLES)}")
+        return probs
+
+    def _c_share(self, t: Table) -> tuple[list[str], int]:
+        """ONE row: (b) all core gauge devices vs the full code-reader export, per market block; share cells bold."""
+        probs: list[str] = []
+        labels = [str(v) for v in t.values(t.columns[0])]
+        if labels != [C.COMBINED_SHARE_ROW_LABEL]:
+            probs.append(f"{t.label}: rows {labels} != [{C.COMBINED_SHARE_ROW_LABEL!r}]")
+        exp = {}
+        for mk in C.COMBINED_MARKETS:
+            rows, p = self.share_rows(mk)
+            exp[mk] = rows[C.COMBINED_SHARE_ROW_LABEL]
+            probs += p
+        seen: set[tuple[str, str]] = set()
+        n = 0
+        for h in t.columns[1:]:
+            mk, b = cbase(h)
+            if mk is None or b not in exp[mk]:
+                probs.append(f"{t.label}: column {h!r} has no re-derivation rule")
+                continue
+            seen.add((mk, b))
+            self._cmp(t, t.first, h, exp[mk][b], self._SHARE_TOL[b], probs)
+            n += 1
+            if b.startswith("Share of") and not t.cell(t.first, h).font.b:
+                probs.append(f"{t.label} {t.cell(t.first, h).coordinate}: share cell {h!r} is not bold")
+        probs += [f"{t.label}: no {mk} {b!r} column" for mk in C.COMBINED_MARKETS for b in self._SHARE_TOL if (mk, b) not in seen]
+        return probs, n
+
+    def _c_brands(self, t: Table) -> tuple[list[str], int]:
+        """Brand rows per market block, residual = brands not shown, Total = the full core set; shares within the market;
+        shown brands = the top SUMMARY_TOP_BRANDS by max(CA revenue, US revenue)."""
+        probs: list[str] = []
+        mc = self.mcols(t, probs)
+        frames = {mk: self.scope_frame(t, mk) for mk in C.COMBINED_MARKETS}
+        n = 0
+        shown = self.label_rows(t, probs)
+        for label, r in shown.items():
+            subs = {mk: f[f["brand_display"] == label] for mk, f in frames.items()}
+            if all(len(s) == 0 for s in subs.values()):
+                probs.append(f"{t.label} row {r}: brand {label!r} has no rows in either market scope")
+                continue
+            n += self.cmp_block(t, r, mc, subs, frames, probs)
+        brands = set().union(*(set(f["brand_display"]) for f in frames.values()))
+        rest = brands - set(shown)
+        if rest:
+            if t.residual_row is None:
+                probs.append(f"{t.label}: {len(shown)} brands shown of {len(brands)} but no residual row")
+            else:
+                want = C.RESIDUAL_ROW_LABEL.format(noun="brands", n=len(rest))
+                got = t.ws.cell(t.residual_row, t.first_col).value
+                if got != want:
+                    probs.append(f"{t.label}: residual label {got!r} != {want!r}")
+                subs = {mk: f[f["brand_display"].isin(rest)] for mk, f in frames.items()}
+                n += self.cmp_block(t, t.residual_row, mc, subs, frames, probs)
+        elif t.residual_row is not None:
+            probs.append(f"{t.label}: residual row but every brand is shown")
+        if t.total_row is None:
+            probs.append(f"{t.label}: no Total row")
+        else:
+            n += self.cmp_block(t, t.total_row, mc, frames, frames, probs)
+        if len(shown) != min(C.SUMMARY_TOP_BRANDS, len(brands)):
+            probs.append(f"{t.label}: {len(shown)} brands shown, expected min({C.SUMMARY_TOP_BRANDS}, {len(brands)})")
+
+        def maxrev(b: str) -> float:
+            return max(float(f.loc[f["brand_display"] == b, "revenue_month"].sum()) for f in frames.values())
+        known = [b for b in shown if b in brands]
+        if known and rest:
+            lo_b, hi_b = min(known, key=maxrev), max(rest, key=maxrev)
+            if maxrev(hi_b) > maxrev(lo_b) + MONEY_TOL:
+                probs.append(f"{t.label}: {hi_b!r} (max revenue {maxrev(hi_b):,.2f}) left out while {lo_b!r} "
+                             f"({maxrev(lo_b):,.2f}) is shown")
+        return probs, n
+
+    def _c_subtypes(self, t: Table) -> tuple[list[str], int]:
+        """Device sub-type rows over the scope frame, the GPS-only HUD (adjacent) row over the adjacent class with blank share
+        cells (it sits outside the device Total), Total = the scope frame, per market block."""
+        probs: list[str] = []
+        mc = self.mcols(t, probs)
+        frames = {mk: self.scope_frame(t, mk) for mk in C.COMBINED_MARKETS}
+        adj = {mk: self.union_mk(mk)[self.union_mk(mk)["gauge_class"].isin(C.GAUGE_ADJACENT_CLASSES)] for mk in C.COMBINED_MARKETS}
+        by_label = {C.GAUGE_SUBTYPE_LABELS[c]: c for c in C.GAUGE_DEVICE_CLASSES + C.GAUGE_ADJACENT_CLASSES}
+        rows = self.label_rows(t, probs)
+        if set(rows) != set(by_label):
+            probs.append(f"{t.label}: rows {sorted(rows)} != {sorted(by_label)}")
+        n = 0
+        for label, r in rows.items():
+            cls = by_label.get(label)
+            if cls is None:
+                continue
+            src = frames if cls in C.GAUGE_DEVICE_CLASSES else adj
+            subs = {mk: f[f["gauge_class"] == cls] for mk, f in src.items()}
+            n += self.cmp_block(t, r, mc, subs, frames, probs, blank_shares=cls in C.GAUGE_ADJACENT_CLASSES)
+        adj_rows = sorted(r for lb, r in rows.items() if by_label.get(lb) in C.GAUGE_ADJACENT_CLASSES)
+        if "excluded_from_total_rows" in t.e and sorted(t.e["excluded_from_total_rows"]) != adj_rows:
+            probs.append(f"{t.label}: registry excluded_from_total_rows {t.e['excluded_from_total_rows']} != adjacent rows {adj_rows}")
+        if t.total_row is None:
+            probs.append(f"{t.label}: no Total row")
+        else:
+            n += self.cmp_block(t, t.total_row, mc, frames, frames, probs)
+        return probs, n
+
+    def _c_tier(self, t: Table) -> tuple[list[str], int]:
+        """Every revenue AND units cell of a price tier × sub-type matrix (tiers re-derived from the price, half-open)."""
+        if t.market is None:
+            return [f"{t.label}: tier matrix without a market block (title must end '— CA (CAD)' / '— US (USD)')"], 0
+        probs: list[str] = []
+        f = self.scope_frame(t, t.market)
+        tier = pd.Series([gauge_tier(p) for p in f["price"]], index=f.index, dtype=object)
+        tiers = [lbl for lbl, _, _ in C.GAUGE_TIERS] + [ALL_TIERS_LABEL]
+        cols: dict[str, tuple[str, str]] = {}
+        for h in t.columns[1:]:
+            mm = _TIER_HDR_RE.match(h)
+            if mm is None or mm.group("tier") not in tiers:
+                probs.append(f"{t.label}: column {h!r} is not '<tier> Rev (<ccy>)' / '<tier> Units'")
+                continue
+            cols[h] = (mm.group("tier"), mm.group("what"))
+        want = {(tr, wh) for tr in tiers for wh in ("Rev", "Units")}
+        if set(cols.values()) != want or len(cols) != len(want):
+            probs.append(f"{t.label}: tier columns {sorted(cols.values())} != every tier × (Rev, Units)")
+        by_label = {C.GAUGE_SUBTYPE_LABELS[c]: c for c in C.GAUGE_DEVICE_CLASSES}
+        rows = self.label_rows(t, probs)
+        if set(rows) != set(by_label):
+            probs.append(f"{t.label}: rows {sorted(rows)} != the device sub-types {sorted(by_label)}")
+        targets = [(r, f[f["gauge_class"] == by_label[lb]]) for lb, r in rows.items() if lb in by_label]
+        if t.total_row is None:
+            probs.append(f"{t.label}: no Total row")
+        else:
+            targets.append((t.total_row, f))
+        n = 0
+        for r, sub in targets:
+            for h, (tr, wh) in cols.items():
+                part = sub if tr == ALL_TIERS_LABEL else sub[tier.loc[sub.index] == tr]
+                if wh == "Rev":
+                    self._cmp(t, r, h, float(part["revenue_month"].sum()), MONEY_TOL, probs)
+                else:
+                    self._cmp(t, r, h, float(part["units_month"].sum()), EXACT_TOL, probs)
+                n += 1
+        return probs, n
+
+    def _fuel_series(self, mk: str, frame: pd.DataFrame) -> pd.Series:
+        if self.data.get().fuel_absent.get(mk):
+            return pd.Series("unspecified", index=frame.index, dtype=object)
+        return frame["fuel_scope"].astype(str)
+
+    def _c_fuel(self, t: Table) -> tuple[list[str], int]:
+        """Fuel split per market block: every (fuel, sub-type) row, every fuel subtotal row and the Total. A row's fuel is
+        the FEATURE_FUEL_SCOPE token in its label cells; its sub-type the label cell equal to a device sub-type label (none:
+        the fuel subtotal). Leaf rows name their fuel themselves or sit below their fuel's subtotal row (one label column
+        'Fuel / Sub-type': '<fuel> — subtotal', then that fuel's sub-type rows)."""
+        probs: list[str] = []
+        label_cols = [h for h in t.columns if split_market(h)[0] is None]
+        mc = self.mcols(t, probs, label_cols=len(label_cols))
+        if t.columns[:len(label_cols)] != label_cols:
+            probs.append(f"{t.label}: label columns {label_cols} must lead the table")
+        frames = {mk: self.scope_frame(t, mk) for mk in C.COMBINED_MARKETS}
+        fuel = {mk: self._fuel_series(mk, f) for mk, f in frames.items()}
+        fuels = tuple(C.FEATURE_FUEL_SCOPE)
+        for mk, s in fuel.items():
+            bad = sorted(set(s) - set(fuels))
+            if bad:
+                probs.append(f"{mk}: scope rows with fuel_scope outside FEATURE_FUEL_SCOPE: {bad}")
+        by_label = {C.GAUGE_SUBTYPE_LABELS[c]: c for c in C.GAUGE_DEVICE_CLASSES}
+        seen: dict[tuple[str, str | None], int] = {}
+        subtotal_rows: list[int] = []
+        group: str | None = None          # fuel of the last subtotal row: sub-type-only rows below it belong to it
+        n = 0
+        for r in t.data_rows:
+            texts = [str(t.cell(r, h).value).strip() for h in label_cols if not _is_blank(t.cell(r, h).value)]
+            fs = {f for f in fuels if any(re.search(rf"(?<![\w-]){re.escape(f)}(?![\w-])", x) for x in texts)}
+            cs = {by_label[x] for x in texts if x in by_label}
+            if len(fs) > 1 or len(cs) > 1 or (not fs and not cs):
+                probs.append(f"{t.label} row {r}: labels {texts} name no single fuel / sub-type")
+                continue
+            if fs and not cs:
+                group = next(iter(fs))
+                subtotal_rows.append(r)
+            if not fs and group is None:
+                probs.append(f"{t.label} row {r}: sub-type row {texts} before any fuel subtotal row")
+                continue
+            key = (next(iter(fs)) if fs else group, next(iter(cs)) if cs else None)
+            if key in seen:
+                probs.append(f"{t.label}: rows {seen[key]} and {r} both hold {key}")
+            seen[key] = r
+            subs = {}
+            for mk, fr in frames.items():
+                m = fuel[mk] == key[0]
+                if key[1] is not None:
+                    m &= fr["gauge_class"] == key[1]
+                subs[mk] = fr[m]
+            n += self.cmp_block(t, r, mc, subs, frames, probs)
+        need = set()
+        for mk, fr in frames.items():
+            for f_, cls in zip(fuel[mk], fr["gauge_class"]):
+                need |= {(f_, None), (f_, cls)}
+        missing = sorted(need - set(seen), key=str)
+        if missing:
+            probs.append(f"{t.label}: no row for {missing[:6]}")
+        if "subtotal_rows" in t.e and sorted(t.e["subtotal_rows"]) != subtotal_rows:
+            probs.append(f"{t.label}: registry subtotal_rows {t.e['subtotal_rows']} != fuel subtotal rows {subtotal_rows}")
+        if t.total_row is None:
+            probs.append(f"{t.label}: no Total row")
+        else:
+            n += self.cmp_block(t, t.total_row, mc, frames, frames, probs)
+        return probs, n
+
+    def _c_brand_kpi(self, t: Table) -> tuple[list[str], int]:
+        """Brand-tab KPI block (rows 3-6, Metric | CA | US): every metric per market block over the brand's rows."""
+        probs: list[str] = []
+        cols = [(h, split_market(h)[0]) for h in t.columns[1:]]
+        bad = [h for h, mk in cols if mk is None]
+        if bad or not cols:
+            probs.append(f"{t.label}: KPI columns {t.columns[1:]} must each name a CA/US block")
+        n = 0
+        for h, mk in cols:
+            if mk is None:
+                continue
+            fr = self.frame_for(t, mk)
+            if fr is None:
+                probs.append(f"{t.label}: kpi table (filter {t.filter!r}) has no re-derivation rule")
+                break
+            sub, den = fr
+            for r in t.data_rows:
+                label = str(t.ws.cell(r, t.first_col).value)
+                mtr = metric(kpi_label_base(label), sub, den)
+                if mtr is None:
+                    probs.append(f"{t.label} KPI {label!r}: no re-derivation rule")
+                    continue
+                self._ccmp(t, r, h, mtr[0], mtr[1], len(sub) == 0, probs)
+                n += 1
+        return probs, n
+
+    def _c_innova(self, w: WB) -> tuple[list[str], int]:
+        """Innova!B3 = CA, Innova!B4 = US device-scope Innova listings (numeric cells)."""
+        if "Innova" not in w.book.sheetnames:
+            return [f"{w.name}: no Innova sheet"], 0
+        ws = w.book["Innova"]
+        probs = []
+        for mk, coord in (("CA", "B3"), ("US", "B4")):
+            u = self.union_mk(mk)
+            exp = int(((u["brand_key"] == "innova") & u["gauge_device_scope"]).sum())
+            got = _num(ws[coord].value)
+            if got is None or not _close(got, float(exp), EXACT_TOL):
+                probs.append(f"{w.name}!Innova!{coord} {ws[coord].value!r} != re-derived {mk} Innova device listings {exp}")
+        return probs, 2
 
     # ---------------------------------------------------------------- V09 special tables
     def _special_rules(self, t: Table) -> tuple[list[str], int] | None:
@@ -1204,22 +2019,39 @@ class Validator:
                     ev.append(f"CA Bully Dog TD rows {bd}")
                 else:
                     ev.append(f"Bully Dog check skipped ({self.real_reason()})")
+        cw = self.combined()
+        if cw is not None:
+            p, n = self._c_key_figures(self.ctitled(cw, "key_figures"))
+            probs += p
+            p, _ = self._c_innova(cw)
+            probs += p
+            aps = []
+            for mk in C.COMBINED_MARKETS:
+                u = self.union_mk(mk)
+                ap = self.cmarket_table(cw, "all_rows", "All Products", mk)
+                if ap.n_rows != len(u):
+                    probs.append(f"{ap.label}: {ap.n_rows} rows != {mk} union rows {len(u)}")
+                aps.append(f"{mk} {ap.n_rows}")
+            ev.append(f"{COMBINED_SHORT}: Key figures {n} cells (core / incl. borderline / accessories / adjacent per market), "
+                      f"Innova B3/B4, All Products {' / '.join(aps)} == unions")
         return _outcome(probs, "; ".join(ev))
 
     def v13(self):
         probs, ev = [], []
-        for mk in ("CA", "US"):
-            w = self.wb(C.gauge_report_name(mk, self.m))
-            u = self.union(w)
+        targets = [(mk, self.one(self.wb(C.gauge_report_name(mk, self.m)), "excluded", "Excluded"), mk) for mk in ("CA", "US")]
+        cw = self.combined()
+        if cw is not None:
+            targets += [(f"{COMBINED_SHORT} {mk}", self.cmarket_table(cw, "excluded", "Excluded", mk), mk) for mk in C.COMBINED_MARKETS]
+        for name, t, mk in targets:
+            u = self.union_mk(mk)
             exp = set(u.loc[u["gauge_class"].isin(C.GAUGE_EXCLUDED_CLASSES + ("ambiguous",)), "asin"])
-            t = self.one(w, "excluded", "Excluded")
             got = t.values("ASIN")
             if len(got) != len(exp) or set(got) != exp:
-                probs.append(f"{mk} Excluded rows {len(got)} != excluded+ambiguous {len(exp)} (diff {sorted(set(got) ^ exp)[:5]})")
+                probs.append(f"{name} Excluded rows {len(got)} != excluded+ambiguous {len(exp)} (diff {sorted(set(got) ^ exp)[:5]})")
             no_rule = [a for a, r in zip(got, t.values("Rule ID")) if _is_blank(r)]
             if no_rule:
-                probs.append(f"{mk} Excluded rows without a rule id: {no_rule[:5]}")
-            ev.append(f"{mk} {len(got)} rows, all with a rule id")
+                probs.append(f"{name} Excluded rows without a rule id: {no_rule[:5]}")
+            ev.append(f"{name} {len(got)} rows, all with a rule id")
         return _outcome(probs, "; ".join(ev))
 
     def v14(self):
@@ -1249,7 +2081,14 @@ class Validator:
                     probs.append(f"{w.name}: Metadata key {k!r} missing")
                 elif _is_blank(kv[k]):
                     probs.append(f"{w.name}: Metadata key {k!r} empty")
-        return _outcome(probs, f"{len(books)} Metadata sheets carry all {len(C.METADATA_REQUIRED_KEYS)} required keys")
+            if w.kind == COMBINED_KIND:      # dual-market values: both marketplaces and both currencies are named
+                for k, toks in (("Marketplace", ("amazon.ca", "amazon.com")), ("Currency", ("CAD", "USD"))):
+                    v = str(kv.get(k) or "")
+                    miss = [x for x in toks if x not in v]
+                    if k in kv and miss:
+                        probs.append(f"{w.name}: Metadata {k!r} {v[:60]!r} does not name {miss} (dual-market value expected)")
+        return _outcome(probs, f"{len(books)} Metadata sheets carry all {len(C.METADATA_REQUIRED_KEYS)} required keys; "
+                               f"{self.combined_state()}")
 
     @staticmethod
     def _sheet_charts(path: Path) -> dict[str, list[ET.Element]]:
@@ -1282,9 +2121,12 @@ class Validator:
     def v16(self):
         books, probs = self.present_books()
         n = 0
+        cev = ""
         for w in books:
-            reg = [(e["sheet"], c) for e in self.registry.get()[w.market]["tables"] if e["workbook"] == w.name for c in e["charts"]]
+            reg = [(e["sheet"], c) for e in self.reg_for(w)["tables"] if e["workbook"] == w.name for c in e["charts"]]
             found = self._sheet_charts(w.path)
+            if w.kind == COMBINED_KIND:
+                cev = f"; {COMBINED_SHORT}: {len(found['__parts__'])} chart parts vs {len(reg)} registered"
             if len(found.pop("__parts__")) != len(reg):
                 probs.append(f"{w.name}: {len(reg)} registered charts but chart parts differ")
             for sheet in sorted(set(found) | {s for s, _ in reg}):
@@ -1307,7 +2149,7 @@ class Validator:
                             if dl is None or dl.get("val") not in ("0", "false"):
                                 probs.append(f"{w.name}!{sheet}: {a} delete={None if dl is None else dl.get('val')}")
                 n += len(trees)
-        return _outcome(probs, f"{n} chart parts match the registry per sheet; every axis delete=0")
+        return _outcome(probs, f"{n} chart parts match the registry per sheet; every axis delete=0" + cev)
 
     def v17(self):
         if not self.real:
@@ -1348,6 +2190,20 @@ class Validator:
             ap = self.one(gw, "all_rows", "All Products")
             probs += self._reconcile(ap, u, {"Brand": "brand_display", "Gauge Class": "gauge_class", "Gauge Tier": "_tier_v"})
             ev.append(f"{mk} All Products {ap.n_rows} rows == union {len(u)}")
+        cw = self.combined()
+        if cw is not None:
+            parts = []
+            text_cols = {"Brand": "brand_display", "Gauge Class": "gauge_class", "Gauge Tier": "_tier_v"}
+            for mk in C.COMBINED_MARKETS:
+                u = self.union_mk(mk).copy()
+                u["_tier_v"] = [gauge_tier(p) for p in u["price"]]
+                ap = self.cmarket_table(cw, "all_rows", "All Products", mk)
+                absent = [h for h in text_cols if not ap.has(h)]
+                if absent:
+                    probs.append(f"{ap.label}: reconciliation columns missing {absent}")
+                probs += self._reconcile(ap, u, {h: f for h, f in text_cols.items() if ap.has(h)})
+                parts.append(f"{mk} {ap.n_rows} rows == union {len(u)}")
+            ev.append(f"{COMBINED_SHORT} All Products {' / '.join(parts)}")
         return _outcome(probs, "; ".join(ev) + " (units, revenue, brand, type/class, tier)")
 
     def _reconcile(self, t: Table, frame: pd.DataFrame, text_cols: dict[str, str]) -> list[str]:
@@ -1387,11 +2243,19 @@ class Validator:
         from ca_market_reports.ca_xlsx_style import sha256_file
         raw_sets = {"cr": [self.a.raw_dir], "gauge_CA": [self.a.raw_dir, self.a.gauge_raw_dir],
                     "gauge_US": [self.a.us_cr_raw_dir, self.a.us_gauge_raw_dir]}
+        cw = self.combined()
         if real and self.data.get().us_u is not None:
             gw = self.books.get()[C.gauge_report_name("CA", self.m)]
-            if not gw.missing and "US Benchmark" in gw.book.sheetnames:
-                raw_sets["gauge_CA"] += [self.a.us_cr_raw_dir, self.a.us_gauge_raw_dir]
+            if (not gw.missing and "US Benchmark" in gw.book.sheetnames) or cw is not None:
+                raw_sets["gauge_CA"] += [self.a.us_cr_raw_dir, self.a.us_gauge_raw_dir]   # the shared manifest covers both markets
         maps = {p.name: sha256_file(p) for p in C.MAPS_DIR.glob("*.csv")}
+        if cw is not None:
+            mp = self.out_dirs["gauge_CA"] / C.manifest_name(self.m)
+            outs = json.loads(mp.read_text(encoding="utf-8")).get("outputs", {}) if mp.exists() else {}
+            if cw.name not in outs:
+                probs.append(f"{mp.name} (gauge_CA): combined output {cw.name} not in the manifest")
+            ev.append(f"{COMBINED_SHORT} hashed in the shared gauge_CA manifest"
+                      + (" with CA + US raw inputs" if real else ""))
         for key, d in self.out_dirs.items():
             mp = d / C.manifest_name(self.m)
             if not mp.exists():
@@ -1557,6 +2421,11 @@ class Validator:
             gc = set(u["gauge_class"]) - set(C.GAUGE_CLASS_NAMES)
             if gc:
                 probs.append(f"{name}: unknown gauge_class {sorted(gc)}")
+        if self.combined() is not None:
+            if d.us_u is None:
+                probs.append(f"{self.cname} present but no US dataset to validate its US blocks")
+            ev.append(f"{COMBINED_SHORT}: CA + US union frames re-derived ({len(d.ca_u)} / "
+                      f"{len(d.us_u) if d.us_u is not None else 'none'} rows)")
         return _outcome(probs, "; ".join(ev))
 
     def v22(self):
@@ -1598,13 +2467,24 @@ class Validator:
         n_dongle = int(dongle["asin"].nunique())
         if set(d.modelb["asin"]) != set(dongle["asin"]):
             probs.append(f"Model B universe {len(d.modelb)} != CR Type==Dongle {n_dongle}")
-        tiers = self.one(w, "modelb_tiers", "App-Gauge Proxy (Model B)")
-        brands = self.one(w, "modelb_brands", "App-Gauge Proxy (Model B)")
-        for tt, h in ((tiers, "# ASINs"), (brands, "# of Listings")):
-            got_n = _num(tt.cell(tt.total_row, h).value) if tt.total_row else None
-            if got_n is None or int(got_n) != n_dongle:
-                probs.append(f"{tt.label} Total {h} {got_n} != CR Type==Dongle {n_dongle}")
+        books = [w]
+        cw = self.combined()
+        if cw is not None:
+            ct = self.one(cw, "same_asin", "US vs CA Same-ASIN")
+            cgot = ct.values("ASIN")
+            if len(cgot) != len(exp) or set(cgot) != exp:
+                probs.append(f"{ct.label}: Same-ASIN rows {len(cgot)} != re-derived {len(exp)} (diff {sorted(set(cgot) ^ exp)[:5]})")
+            books.append(cw)
+        for bw in books:
+            tiers = self.one(bw, "modelb_tiers", "App-Gauge Proxy (Model B)")
+            brands = self.one(bw, "modelb_brands", "App-Gauge Proxy (Model B)")
+            for tt, h in ((tiers, "# ASINs"), (brands, "# of Listings")):
+                got_n = _num(tt.cell(tt.total_row, h).value) if tt.total_row else None
+                if got_n is None or int(got_n) != n_dongle:
+                    probs.append(f"{tt.label} Total {h} {got_n} != CR Type==Dongle {n_dongle}")
         ev.append(f"Model B universe {n_dongle} == CR Type==Dongle rows")
+        if cw is not None:
+            ev.append(f"{COMBINED_SHORT}: Same-ASIN {len(exp)} rows and Model B totals {n_dongle} match")
         return _outcome(probs, "; ".join(ev))
 
     # ---------------------------------------------------------------- driver
@@ -1658,6 +2538,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--memo", type=Path, help="memo markdown (default ca_market_reports/memo/CA_OBD_Gauge_Market_Memo_<m>.md)")
     p.add_argument("--sources", type=Path, help="memo sources CSV (default ca_market_reports/memo/sources_<m>.csv)")
     p.add_argument("--skip", default="", help=f"comma-separated check IDs to skip; only {sorted(SKIPPABLE)} (documented reasons)")
+    p.add_argument("--combined", choices=COMBINED_MODES, default="auto",
+                   help=f"combined CA + US gauge workbook ({C.combined_gauge_report_name('<m>')} in --gauge-out-dir): auto = "
+                        f"validate when present, optional when absent; require = absence FAILs; off = ignore it")
     p.add_argument("--json", type=Path, help="write machine-readable results to this path")
     p.add_argument("--from-normalized", type=Path, help="DEV: CA dataset from a normalized fixture CSV instead of the raw exports")
     p.add_argument("--us-from-normalized", type=Path, help="DEV: US dataset from a normalized fixture CSV")

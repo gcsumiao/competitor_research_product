@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pandas as pd
 from openpyxl import load_workbook
+from openpyxl.styles import Font
 
 from ca_market_reports import build_ca_code_reader_report as CR
 from ca_market_reports import build_gauge_report as G
@@ -90,9 +91,10 @@ def write_memo(name: str, *, fixed: bool) -> Path:
 
 
 def run_validator(*, cr: Path = BUILD / "cr", gauge_ca: Path = BUILD / "gauge_ca", gauge_us: Path = BUILD / "gauge_us",
-                  memo: Path, extra: list[str] | None = None, json_path: Path | None = None) -> tuple[int, list[str]]:
+                  memo: Path, extra: list[str] | None = None, json_path: Path | None = None,
+                  runs: Path = RUNS) -> tuple[int, list[str]]:
     argv = ["--month", MONTH, "--cr-out-dir", str(cr), "--gauge-out-dir", str(gauge_ca), "--us-gauge-out-dir", str(gauge_us),
-            "--runs-dir", str(RUNS), "--raw-dir", str(ABSENT / "ca_cr"), "--gauge-raw-dir", str(ABSENT / "ca_gauge"),
+            "--runs-dir", str(runs), "--raw-dir", str(ABSENT / "ca_cr"), "--gauge-raw-dir", str(ABSENT / "ca_gauge"),
             "--us-gauge-raw-dir", str(ABSENT / "us_gauge"), "--us-cr-raw-dir", str(ABSENT / "us_cr"),
             "--from-normalized", str(CA_FIXTURE), "--us-from-normalized", str(US_FIXTURE),
             "--memo", str(memo), "--sources", str(_Built.sources)] + (extra or [])
@@ -415,6 +417,556 @@ class ValidatorFixtureTest(unittest.TestCase):
         self.assertEqual(st["V01"][0], "FAIL")
         self.assertIn("no dataset source", st["V01"][1])
         self.assertEqual(st["V10"][0], "PASS")      # workbook-only checks still run
+
+
+# --------------------------------------------------------------------------------------
+# Combined CA + US gauge workbook (ca_common "Combined CA + US gauge workbook" block)
+# --------------------------------------------------------------------------------------
+COMBINED = C.combined_gauge_report_name(MONTH)
+CMB_SHORT = COMBINED.split("_202")[0]
+CMB_ROOT = ROOT / "combined"
+CMB_OUT = CMB_ROOT / "gauge_ca"          # CA gauge out dir copy + the combined workbook + the merged manifest
+FUELS = tuple(C.FEATURE_FUEL_SCOPE)
+KEY_FIGURE_LABELS = ("Core device revenue", "Core device units", "# core device ASINs", "# device ASINs with sales > 0",
+                     "Incl. borderline revenue", "Accessories revenue", "Adjacent GPS-only HUD revenue")
+TIER_LABELS = [t for t, _, _ in C.GAUGE_TIERS] + ["All tiers"]
+
+
+def _fixture_ctx(ds, bench=None):
+    """GCtx exactly as build_gauge_workbook assembles it on the normalized (dev) path."""
+    market = C.MARKETS[ds.market]
+    u, notes, fa = G.gauge_union_with_flags(ds, preclassified=True, gauge_map_path=G.GAUGE_MAP_DEFAULT, runs_dir=RUNS,
+                                            rederive=False)
+    c = G.GCtx(ds=ds, market=market, u=u, notes=notes, month=MONTH, mon=X.month_label(MONTH),
+               sub=X.subtitle_text(market, ds.export_dates, MONTH), ccy=market.currency,
+               cr_totals=G.code_reader_totals(ds.code_reader, ds.market), fuel_absent=fa)
+    if bench is not None:
+        c.bench = bench.ds
+        c.bu, c.bench_cr_totals = bench.u, bench.cr_totals
+        c.modelb = G.modelb_universe(ds, G.APP_GAUGE_BRANDS_DEFAULT)
+        c.app_matrix, c.app_matrix_path = G.read_app_feature_matrix(G.APP_FEATURE_MATRIX_DEFAULT), G.APP_FEATURE_MATRIX_DEFAULT
+    return c
+
+
+def build_combined_fixture(out_dir: Path, runs_dir: Path) -> Path:
+    """A minimal combined workbook written with the engine (write_table / Book) to the frozen spec, plus its CAUS registry
+    and the merged manifest entry. Stands in for build_combined_gauge_report.py (parallel track) in these tests."""
+    CA, US = C.MARKETS["CA"], C.MARKETS["US"]
+    Col = X.ColumnSpec
+    ca_ds = X.dataset_from_normalized(X.read_normalized_csv(CA_FIXTURE), "CA", MONTH)
+    us_ds = X.dataset_from_normalized(X.read_normalized_csv(US_FIXTURE), "US", MONTH)
+    uc = _fixture_ctx(us_ds)
+    cc = _fixture_ctx(ca_ds, bench=uc)
+    ctx = {"CA": cc, "US": uc}
+    u = {mk: ctx[mk].u for mk in ctx}
+    core = {mk: u[mk][u[mk]["_core"]] for mk in u}
+    dev = {mk: u[mk][u[mk]["gauge_device_scope"]] for mk in u}
+    book = X.Book(COMBINED, CA)
+
+    def put(ws, spec, top, market=CA):
+        tr = X.write_table(ws, spec, top, market, freeze=False)
+        book.tables.append(tr)
+        return tr
+
+    def spec(sheet, role, title, cols, rows, total=None, residual=None, allowed=("CA", "US"), flt=""):
+        rows = rows if isinstance(rows, pd.DataFrame) else pd.DataFrame(rows)
+        return X.TableSpec(sheet, role, title, cols, rows, total, residual, allowed, dataset_filter=flt)
+
+    def mcol(mk):
+        return None if mk == "CA" else "US"
+
+    T = {k: v[0] for k, v in C.COMBINED_SUMMARY_TITLES.items()}
+    book.text(book.sheet("Read Me"), "CA + US OBD Gauge Competitor Report — Read Me", ["Combined fixture workbook."], role="read_me")
+    ws = book.sheet("Summary")
+    # Key figures (Measure | CA | US); money rows carry the market money format per cell
+
+    def kf(mk):
+        uu, co, dv = u[mk], core[mk], dev[mk]
+        acc, adj = uu[uu["gauge_class"].isin(C.GAUGE_ACCESSORY_CLASSES)], uu[uu["gauge_class"].isin(C.GAUGE_ADJACENT_CLASSES)]
+        return [float(x) for x in (co["revenue_month"].sum(), co["units_month"].sum(), co["asin"].nunique(),
+                                   (co["units_month"] > 0).sum(), dv["revenue_month"].sum(), acc["revenue_month"].sum(),
+                                   adj["revenue_month"].sum())]
+    money_rows = {0, 4, 5, 6}
+    tr = put(ws, spec("Summary", "kpi", T["key_figures"], [Col("Measure", "label", "text", 34), Col("CA", "ca", "rating"),
+                                                             Col("US", "us", "rating", market="US")],
+                      {"label": KEY_FIGURE_LABELS, "ca": kf("CA"), "us": kf("US")}, flt="see metric labels"), 1)
+    for i, r in enumerate(range(tr.first_data_row, tr.last_data_row + 1)):
+        ws.cell(r, 2).number_format = CA.money_fmt if i in money_rows else X.FMT_INT
+        ws.cell(r, 3).number_format = US.money_fmt if i in money_rows else X.FMT_INT
+    # Gauge share of the code-reader market: one row, CA block | US block, share cells bold
+    share = {mk: next(d for d in G.market_share_rows(u[mk], ctx[mk].cr_totals, mk) if d["label"] == C.COMBINED_SHARE_ROW_LABEL)
+             for mk in u}
+    cols, row = [Col("Measure", "label", "text", 34)], {"label": C.COMBINED_SHARE_ROW_LABEL}
+    for mk in ("CA", "US"):
+        ccy = C.MARKETS[mk].currency
+        for h, f, k in (("# ASINs", "n", "int"), (f"Monthly Rev ({ccy})", "rev", "money"), ("Monthly Units", "units", "int"),
+                        ("Share of revenue", "s_rev", "pct2"), ("Share of units", "s_u", "pct2")):
+            cols.append(Col(f"{mk} {h}", f"{mk}_{f}", k, 12, market=mcol(mk)))
+            row[f"{mk}_{f}"] = share[mk][f]
+    tr = put(ws, spec("Summary", "kpi", T["share"], cols, [row], flt="core devices vs the full code-reader export, per market"),
+             X.table_end(tr) + 3)
+    for j, col in enumerate(cols):
+        if "Share of" in col.header:
+            c = ws.cell(tr.first_data_row, 1 + j)
+            c.font = Font(bold=True)
+    # Brand summary — CA vs US (core devices; top brands by max revenue, residual, Total)
+    disp = {**dict(zip(core["US"]["brand_key"], core["US"]["brand_display"])),
+            **dict(zip(core["CA"]["brand_key"], core["CA"]["brand_display"]))}
+    tot_rev = {mk: float(core[mk]["revenue_month"].sum()) for mk in core}
+
+    def agg(mk, sub):
+        rev = float(sub["revenue_month"].sum())
+        return {f"{mk}_n": int(sub["asin"].nunique()), f"{mk}_rev": rev, f"{mk}_units": float(sub["units_month"].sum()),
+                f"{mk}_share": X.safe_div(rev, tot_rev[mk]), f"{mk}_rating": X.weighted_rating(sub)}
+    maxrev = {k: max(float(core[mk].loc[core[mk]["brand_key"] == k, "revenue_month"].sum()) for mk in core) for k in disp}
+    keys = sorted(disp, key=lambda k: (-maxrev[k], disp[k]))
+    shown, rest = keys[:C.SUMMARY_TOP_BRANDS], keys[C.SUMMARY_TOP_BRANDS:]
+    rows = []
+    for k in shown:
+        d = {"brand": disp[k], "brand_key": k}
+        for mk in core:
+            d.update(agg(mk, core[mk][core[mk]["brand_key"] == k]))
+        rows.append(d)
+    total = {"brand": C.TOTAL_ROW_LABEL}
+    for mk in core:
+        total.update(agg(mk, core[mk]))
+    residual = None
+    if rest:
+        residual = {"brand": C.RESIDUAL_ROW_LABEL.format(noun="brands", n=len(rest))}
+        for mk in core:
+            residual.update(agg(mk, core[mk][core[mk]["brand_key"].isin(rest)]))
+    cols = [Col("Brand", "brand", "text", 24)]
+    for mk in ("CA", "US"):
+        ccy = C.MARKETS[mk].currency
+        cols += [Col(f"{mk} # of Listings", f"{mk}_n", "int"), Col(f"{mk} Monthly Rev ({ccy})", f"{mk}_rev", "money", market=mcol(mk)),
+                 Col(f"{mk} Monthly Units", f"{mk}_units", "int"), Col(f"{mk} Rev Share", f"{mk}_share", "pct"),
+                 Col(f"{mk} Avg Rating", f"{mk}_rating", "rating")]
+    tr_b = put(ws, spec("Summary", "summary_brands", T["brands"], cols, rows, X.fit(total, cols), X.fit(residual, cols),
+                        flt="core devices, both markets"), X.table_end(tr) + 3)
+    book.bar(ws, tr_b, "Brand", "CA Monthly Rev (CAD)", "CA core device revenue by brand (CAD)")
+    # Sub-type mix — CA vs US (device scope incl. borderline; the GPS-only HUD row sits outside the Total, share blank)
+
+    def sub_stats(mk, sub, den, with_share=True):
+        rev = float(sub["revenue_month"].sum())
+        return {f"{mk}_n": int(sub["asin"].nunique()), f"{mk}_rev": rev, f"{mk}_units": float(sub["units_month"].sum()),
+                f"{mk}_share": X.safe_div(rev, float(den["revenue_month"].sum())) if with_share else float("nan")}
+    rows = []
+    for cls in C.GAUGE_DEVICE_CLASSES + C.GAUGE_ADJACENT_CLASSES:
+        d = {"label": C.GAUGE_SUBTYPE_LABELS[cls]}
+        for mk in u:
+            src = dev[mk] if cls in C.GAUGE_DEVICE_CLASSES else u[mk]
+            d.update(sub_stats(mk, src[src["gauge_class"] == cls], dev[mk], with_share=cls in C.GAUGE_DEVICE_CLASSES))
+        rows.append(d)
+    total = {"label": C.TOTAL_ROW_LABEL}
+    for mk in u:
+        total.update(sub_stats(mk, dev[mk], dev[mk]))
+    cols = [Col("Sub-type", "label", "text", 28)]
+    for mk in ("CA", "US"):
+        ccy = C.MARKETS[mk].currency
+        cols += [Col(f"{mk} # ASINs", f"{mk}_n", "int"), Col(f"{mk} Monthly Rev ({ccy})", f"{mk}_rev", "money", market=mcol(mk)),
+                 Col(f"{mk} Monthly Units", f"{mk}_units", "int"), Col(f"{mk} Rev share", f"{mk}_share", "pct")]
+    tr = tr_sub = put(ws, spec("Summary", "subtype_mix", T["subtypes"], cols, rows, total, flt="gauge_device_scope"), X.table_end(tr_b) + 3)
+    # Price tier × sub-type per market (core devices)
+    for key, mk in (("tier_ca", "CA"), ("tier_us", "US")):
+        ccy, co = C.MARKETS[mk].currency, core[mk]
+        cols = [Col("Sub-type", "label", "text", 28)]
+        for tier in TIER_LABELS:
+            cols += [Col(f"{tier} Rev ({ccy})", f"{tier}|rev", "money"), Col(f"{tier} Units", f"{tier}|units", "int")]
+
+        def tier_row(sub, label):
+            d = {"label": label}
+            for tier in TIER_LABELS:
+                part = sub if tier == "All tiers" else sub[sub["_gtier"] == tier]
+                d[f"{tier}|rev"], d[f"{tier}|units"] = float(part["revenue_month"].sum()), float(part["units_month"].sum())
+            return d
+        rows = [tier_row(co[co["gauge_class"] == cls], C.GAUGE_SUBTYPE_LABELS[cls]) for cls in C.GAUGE_DEVICE_CLASSES]
+        tr = put(ws, spec("Summary", "tier_matrix", T[key], cols, rows, tier_row(co, C.TOTAL_ROW_LABEL), allowed=(mk,),
+                          flt="core devices; tiers = GAUGE_TIERS on price (half-open)"), X.table_end(tr) + 3, market=C.MARKETS[mk])
+    # Fuel split — CA vs US (core devices): per fuel a subtotal row then its sub-type rows; Total
+    fuel = {mk: (pd.Series("unspecified", index=core[mk].index) if ctx[mk].fuel_absent else core[mk]["fuel_scope"].astype(str))
+            for mk in core}
+
+    def fuel_vals(d, f, cls):
+        for mk in core:
+            co = core[mk]
+            m = pd.Series(True, index=co.index) if f is None else (fuel[mk] == f)
+            if cls is not None:
+                m &= co["gauge_class"] == cls
+            d.update({f"{mk}_n": int(co.loc[m, "asin"].nunique()), f"{mk}_rev": float(co.loc[m, "revenue_month"].sum()),
+                      f"{mk}_units": float(co.loc[m, "units_month"].sum())})
+        return d
+    # one label column: "<fuel> — subtotal", then that fuel's sub-type rows with >= 1 ASIN in either market
+    rows, sub_idx = [], []
+    for f in FUELS:
+        sub_idx.append(len(rows))
+        rows.append(fuel_vals({"label": f"{f} — subtotal"}, f, None))
+        for cls in C.GAUGE_DEVICE_CLASSES:
+            d = fuel_vals({"label": C.GAUGE_SUBTYPE_LABELS[cls]}, f, cls)
+            if d["CA_n"] + d["US_n"] >= 1:
+                rows.append(d)
+    cols = [Col("Fuel / Sub-type", "label", "text", 28)]
+    for mk in ("CA", "US"):
+        cols += [Col(f"{mk} # ASINs", f"{mk}_n", "int"), Col(f"{mk} Rev", f"{mk}_rev", "money", market=mcol(mk)),
+                 Col(f"{mk} Units", f"{mk}_units", "int")]
+    tr_f = put(ws, spec("Summary", "subtype_mix", T["fuel"], cols, rows, fuel_vals({"label": C.TOTAL_ROW_LABEL}, None, None),
+                        flt="core devices, both markets; fuel_scope in FEATURE_FUEL_SCOPE"), X.table_end(tr) + 3)
+    extras = {id(tr_f): {"subtotal_rows": [tr_f.first_data_row + i for i in sub_idx]},
+              id(tr_sub): {"excluded_from_total_rows": [tr_sub.last_data_row]},
+              id(tr_b): {"column_markets": [None] + [cbm for mk in ("CA", "US") for cbm in [mk] * 5]}}
+    # Top 50 CA / Top 50 US
+    for mk in ("CA", "US"):
+        ws = book.sheet(f"Top 50 {mk}")
+        cols = G._top50_columns(C.MARKETS[mk].currency)
+        r = 1
+        for role, by in (("top_by_revenue", "revenue"), ("top_by_units", "units")):
+            shown_, residual_, total_ = X.top_listings(core[mk], by=by, n=C.TOP_N)
+            tr = put(ws, spec(ws.title, role, f"Top {C.TOP_N} core gauge devices — Rank by {by.title()}", cols, shown_,
+                              X.fit(total_, cols), X.fit(residual_, cols), allowed=(mk,), flt="core devices"), r, market=C.MARKETS[mk])
+            r = X.table_end(tr) + 4
+    # Innova: B3 (CA) and B4 (US) device counts
+    ws = book.sheet("Innova")
+    X.write_sheet_header(ws, "Innova — CA + US OBD gauge view", None, 4)
+    for row, mk in ((3, "CA"), (4, "US")):
+        n = int(((u[mk]["brand_key"] == "innova") & u[mk]["gauge_device_scope"]).sum())
+        X.set_text(ws.cell(row, 1), f"Innova gauge/HUD device listings — {mk}")
+        book.tables.append(X.write_number(ws, row, 2, n, C.MARKETS[mk], label=f"Innova gauge/HUD device listings — {mk}",
+                                          dataset_filter="brand_key == 'innova' & gauge_device_scope"))
+    book.brand_sheet_map["innova"] = "Innova"
+    # Brand tabs: the brand-tab rule in EITHER market; KPI rows 3-6 (Metric | CA | US) then the four ranking tables
+    tab_keys = set()
+    for mk in u:
+        co = core[mk]
+        for key, g in dev[mk].groupby("brand_key"):
+            if key != "innova" and (float(co.loc[co["brand_key"] == key, "revenue_month"].sum()) >= C.GAUGE_BRAND_TAB_MIN_REVENUE
+                                    or g["asin"].nunique() >= C.GAUGE_BRAND_TAB_MIN_ASINS):
+                tab_keys.add(key)
+    taken: set[str] = set()
+    for key in sorted(tab_keys, key=lambda k: (-maxrev.get(k, 0.0), k)):
+        name = C.sheet_name_for_brand(disp[key], taken)
+        ws = book.sheet(name)
+        X.write_sheet_header(ws, f"{disp[key]} — CA + US core gauge devices", None, 3)
+        flt = f"core devices & brand_key == {key!r}"
+        for i, (label, kind) in enumerate((("Monthly Rev (CAD | USD)", "money"), ("Monthly Units", "int"), ("# of Listings", "int"),
+                                           ("Rev share within market", "pct"))):
+            X.set_text(ws.cell(3 + i, 1), label)
+            for j, mk in enumerate(("CA", "US")):
+                rows_ = core[mk][core[mk]["brand_key"] == key]
+                rev = float(rows_["revenue_month"].sum())
+                c = ws.cell(3 + i, 2 + j)
+                c.value = [rev, float(rows_["units_month"].sum()), int(rows_["asin"].nunique()), X.safe_div(rev, tot_rev[mk])][i]
+                c.number_format = C.MARKETS[mk].money_fmt if kind == "money" else X.FMT_PCT if kind == "pct" else X.FMT_INT
+        book.tables.append(X.TableRange(sheet=name, role="kpi", header_row=None, first_data_row=3, last_data_row=6, total_row=None,
+                                        residual_row=None, first_col=1, last_col=3, columns=["Metric", "CA", "US"], charts=[],
+                                        title="", dataset_filter=flt, allowed_markets=("CA", "US")))
+        r = C.BRAND_TAB_RESERVED_ROWS + 1
+        titles = iter(C.COMBINED_BRAND_TABLE_TITLES)
+        for mk in ("CA", "US"):
+            cols = X.brand_tab_columns(C.MARKETS[mk].currency, type_header="Sub-type", type_field="_subtype")
+            rows_ = core[mk][core[mk]["brand_key"] == key]
+            total_ = X.fit(X.listing_totals(rows_, "title", C.TOTAL_ROW_LABEL), cols)
+            for role, by in (("brand_tab_revenue", "revenue"), ("brand_tab_units", "units")):
+                data = X.rank_listings(rows_, by) if len(rows_) else pd.DataFrame(
+                    [{**{c.field: None for c in cols}, "title": f"No {mk} core gauge devices for this brand"}])
+                tr = put(ws, spec(name, role, next(titles), cols, data, total_, allowed=(mk,), flt=flt), r, market=C.MARKETS[mk])
+                r = X.table_end(tr) + 4
+        book.brand_sheet_map[key] = name
+    # CA analyses, unchanged (Model A/B), and the Same-ASIN sheet
+    G._price_ladder(book, cc)
+    G._feature_matrix(book, cc)
+    G._modelb(book, cc)
+    G._same_asin(book, cc)
+    tr_sa = book.tables[-1]
+    assert tr_sa.role == "same_asin", tr_sa.role
+    extras[id(tr_sa)] = {"column_markets": [h[-2:] if h in ("Link CA", "Link US") else h[:2] if h[:3] in ("CA ", "US ") else None
+                                            for h in tr_sa.columns]}
+    # All Products / Dedupe & Classification Audit / Excluded: "<Sheet> — CA" then "<Sheet> — US"
+    ws = book.sheet("All Products")
+    r = 1
+    for mk in ("CA", "US"):
+        ccy = C.MARKETS[mk].currency
+        cols = [Col("ASIN", "asin", "text", 13), Col("Product Name", "title", "text", 60), Col("Brand", "brand_display", "text", 16),
+                Col("Gauge Class", "gauge_class", "text", 24), Col(f"Price ({ccy})", "price", "money2", 12),
+                Col(f"Monthly Rev ({ccy})", "revenue_month", "money", 15), Col("Monthly Units", "units_month", "int", 12),
+                Col("Gauge Tier", "_gtier", "text", 11), Col("URL", "_url", "text", 34), Col("Link", "asin", "link", 24)]
+        tr = put(ws, spec("All Products", "all_rows", f"All Products — {mk}", cols, X.rank_listings(u[mk], "revenue"),
+                          X.fit(X.listing_totals(u[mk], "asin", C.TOTAL_ROW_LABEL), cols), allowed=(mk,),
+                          flt="code-reader ∪ gauge union (all classes)"), r, market=C.MARKETS[mk])
+        r = X.table_end(tr) + 3
+    ws = book.sheet("Dedupe & Classification Audit")
+    r = 1
+    for mk in ("CA", "US"):
+        cols = [Col("ASIN", "asin", "text", 13), Col("Gauge Class", "gauge_class", "text", 24), Col("Rule ID", "gauge_rule_id", "text", 14)]
+        tr = put(ws, spec(ws.title, "dedupe_audit", f"Dedupe & Classification Audit — {mk}", cols,
+                          u[mk].sort_values(["gauge_class", "asin"], kind="mergesort"), allowed=(mk,),
+                          flt="classification decisions (all union rows)"), r, market=C.MARKETS[mk])
+        r = X.table_end(tr) + 3
+    ws = book.sheet("Excluded")
+    r = 1
+    for mk in ("CA", "US"):
+        ccy = C.MARKETS[mk].currency
+        ex = u[mk][u[mk]["gauge_class"].isin(C.GAUGE_EXCLUDED_CLASSES + ("ambiguous",))]
+        cols = [Col("ASIN", "asin", "text", 13), Col("Product Name", "title", "text", 60), Col("Gauge Class", "gauge_class", "text", 22),
+                Col("Rule ID", "gauge_rule_id", "text", 14), Col(f"Monthly Rev ({ccy})", "revenue_month", "money", 15),
+                Col("Monthly Units", "units_month", "int", 12), Col("URL", "_url", "text", 34), Col("Link", "asin", "link", 24)]
+        tr = put(ws, spec("Excluded", "excluded", f"Excluded — {mk}", cols, X.rank_listings(ex, "revenue"),
+                          X.fit(X.listing_totals(ex, "asin", C.TOTAL_ROW_LABEL), cols), allowed=(mk,),
+                          flt="gauge_class in GAUGE_EXCLUDED_CLASSES + ambiguous"), r, market=C.MARKETS[mk])
+        r = X.table_end(tr) + 3
+    book.text(book.sheet("Source & Method"), "Source & Method", ["Combined fixture."], role="source_method")
+    meta = {k: f"fixture {k}" for k in C.METADATA_REQUIRED_KEYS}
+    meta.update({"Marketplace": "amazon.ca (CA) | amazon.com (US)", "Currency": "CA: CAD | US: USD (no FX conversion)"})
+    book.metadata(book.sheet("Metadata"), meta)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / COMBINED
+    book.save(path)
+    reg = {"market": "CAUS", "month": MONTH,
+           "workbooks": {COMBINED: {"sheets": book.sheetnames, "brand_sheet_map": dict(book.brand_sheet_map)}},
+           "tables": [{**t.to_registry(COMBINED, book.brand_sheet_map), **extras.get(id(t), {})} for t in book.tables]}
+    rp = C.run_file(runs_dir, MONTH, "table_registry", "CAUS", "json")
+    rp.parent.mkdir(parents=True, exist_ok=True)
+    rp.write_text(json.dumps(reg, indent=1, ensure_ascii=False), encoding="utf-8")
+    with contextlib.redirect_stdout(io.StringIO()):
+        X.write_manifest(out_dir, MONTH, [path], X.input_hashes([CA_FIXTURE, US_FIXTURE]))
+    return path
+
+
+class _Combined:
+    done = False
+
+    @classmethod
+    def ensure(cls) -> None:
+        _Built.ensure()
+        if cls.done:
+            return
+        if CMB_ROOT.exists():
+            shutil.rmtree(CMB_ROOT)
+        shutil.copytree(BUILD / "gauge_ca", CMB_OUT)
+        cls.path = build_combined_fixture(CMB_OUT, RUNS)
+        cls.reg = json.loads(C.run_file(RUNS, MONTH, "table_registry", "CAUS", "json").read_text(encoding="utf-8"))
+        cls.done = True
+
+    @classmethod
+    def table(cls, *, title: str | None = None, sheet: str | None = None, role: str | None = None) -> dict:
+        ts = [t for t in cls.reg["tables"] if (title is None or t["title"] == title) and (sheet is None or t["sheet"] == sheet)
+              and (role is None or t["role"] == role)]
+        assert len(ts) == 1, (title, sheet, role, len(ts))
+        return ts[0]
+
+
+def tampered_copy(name: str) -> Path:
+    d = CMB_ROOT / name
+    if d.exists():
+        shutil.rmtree(d)
+    shutil.copytree(CMB_OUT, d)
+    return d
+
+
+class CombinedWorkbookTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        _Combined.ensure()
+        cls.memo = write_memo("memo_combined.md", fixed=True)
+        cls.rc, cls.lines = run_validator(gauge_ca=CMB_OUT, memo=cls.memo)
+        cls.st = statuses(cls.lines)
+
+    def _run(self, gauge_ca: Path, **kw) -> tuple[int, dict]:
+        rc, lines = run_validator(gauge_ca=gauge_ca, memo=self.memo, **kw)
+        self.assertEqual(len(lines), 24, "\n".join(lines))
+        return rc, statuses(lines)
+
+    def test_combined_workbook_is_picked_up_and_passes(self):
+        failed = {k: v for k, v in self.st.items() if v[0] == "FAIL"}
+        self.assertEqual(failed, {}, "\n".join(self.lines))
+        self.assertEqual(self.rc, 0)
+        self.assertEqual(len(self.lines), 24)
+        self.assertRegex(self.lines[-1], r"^VALIDATION: PASS \(22/23\)$")
+        for cid in ("V01", "V02", "V03", "V04", "V05", "V06", "V07", "V09", "V12", "V13", "V15", "V16", "V18", "V19", "V23"):
+            self.assertIn(CMB_SHORT, self.st[cid][1], f"{cid}: {self.st[cid]}")
+        self.assertIn("combined: present", self.st["V15"][1])
+        self.assertIn("Top 50 US", self.st["V04"][1])
+
+    def test_absent_combined_workbook_is_not_a_failure(self):
+        rc, st = self._run(BUILD / "gauge_ca")
+        self.assertEqual(rc, 0, st)
+        self.assertEqual(st["V15"][0], "PASS")
+        self.assertIn("combined: absent", st["V15"][1])
+        self.assertNotIn(CMB_SHORT, st["V09"][1])
+
+    def test_required_but_absent_combined_workbook_fails(self):
+        rc, st = self._run(BUILD / "gauge_ca", extra=["--combined", "require"])
+        self.assertEqual(rc, 1)
+        self.assertEqual(st["V15"][0], "FAIL", st["V15"])
+        self.assertIn(COMBINED, st["V15"][1])
+
+    def test_tampered_share_cell_fails_v09(self):
+        d = tampered_copy("tamper_share")
+        title = C.COMBINED_SUMMARY_TITLES["share"][0]
+        t = _Combined.table(title=title, sheet="Summary")
+        wb = load_workbook(d / COMBINED)
+        c = wb["Summary"].cell(t["first_data_row"], t["first_col"] + t["columns"].index("US Share of revenue"))
+        c.value = c.value + 0.01
+        wb.save(d / COMBINED)
+        rc, st = self._run(d)
+        self.assertEqual(rc, 1)
+        self.assertEqual(st["V09"][0], "FAIL", st["V09"])
+        self.assertIn(f"{COMBINED}!Summary/kpi[{title}]", st["V09"][1])
+        self.assertIn("'US Share of revenue'", st["V09"][1])
+        self.assertIn("1 problem(s)", st["V09"][1])
+
+    def test_tampered_tier_units_cell_fails_v09(self):
+        d = tampered_copy("tamper_tier")
+        title = C.COMBINED_SUMMARY_TITLES["tier_us"][0]
+        t = _Combined.table(title=title)
+        h = f"{C.GAUGE_TIERS[2][0]} Units"
+        wb = load_workbook(d / COMBINED)
+        c = wb["Summary"].cell(t["first_data_row"], t["first_col"] + t["columns"].index(h))
+        c.value = (c.value or 0) + 3
+        wb.save(d / COMBINED)
+        rc, st = self._run(d)
+        self.assertEqual(rc, 1)
+        self.assertEqual(st["V09"][0], "FAIL", st["V09"])
+        self.assertIn(f"{COMBINED}!Summary/tier_matrix[{title}]", st["V09"][1])
+        self.assertIn(repr(h), st["V09"][1])
+
+    def test_swapped_top50_us_rows_fail_v04(self):
+        d = tampered_copy("tamper_top50_us")
+        t = _Combined.table(sheet="Top 50 US", role="top_by_revenue")
+        wb = load_workbook(d / COMBINED)
+        ws = wb["Top 50 US"]
+        r1, r2 = t["first_data_row"], t["first_data_row"] + 1
+        for j, h in enumerate(t["columns"]):
+            if h == "Ranking":
+                continue
+            a, b = ws.cell(r1, t["first_col"] + j), ws.cell(r2, t["first_col"] + j)
+            a.value, b.value = b.value, a.value
+        wb.save(d / COMBINED)
+        rc, st = self._run(d)
+        self.assertEqual(rc, 1)
+        self.assertEqual(st["V04"][0], "FAIL", st["V04"])
+        self.assertIn(f"{COMBINED}!Top 50 US/top_by_revenue", st["V04"][1])
+        self.assertIn("2 rows out of order", st["V04"][1])
+        self.assertEqual(st["V01"][0], "PASS", st["V01"])
+
+    def test_wrong_currency_header_in_us_block_fails_v07(self):
+        d = tampered_copy("tamper_ccy")
+        runs = CMB_ROOT / "tamper_ccy_runs"
+        if runs.exists():
+            shutil.rmtree(runs)
+        shutil.copytree(RUNS, runs)
+        title = C.COMBINED_SUMMARY_TITLES["brands"][0]
+        t = _Combined.table(title=title)
+        old, new = "US Monthly Rev (USD)", "US Monthly Rev (CAD)"
+        wb = load_workbook(d / COMBINED)
+        wb["Summary"].cell(t["header_row"], t["first_col"] + t["columns"].index(old)).value = new
+        wb.save(d / COMBINED)
+        rp = C.run_file(runs, MONTH, "table_registry", "CAUS", "json")
+        reg = json.loads(rp.read_text(encoding="utf-8"))
+        for e in reg["tables"]:
+            if e["title"] == title:
+                e["columns"] = [new if h == old else h for h in e["columns"]]
+        rp.write_text(json.dumps(reg, indent=1, ensure_ascii=False), encoding="utf-8")
+        rc, st = self._run(d, runs=runs)
+        self.assertEqual(rc, 1)
+        self.assertEqual(st["V07"][0], "FAIL", st["V07"])
+        self.assertIn(f"{COMBINED}!Summary/summary_brands[{title}]", st["V07"][1])
+        self.assertIn(repr(new), st["V07"][1])
+
+    def test_tampered_brand_share_fails_v05(self):
+        d = tampered_copy("tamper_brand_share")
+        title = C.COMBINED_SUMMARY_TITLES["brands"][0]
+        t = _Combined.table(title=title)
+        wb = load_workbook(d / COMBINED)
+        c = wb["Summary"].cell(t["first_data_row"], t["first_col"] + t["columns"].index("US Rev Share"))
+        c.value = c.value + 0.05
+        wb.save(d / COMBINED)
+        rc, st = self._run(d)
+        self.assertEqual(rc, 1)
+        self.assertEqual(st["V05"][0], "FAIL", st["V05"])
+        self.assertIn(f"{COMBINED}!Summary/summary_brands[{title}] 'US Rev Share'", st["V05"][1])
+        self.assertNotIn("'CA Rev Share'", st["V05"][1])
+
+    def test_tampered_fuel_kpi_innova_and_adjacent_cells_fail_v09_and_v12(self):
+        d = tampered_copy("tamper_misc")
+        T = C.COMBINED_SUMMARY_TITLES
+        wb = load_workbook(d / COMBINED)
+        ws = wb["Summary"]
+        fuel = _Combined.table(title=T["fuel"][0])
+        sub_r = next(r for r in range(fuel["first_data_row"], fuel["last_data_row"] + 1)
+                     if ws.cell(r, fuel["first_col"]).value == "diesel-capable — subtotal")
+        c = ws.cell(sub_r, fuel["first_col"] + fuel["columns"].index("US Units"))
+        c.value = c.value + 1
+        kf = _Combined.table(title=T["key_figures"][0])
+        acc_r = next(r for r in range(kf["first_data_row"], kf["last_data_row"] + 1)
+                     if ws.cell(r, kf["first_col"]).value == "Accessories revenue")
+        c = ws.cell(acc_r, kf["first_col"] + kf["columns"].index("US"))
+        c.value = c.value + 10
+        st_t = _Combined.table(title=T["subtypes"][0])
+        adj_r = next(r for r in range(st_t["first_data_row"], st_t["last_data_row"] + 1)
+                     if ws.cell(r, st_t["first_col"]).value == C.GAUGE_SUBTYPE_LABELS["gps_hud"])
+        ws.cell(adj_r, st_t["first_col"] + st_t["columns"].index("CA Rev share")).value = 0.1
+        wb["Innova"]["B4"].value = 2
+        brand_sheet = _Combined.reg["workbooks"][COMBINED]["brand_sheet_map"]["scangauge"]
+        wb[brand_sheet]["C4"].value = wb[brand_sheet]["C4"].value + 5          # US Monthly Units KPI
+        wb.save(d / COMBINED)
+        rc, st = self._run(d)
+        self.assertEqual(rc, 1)
+        st9, ev9 = st["V09"]
+        self.assertEqual(st9, "FAIL", ev9)
+        self.assertIn("5 problem(s)", ev9)
+        self.assertIn(f"{COMBINED}!Summary/subtype_mix[{T['fuel'][0]}] row {sub_r} 'US Units'", ev9)
+        self.assertIn(f"{COMBINED}!Summary/kpi[{T['key_figures'][0]}] row {acc_r} 'US'", ev9)
+        self.assertIn(f"{COMBINED}!Summary/subtype_mix[{T['subtypes'][0]}] row {adj_r} 'CA Rev share'", ev9)
+        self.assertIn(f"{COMBINED}!Innova!B4", ev9)
+        self.assertIn(f"{COMBINED}!{brand_sheet}/kpi[] row 4 'US'", ev9)
+        st12, ev12 = st["V12"]
+        self.assertEqual(st12, "FAIL", ev12)
+        self.assertIn("2 problem(s)", ev12)       # Key figures + Innova B4
+        self.assertEqual(st["V01"][0], "PASS", st["V01"])
+        self.assertEqual(st["V05"][0], "PASS", st["V05"])   # the adjacent row is outside the share sum
+
+    def test_fuel_leaf_rows_and_registry_extras_are_checked(self):
+        d = tampered_copy("tamper_fuel_leaf")
+        runs = CMB_ROOT / "tamper_fuel_leaf_runs"
+        if runs.exists():
+            shutil.rmtree(runs)
+        shutil.copytree(RUNS, runs)
+        T = C.COMBINED_SUMMARY_TITLES
+        fuel = _Combined.table(title=T["fuel"][0])
+        wb = load_workbook(d / COMBINED)
+        ws = wb["Summary"]
+        labels = {r: ws.cell(r, fuel["first_col"]).value for r in range(fuel["first_data_row"], fuel["last_data_row"] + 1)}
+        sub_r = next(r for r, v in labels.items() if v == "diesel-capable — subtotal")
+        leaf_r = sub_r + 1                                  # the first sub-type row of the diesel-capable group
+        self.assertIn(labels[leaf_r], {C.GAUGE_SUBTYPE_LABELS[c] for c in C.GAUGE_DEVICE_CLASSES})
+        c = ws.cell(leaf_r, fuel["first_col"] + fuel["columns"].index("US # ASINs"))
+        c.value = c.value + 1
+        wb.save(d / COMBINED)
+        rp = C.run_file(runs, MONTH, "table_registry", "CAUS", "json")
+        reg = json.loads(rp.read_text(encoding="utf-8"))
+        for e in reg["tables"]:
+            if e["title"] == T["fuel"][0]:
+                e["subtotal_rows"] = e["subtotal_rows"][1:]
+            if e["title"] == T["subtypes"][0]:
+                e["excluded_from_total_rows"] = []
+        rp.write_text(json.dumps(reg, indent=1, ensure_ascii=False), encoding="utf-8")
+        rc, st = self._run(d, runs=runs)
+        self.assertEqual(rc, 1)
+        st9, ev9 = st["V09"]
+        self.assertEqual(st9, "FAIL", ev9)
+        self.assertIn("3 problem(s)", ev9)
+        self.assertIn(f"{COMBINED}!Summary/subtype_mix[{T['fuel'][0]}] row {leaf_r} 'US # ASINs'", ev9)
+        self.assertIn("registry subtotal_rows", ev9)
+        self.assertIn("registry excluded_from_total_rows []", ev9)
+
+    def test_combined_header_rules(self):
+        probs = V.combined_header_problems
+        self.assertEqual(probs("US Monthly Rev (USD)", "US"), [])
+        self.assertEqual(probs("CA Rev", None), [])
+        self.assertTrue(probs("US Monthly Rev (CAD)", None))                 # block prefix vs currency
+        self.assertTrue(probs("Price (CAD)", "US"))                          # US table, CAD header
+        self.assertTrue(probs("Rev ratio US/CA (CAD/USD)", None))            # cross-currency ratio
+        self.assertTrue(probs("US/CA Rev ratio", None))                      # ratio over revenue without a currency
+        self.assertEqual(probs("Units ratio US/CA", None), [])               # unit ratios are allowed
 
 
 if __name__ == "__main__":

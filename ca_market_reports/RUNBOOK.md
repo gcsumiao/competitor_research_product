@@ -6,7 +6,7 @@ Follow it top to bottom each month. Every command below was run on the 202609 da
 
 ## 1. Purpose
 
-Each month the package turns Helium 10 Black Box exports into four Excel workbooks:
+Each month the package turns Helium 10 Black Box exports into five Excel workbooks:
 
 | Workbook | Built by | Lands in |
 |---|---|---|
@@ -14,10 +14,13 @@ Each month the package turns Helium 10 Black Box exports into four Excel workboo
 | `CA_Code_Reader_Analysis_<M>.xlsx` | `build_ca_code_reader_report.py` | `NewProductCategory/CA-CODE-READER/outputs/` |
 | `US_OBD_Gauge_Competitor_Report_<M>.xlsx` | `build_gauge_report.py --market US` | `NewProductCategory/US-OBD-GAUGE/outputs/` |
 | `CA_OBD_Gauge_Competitor_Report_<M>.xlsx` | `build_gauge_report.py --market CA --benchmark-market US` | `NewProductCategory/CA-OBD-GAUGE/outputs/` |
+| `CA_US_OBD_Gauge_Competitor_Report_<M>.xlsx` (CA and US side by side) | `build_combined_gauge_report.py` (Step 4c) | `NewProductCategory/CA-OBD-GAUGE/outputs/` |
 
-Each output folder also gets `manifest_<M>.json` (sha256 of the outputs and of every input). The machine decisions of
-the run (dedupe audit, brand recovery, type decisions, type review queue, gauge decisions, table registry) go to
-`ca_market_reports/runs/<M>/`. `validate_outputs.py` then checks everything (V01-V23).
+Each output folder also gets `manifest_<M>.json` (sha256 of the outputs and of every input; the combined workbook is
+merged into the CA-OBD-GAUGE manifest together with both markets' raw inputs). The machine decisions of the run (dedupe
+audit, brand recovery, type decisions, type review queue, gauge decisions, table registry; the combined workbook has its
+own `table_registry_CAUS_<M>.json`) go to `ca_market_reports/runs/<M>/`. `validate_outputs.py` then checks everything
+(V01-V23).
 
 `<M>` is the report month as `YYYYMM` (for example `202609`). All commands run from the repository root.
 
@@ -103,6 +106,19 @@ Then rewrite the month-specific text and tag every number:
 Run Step 5 to check the tags (V20 runs with the other checks). `--skip V20` (documented reason "memo not filled yet")
 is allowed only while the memo is still being written; the month is not finished until V20 PASSes without it.
 
+### Step 4c: combined CA + US gauge workbook
+
+```bash
+ca_market_reports/run.sh ca_market_reports/build_combined_gauge_report.py --month 202609 --overwrite
+```
+
+Run it after Step 4 (and so after Step 3). It writes `CA_US_OBD_Gauge_Competitor_Report_<M>.xlsx` next to the CA gauge
+workbook in `NewProductCategory/CA-OBD-GAUGE/outputs/`, its registry `runs/<M>/table_registry_CAUS_<M>.json`, and merges
+its entry (plus the CA and US raw inputs) into that folder's `manifest_<M>.json`. Every Summary table shows CA (CAD) and
+US (USD) side by side; there is no FX conversion and no cross-currency ratio. Rebuild it whenever Step 3 or Step 4 is
+rebuilt so it carries the same decisions: Step 5 re-derives its figures from the raw exports, so a stale combined
+workbook FAILs the dataset checks.
+
 ### Step 5: validate
 
 ```bash
@@ -128,6 +144,17 @@ run with one skip reads `VALIDATION: PASS (22/23)`). Useful options:
   folders in this runbook).
 - `--skip V20` or `--skip V23` only. `V20` (memo) may be skipped before the memo is written; `V23` only when the CA
   gauge workbook was built without `--benchmark-market US`. Any other ID is refused with an argument error.
+- `--combined auto|require|off` (default `auto`): the combined workbook from Step 4c is validated whenever it sits in
+  `--gauge-out-dir`; when it is absent the run is not failed and V15's evidence says `combined: absent`. Use
+  `--combined require` for the month's final run so a missing combined workbook FAILs; `off` ignores it.
+
+The combined workbook adds no check lines: it adds evidence to the existing ones (e.g.
+`…; CA_US_OBD_Gauge_Competitor_Report CA … / US …`) and FAILs the same check ids. Each table is checked against its
+market block: Key figures and the brand Total against each market's core totals (V01-V03), Top 50 CA / US and the four
+brand-tab ranking tables (V04), shares within each block (V05), amazon.ca links in CA tables and amazon.com links in US
+tables (V06), every money column labelled with one block currency and no cross-currency ratio (V07), the share row,
+Key figures, tier × sub-type revenue and units, fuel subtotals, sub-type mix and every Total (V09), Key figures and
+Innova B3/B4 (V12), Excluded — CA / — US (V13), All Products — CA / — US per ASIN (V18), and the shared manifest (V19).
 
 202609 status: the committed result (`ca_market_reports/runs/202609/validation_ALL_202609.txt`) is
 `VALIDATION: PASS (23/23)` on the final outputs with the filled memo. Notes on two checks:
@@ -154,7 +181,7 @@ ca_market_reports/run.sh -m ca_market_reports.apply_type_review \
 ```
 
 It prints `appended=<n> skipped_blank=<n> conflicts=<n>` and appends to `maps/ca_type_overrides.csv` (a rerun appends
-nothing new: `appended=0`). An unknown Type is refused before anything is appended. Then rerun Steps 2, 4 and 5. The
+nothing new: `appended=0`). An unknown Type is refused before anything is appended. Then rerun Steps 2, 4, 4c and 5. The
 override map wins over the frozen decision without `--rederive`; the CR build logs, e.g.
 `type_decisions[CA/code_reader]: override map rewrites frozen decision B0895R2YMM: Handheld/token_profile -> Handheld/override`.
 Use `--rederive` only when you want every machine decision derived afresh (see Section 4).
@@ -256,6 +283,6 @@ monthly code-reader report, and no US Type is assigned.
 | `ValueError: column 'gauge_in_scope': blank boolean` | A classified row with an empty scope flag (seen with a hand-edited normalized CSV in dev mode). Booleans are parsed only from `Y/N/true/false/1/0`; regenerate the frame instead of editing it. |
 | `cannot parse gauge_map borderline (…) 'maybe'; expected one of Y/N/true/false/1/0` | Fix the `borderline` cell in `maps/ca_gauge_map.csv`. |
 | `FileExistsError: outputs exist in …; pass --overwrite` | Add `--overwrite` (the old file is backed up). |
-| Validator `FAIL V19 … sha256 mismatch` | A workbook, raw CSV or map changed after the build. Rebuild (Steps 2-4) and validate again. |
+| Validator `FAIL V19 … sha256 mismatch` | A workbook, raw CSV or map changed after the build. Rebuild (Steps 2-4c) and validate again. |
 | Validator `FAIL V20 … [WB: TBD] placeholder(s) left` | Fill the memo tags from the validated workbooks, or `--skip V20` while the memo is not written yet. |
 | Validator `FAIL … workbook missing: …` | The build step for that workbook did not run, or `--*-out-dir` points elsewhere. |
