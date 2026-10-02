@@ -428,8 +428,105 @@ class TestBuildOutputs(unittest.TestCase):
             for t in _tables(_market_of(p), p.name):
                 if t["role"] in ("brand_tab_revenue",) or (t["role"] == "innova" and p == _Built.cr_paths[0]):
                     self.assertEqual(t["header_row"], C.BRAND_TAB_RESERVED_ROWS + 2, (p.name, t["sheet"]))
-                if t["role"] == "kpi" and t["sheet"] not in ("Summary", "US Benchmark"):
+                brand_tab = any(x["sheet"] == t["sheet"] and x["role"] == "brand_tab_revenue" for x in _tables(_market_of(p), p.name))
+                if t["role"] == "kpi" and (brand_tab or (t["sheet"] == "Innova" and p == _Built.cr_paths[0])):
                     self.assertEqual((t["first_data_row"], t["last_data_row"]), (3, 6), (p.name, t["sheet"]))
+
+    # ---------------------------------------------------------------- app feature matrix (Model B) / numeric count cells
+    def _matrix(self, path: Path):
+        ts = [t for t in _tables("CA", path.name) if t["role"] == "modelb_app_matrix"]
+        self.assertEqual(len(ts), 1)
+        t = ts[0]
+        ws = openpyxl.load_workbook(path)[t["sheet"]]
+        rows = [[ws.cell(r, t["first_col"] + i) for i in range(len(t["columns"]))] for r in range(t["first_data_row"], t["last_data_row"] + 1)]
+        return t, ws, rows
+
+    def test_app_feature_matrix_from_csv(self):
+        d = C.SCRATCH_DIR / "test_out_matrix"
+        if d.exists():
+            shutil.rmtree(d)
+        d.mkdir(parents=True)
+        csv_path = d / "app_matrix.csv"
+        tiny = pd.DataFrame([
+            {"app": "Torque Pro", "vendor": "Ian Hawkins", "live_gauges": "Y", "custom_dashboards": "Y", "hud_mirror_mode": "Y",
+             "alarms": "Y", "data_logging": "Y", "enhanced_diesel_pids": "via plugins", "carplay_android_auto": "N",
+             "subscription": "one-time CA$6.99", "canada_availability": "Google Play CA", "source_url": "https://play.google.com/store/apps/details?id=org.prowl.torque",
+             "accessed": "2026-10-02", "note": "=not a formula"},
+            {"app": "OBDLink", "vendor": "OBD Solutions", "live_gauges": "Y", "custom_dashboards": "Y", "hud_mirror_mode": "N",
+             "alarms": "N", "data_logging": "Y", "enhanced_diesel_pids": "Y (OEM add-ons)", "carplay_android_auto": "N",
+             "subscription": "free; add-ons USD 9.99", "canada_availability": "App Store CA", "source_url": "https://www.obdlink.com/app/",
+             "accessed": "2026-10-02", "note": ""},
+        ], columns=list(C.APP_FEATURE_MATRIX_COLUMNS))
+        tiny.to_csv(csv_path, index=False)
+        ca = X.dataset_from_normalized(X.read_normalized_csv(CA_FIXTURE), "CA", MONTH)
+        with contextlib.redirect_stdout(io.StringIO()):
+            p = G.build_gauge_workbook(ca, d, benchmark=None, overwrite=True, dated_copy=False, runs_dir=d / "runs",
+                                       preclassified=True, input_paths=[CA_FIXTURE], app_feature_matrix=csv_path)
+        reg = json.loads(C.run_file(d / "runs", MONTH, "table_registry", "CA", "json").read_text())
+        ts = [t for t in reg["tables"] if t["role"] == "modelb_app_matrix"]
+        self.assertEqual(len(ts), 1)
+        t = ts[0]
+        self.assertEqual(t["sheet"], "App-Gauge Proxy (Model B)")
+        self.assertEqual(t["columns"], list(G.APP_MATRIX_HEADERS))
+        self.assertEqual(t["columns"], ["App", "Vendor", "Live gauges", "Custom dashboards", "HUD/mirror mode", "Alarms", "Data logging",
+                                        "Enhanced/diesel PIDs", "CarPlay/Android Auto", "Subscription", "Canada availability", "Source",
+                                        "Accessed", "Note"])
+        ws = openpyxl.load_workbook(p)[t["sheet"]]
+        notes = [c for row in ws.iter_rows(min_row=t["header_row"] - 2, max_row=t["header_row"] - 1, values_only=True)
+                 for c in row if isinstance(c, str)]
+        self.assertIn(G.APP_MATRIX_NOTE, notes)
+        rows = {ws.cell(r, t["first_col"]).value: [ws.cell(r, t["first_col"] + i) for i in range(len(t["columns"]))]
+                for r in range(t["first_data_row"], t["last_data_row"] + 1)}
+        self.assertEqual(list(rows), list(C.APP_FEATURE_MATRIX_APPS))           # frozen app order, every app present
+        src_i, note_i, sub_i = t["columns"].index("Source"), t["columns"].index("Note"), t["columns"].index("Subscription")
+        torque = rows["Torque Pro"]
+        self.assertEqual(torque[1].value, "Ian Hawkins")
+        self.assertEqual(torque[sub_i].value, "one-time CA$6.99")
+        self.assertEqual(torque[src_i].value, "https://play.google.com/store/apps/details?id=org.prowl.torque")
+        self.assertEqual(torque[note_i].value, "=not a formula")
+        for app, cells in rows.items():
+            for c in cells:
+                self.assertNotEqual(c.data_type, "f", (app, c.coordinate))        # plain text, never a HYPERLINK
+            self.assertTrue(cells[src_i].value is None or cells[src_i].data_type == "s", app)
+            if app not in ("Torque Pro", "OBDLink"):
+                self.assertEqual([c.value for c in cells[1:]], [G.APP_MATRIX_PLACEHOLDER] * (len(cells) - 1), app)
+        # the shipped map (header-only today) renders every app as a GAP row in the main CA build
+        t, ws, mrows = self._matrix(_Built.ca_gauge)
+        self.assertEqual([r[0].value for r in mrows], list(C.APP_FEATURE_MATRIX_APPS))
+        # schema guards: unknown app or missing column fail loudly
+        bad = tiny.copy()
+        bad.loc[0, "app"] = "Not An App"
+        bad.to_csv(d / "bad_app.csv", index=False)
+        with self.assertRaises(ValueError):
+            G.read_app_feature_matrix(d / "bad_app.csv")
+        tiny.drop(columns=["vendor"]).to_csv(d / "bad_cols.csv", index=False)
+        with self.assertRaises(KeyError):
+            G.read_app_feature_matrix(d / "bad_cols.csv")
+
+    def test_numeric_count_cells(self):
+        for p, rows in ((_Built.ca_gauge, _Built.ca_rows), (_Built.us_gauge, _Built.us_rows)):
+            wb = openpyxl.load_workbook(p)
+            kpis = [t for t in _tables(_market_of(p), p.name) if t["role"] == "kpi" and t["sheet"] == "Innova"]
+            self.assertEqual(len(kpis), 1, p.name)
+            k = kpis[0]
+            cell = wb["Innova"].cell(k["first_data_row"], k["first_col"])
+            self.assertEqual(cell.coordinate, G.INNOVA_COUNT_CELL)
+            self.assertIsInstance(cell.value, int)
+            self.assertNotIsInstance(cell.value, bool)
+            n = int(((rows["brand_key"] == "innova") & rows["gauge_class"].isin(C.GAUGE_DEVICE_CLASSES)).sum())
+            self.assertEqual(cell.value, n)
+            self.assertEqual(wb["Innova"]["A3"].value, f"Innova gauge/HUD device listings in this dataset: {n}")
+        wb = openpyxl.load_workbook(_Built.ca_gauge)
+        ws = wb["US vs CA Same-ASIN"]
+        kpis = [t for t in _tables("CA", _Built.ca_gauge.name) if t["role"] == "kpi" and t["sheet"] == "US vs CA Same-ASIN"]
+        self.assertEqual(len(kpis), 1)
+        same = [t for t in _tables("CA", _Built.ca_gauge.name) if t["role"] == "same_asin"][0]
+        cell = ws[G.SAME_ASIN_COUNT_CELL]
+        self.assertEqual(ws.cell(cell.row, 1).value, "Listings in both marketplaces")
+        self.assertIsInstance(cell.value, int)
+        self.assertEqual(cell.value, same["last_data_row"] - same["first_data_row"] + 1)
+        self.assertEqual(cell.value, 1)                                         # fixtures share exactly one device ASIN
+        self.assertEqual((kpis[0]["first_data_row"], kpis[0]["last_data_row"]), (cell.row, cell.row))
 
     # ---------------------------------------------------------------- gauge share of the code-reader market / fuel split
     @staticmethod
