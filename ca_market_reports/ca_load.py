@@ -488,7 +488,11 @@ def load_month(market: str, month: str, *, cr_raw_dir: Path | None = None, gauge
     frames = {"code_reader": cr} if g is None else {"code_reader": cr, "gauge": g}
     for name, f in frames.items():
         f["brand_key"] = [ca_brands.canonical_brand_key(b, aliases) for b in f["brand_raw"]]
-        f["brand_display"] = [ca_brands.display_brand(k, display) for k in f["brand_key"]]
+        # ASSEMBLY (orchestrator): display map wins; otherwise keep the vendor's own casing from the Helium 10 Brand field
+        # (BYZFCM, MH, KUOWEIHUD, wiiyii) instead of Title-casing it; the capitalised fallback only applies to blank raws.
+        f["brand_display"] = [ca_brands.display_brand(k, display) if (k in display or not str(raw).strip() or str(raw).strip().lower() in ("n/a", "nan"))
+                              else str(raw).strip()
+                              for k, raw in zip(f["brand_key"], f["brand_raw"])]
     vocabulary = set().union(*(set(f["brand_key"]) for f in frames.values()))
     vocabulary |= set(aliases.values()) | set(display) | set(ca_brands.GENERIC_RECOVERY_EXTRA_BRANDS)
     recovery = []
