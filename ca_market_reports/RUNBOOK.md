@@ -108,6 +108,8 @@ is allowed only while the memo is still being written; the month is not finished
 
 ### Step 4c: combined CA + US gauge workbook
 
+> Order matters: the combined build replays the frozen decisions READ-ONLY and refuses to run (`RuntimeError: combined build requires complete, unchanged frozen decisions …`) until Steps 3 and 4 have frozen the month's CA and US gauge decisions. It never writes a decision file; `--rederive` is rejected here — rederive with the single-market builds.
+
 ```bash
 ca_market_reports/run.sh ca_market_reports/build_combined_gauge_report.py --month 202609 --overwrite
 ```
