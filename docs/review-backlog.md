@@ -20,3 +20,9 @@ _(empty — filled by the end-of-task Codex review)_
 - [P2] validate_outputs.py V09: the Model B "# app-gauge-capable" expected values come from the builder's `modelb_universe`; a wrong brand-map join would reproduce the same wrong number. Derive per-ASIN app capability in the validator from the typed CR rows + maps/ca_app_gauge_brands.csv independently.
 - [P2] render_preview.py: `--out` may write under NewProductCategory/ (path boundary); add the same NEW_PRODUCT_DIR guard the validator's `--json` now has.
 - (fixed in the round) V04 compares every Top-50 row; manifests + V19 use the loader's recursive raw file list; bare Edge model numbers in the fuel rule; untagged memo count; stale RUNBOOK status; `--json` path guard.
+
+### Codex review of the combined CA+US gauge workbook, 2026-10-02 (FIX-FIRST → P1 fixed in one round; full text: ca_market_reports/runs/202609/codex_review_combined_202609.md)
+- (fixed in the round) [P1] combined build must be read-only on frozen decisions (fail instead of append/rewrite).
+- [P2] V07 accepts a money header such as "US Monthly Rev" without "(USD)" because the market prefix counts as a currency label — require the token (exception: Key figures CA/US value columns). (scheduled in the same round)
+- [P2] combined brand rows checked by display text in any order; derive expected rows by brand_key and compare by position. (scheduled in the same round)
+- [P2] brand-tab KPI check validates only the registered range; assert the exact four-row CA|US block for every brand tab. (scheduled in the same round)
