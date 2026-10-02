@@ -468,6 +468,84 @@ def write_number(ws: Worksheet, row: int, col: int, value: Any, market: Market, 
                       dataset_filter=dataset_filter, allowed_markets=(market.code,))
 
 
+def write_market_kpi_table(ws: Worksheet, top_row: int, title: str | None,
+                           items: Sequence[tuple[str, dict[str, tuple[Any, str]], str]], markets: Sequence[str], *,
+                           subtitle: str | None = None, note: str | None = None, header: bool = True,
+                           label_header: str = "Measure", unit_header: str | None = "Unit",
+                           header_fills: dict[str, str] | None = None, data_fills: dict[str, str] | None = None,
+                           allow_blank: bool = False, role: str = "kpi", dataset_filter: str = "") -> TableRange:
+    """KPI rows with one value column per market (combined CA + US workbook): <label_header> | <m1> | <m2> ... [| <unit_header>].
+
+    items = [(label, {market: (value, kind)}, unit_text)]. Each value cell gets its ROW's numeric kind and its COLUMN's
+    market (money -> that market's currency format), so CAD and USD values never share a number format. Every market must
+    carry an entry on every row; a blank value (NaN) is an error unless allow_blank (then the cell stays empty). Values are
+    static. title=None writes no banner; header=False writes no header row (header_row None, as a brand-tab KPI block);
+    unit_header=None drops the unit column. Fills are hex colours keyed by market."""
+    if role not in C.TABLE_ROLES:
+        raise ValueError(role)
+    markets = tuple(markets)
+    unknown = [m for m in markets if m not in C.MARKETS]
+    if not markets or unknown:
+        raise ValueError(f"write_market_kpi_table: unknown/empty markets {markets}")
+    columns = [label_header, *markets] + ([unit_header] if unit_header else [])
+    first_col, last_col = 1, len(columns)
+    _set_width(ws, first_col, 40)
+    for j in range(len(markets)):
+        _set_width(ws, first_col + 1 + j, 16)
+    if unit_header:
+        _set_width(ws, last_col, 12)
+    r = top_row
+    if title:
+        _banner(ws, r, first_col, last_col, title, "title")
+        r += 1
+    if subtitle:
+        _banner(ws, r, first_col, last_col, subtitle, "subtitle")
+        r += 1
+    if note:
+        _banner(ws, r, first_col, last_col, note, "note")
+        r += 1
+    header_row = None
+    if header:
+        header_row = r
+        for j, h in enumerate(columns):
+            cell = ws.cell(r, first_col + j)
+            set_text(cell, h)
+            mk = markets[j - 1] if 0 < j <= len(markets) else None
+            fill = (header_fills or {}).get(mk) if mk else None
+            cell.font, cell.border = FONT_HEADER, BORDER
+            cell.fill = PatternFill("solid", fgColor=fill) if fill else FILL_HEADER
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        r += 1
+    first = r
+    for label, values, unit in items:
+        missing = [m for m in markets if m not in values]
+        if missing:
+            raise ValueError(f"write_market_kpi_table({title!r}): row {label!r} has no value for {missing}")
+        lc = ws.cell(r, first_col)
+        set_text(lc, label)
+        lc.font, lc.border = Font(bold=True), BORDER
+        for j, mk in enumerate(markets):
+            value, kind = values[mk]
+            if kind not in NUMERIC_KINDS:
+                raise ValueError(f"write_market_kpi_table({title!r}): row {label!r} needs a numeric kind, got {kind!r}")
+            if _is_blank(value) and not allow_blank:
+                raise ValueError(f"write_market_kpi_table({title!r}): row {label!r} has a missing {mk} value")
+            vc = ws.cell(r, first_col + 1 + j)
+            _write_value(vc, value, ColumnSpec(f"{label} {mk}", "v", kind, market=mk), {}, C.MARKETS[mk])
+            vc.border = BORDER
+            fill = (data_fills or {}).get(mk)
+            if fill:
+                vc.fill = PatternFill("solid", fgColor=fill)
+        if unit_header:
+            uc = ws.cell(r, last_col)
+            set_text(uc, unit)
+            uc.border = BORDER
+        r += 1
+    return TableRange(sheet=ws.title, role=role, header_row=header_row, first_data_row=first, last_data_row=r - 1,
+                      total_row=None, residual_row=None, first_col=first_col, last_col=last_col, columns=columns, charts=[],
+                      title=title or "", dataset_filter=dataset_filter, allowed_markets=markets)
+
+
 def hide_zero_revenue_rows(ws: Worksheet, table_range: TableRange) -> int:
     """Hide (never delete) data rows whose revenue is exactly 0. Only for brand summary tables. Returns the hidden count."""
     if table_range.role != "summary_brands":
