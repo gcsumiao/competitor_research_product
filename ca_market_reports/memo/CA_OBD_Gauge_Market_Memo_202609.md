@@ -1,6 +1,6 @@
 # Canada OBD Gauge Market Memo — September 2026
 
-Prepared 2026-10-02. Status: research skeleton. Sections 1, 4, 6 (apps), 8 and the Appendix are filled from web research. Sections 0, 2, 3, 5 and 7 hold placeholders. A later track fills them from the workbooks.
+Prepared 2026-10-02. Web facts (Sections 1, 4, 6.1, 8) were researched on 2026-10-02. Amazon figures (Sections 0, 2, 3, 5, 6.2, 7) come from the September 2026 workbooks listed in Appendix A.5. Every Amazon number carries the cell it was read from.
 
 > **Evidence contract.** Every number is tagged `[WB: <file>!<sheet>!<cell>]` (workbook cell) or `[SRC: <url>, accessed YYYY-MM-DD]`. Amazon figures are Helium 10 estimates (uncalibrated). CAD and USD are never mixed in one figure. Anything not found is written as `GAP: …`. No Canada-wide market size is extrapolated. The Lordco observation is treated as a hypothesis until SKUs are confirmed.
 
@@ -14,12 +14,24 @@ Wording rules for this memo:
 
 ## 0 Bottom line
 
-_Placeholder: filled after the workbooks are built._
+**What Amazon shows.** In the supplied Helium 10 exports (September 2026 sales month, exported 2026-10-02), the amazon.ca OBD gauge device market is small. Observed export revenue for core gauge devices is CA$47,821 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B71] on 328 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B72]. It is also concentrated. Edge Products holds 57.3% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E4] of that revenue, all from one listing, the Edge Insight CTS3 (CA$27,390 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!J4]). For the same month the amazon.com core device figure is US$618,071 [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B71], shown here in its own currency. No ratio is taken. Innova has zero classified gauge listings in this dataset (count 0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Innova!A3]).
 
-- One-paragraph answer to "is there a Canadian OBD gauge opportunity, and which model": observed export revenue for gauge devices on amazon.ca [WB: TBD] and the device share held by tuner-with-gauge-display units [WB: TBD].
-- Model 1 (stand-alone unit) verdict in one line, citing the Section 7 scorecard [WB: TBD].
-- Model 2 (RS2 / CarMD phone display) verdict in one line. Note: CarMD Connect is not listed on the Canadian iOS App Store (Section 6) [SRC: https://apps.apple.com/ca/app/id6738333261, accessed 2026-10-02].
-- The single most important open data gap (Section 8): Lordco sell-through.
+**Model 1, stand-alone unit: INSUFFICIENT DATA.**
+- The exports show three price clusters (Section 5):
+  - sub-$100 HUDs: commodity products, average price CA$57.49 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!F7] in the $50-99 tier
+  - a thin $100-249 compact-display band: 10 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!D9]
+  - a $500+ truck-monitor/tuner band that carries 61.3% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!E13] of core revenue
+- The $500+ band (CA$29,308 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C13]) is the one that matches the Lordco observation, and Edge and Bully Dog hold it. Both brands are on Lordco's shelf (Section 4).
+- Amazon alone cannot justify a Canadian hardware launch. The decision depends on Lordco sell-through, which is not available yet (GAP).
+
+**Model 2, phone as display (RS2): CONDITIONAL GO.**
+- The phone-app proxy is far larger on amazon.ca: 147 dongle listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B12] with CA$920,664 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C12] of observed export revenue. The leading brands' apps already ship gauge dashboards (Section 6.1).
+- Innova's dongles barely register: the 1000 V2 shows 3 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Innova!F9].
+- RS2 already has a customizable live-data feed with recorded sessions. A gauge/dashboard view is therefore a software extension of an app that is live on the Canadian App Store.
+- Conditions: an engineering estimate for that view, and a plan to reach Innova dongle owners through Lordco and NAPA Canada, which already list the 3215RS (Section 6.1).
+- The CarMD half cannot proceed in Canada today. CarMD Connect is not on the Canadian iOS App Store [SRC: https://apps.apple.com/ca/app/id6738333261, accessed 2026-10-02].
+
+**Most important gap.** Lordco unit sell-through per store for the "3 gas + 2 diesel" units (Sections 1 and 8). A second gap: the supplied exports miss the Bully Dog diesel listings that are live on amazon.ca (B001T8J4YK, B01602JWV4). Amazon diesel demand is therefore unmeasured, not zero.
 
 ## 1 The ask
 
@@ -38,20 +50,143 @@ Leadership request (verbatim):
 
 ## 2 Canada Amazon gauge market, Sep '26
 
-_Placeholder: filled from `CA_OBD_Gauge_Competitor_Report_202609.xlsx`._
+Basis for every figure in this section:
+- Source: the supplied Helium 10 exports (September 2026 sales month, exported 2026-10-02). These are uncalibrated Helium 10 estimates.
+- Scope: core devices, meaning the five device classes minus borderline listings (Appendix A.3).
+- Workbook: `CA_OBD_Gauge_Competitor_Report_202609.xlsx`.
+- The export date does not prove the sales fell in calendar September.
 
-- Observed export revenue (CAD) and units for in-scope gauge devices in the supplied Helium 10 exports (September 2026 sales month, exported 2026-10-02) [WB: TBD], with listing count [WB: TBD].
-- Split by subtype (tuner with gauge display, truck gauge monitor, OBD+GPS HUD, OBD HUD, gauge display) [WB: TBD]. GPS-only HUDs are shown as adjacent and kept out of the OBD totals [WB: TBD].
-- Top brands and ASINs by observed export revenue, including whether the Lordco-type units (Bully Dog GT, Edge Insight/Evolution) appear [WB: TBD]. If they do not: "not observed in the supplied Helium 10 exports".
-- Price ladder by CAD tier [WB: TBD]. Helium 10 "Sales YoY %" and "Last Year Sales" are shown only as vendor proxies [WB: TBD].
+### 2.1 Size observed in the exports
+
+- Observed export revenue, core gauge devices: CA$47,821 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B71].
+- Units: 328 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B72].
+- Listings: 44 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B73]. Of these, the number with sales above zero is 26 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B77].
+- Including the one borderline listing, device revenue is CA$49,356 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B74]. The borderline listing is the AIM Solo 2 DL lap timer with OBD harness (B07FFF4457), at CA$1,535 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!F9].
+- Gauge accessories, outside device totals: CA$439 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B75].
+- Adjacent GPS-only HUDs: CA$0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B76]. No GPS-only HUD was classified in this dataset, although GPS-only HUDs are sold at Princess Auto (Section 4.1). GAP: the Gauges > Speedometers node was not pulled without an OBD filter (Section 8.1).
+
+### 2.2 Sub-type split (core devices)
+
+| Sub-type | Listings | Monthly Rev (CAD) | Units |
+|---|---|---|---|
+| Truck gauge monitor (Edge Insight CTS3) | 1 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B39] | CA$27,390 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!C39] | 41 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D39] |
+| OBD+GPS HUD | 17 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B40] | CA$9,991 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!C40] | 188 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D40] |
+| Gauge display | 10 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B42] | CA$4,629 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!C42] | 20 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D42] |
+| OBD HUD | 10 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B41] | CA$3,892 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!C41] | 76 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D41] |
+| Tuner with gauge display | 6 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B38] | CA$1,918 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!C38] | 3 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D38] |
+| Total | 44 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B43] | CA$47,821 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!C43] | 328 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D43] |
+
+Units sit mostly in the HUD classes, while revenue sits in the single truck-monitor listing.
+
+### 2.3 Price clusters (Price Ladder (Model A))
+
+Tiers are half-open [low, high) on the listing price in CAD.
+
+| Tier | Listings | Monthly Rev (CAD) | Units | Rev share | Avg price (CAD) |
+|---|---|---|---|---|---|
+| Under $50 | 10 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!B5] | CA$3,752 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C5] | 88 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!D5] | 7.8% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!E5] | CA$42.64 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!F5] |
+| $50-99 | 19 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!B7] | CA$10,291 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C7] | 179 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!D7] | 21.5% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!E7] | CA$57.49 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!F7] |
+| $100-249 | 5 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!B9] | CA$1,748 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C9] | 10 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!D9] | 3.7% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!E9] | CA$174.84 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!F9] |
+| $250-499 | 3 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!B11] | CA$2,721 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C11] | 7 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!D11] | 5.7% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!E11] | CA$388.77 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!F11] |
+| $500+ | 7 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!B13] | CA$29,308 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C13] | 44 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!D13] | 61.3% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!E13] | CA$666.09 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!F13] |
+| Total | 44 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!B14] | CA$47,821 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C14] | 328 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!D14] | | CA$145.80 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!F14] |
+
+Empty price ranges from the Gap rows, using each boundary listing's Helium 10 price:
+- No core device is priced between CA$49.99 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C28] and CA$50.63 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C29]. This is a boundary artefact, not a real gap.
+- None between CA$98.19 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C47] and CA$127.59 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C48]. This range separates the HUDs from the compact displays.
+- None between CA$236.99 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C52] and CA$264.50 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C53].
+- The widest empty range runs from CA$388.77 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C55] (ScanGauge 3) to CA$580.80 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C56] (Bully Dog Hemi Plus). It sits just below the truck-monitor/tuner cluster.
+
+### 2.4 Who sells (brands and listings)
+
+| Brand | Listings | Monthly Rev (CAD) | Units | Rev share |
+|---|---|---|---|---|
+| Edge Products | 4 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B4] | CA$27,390 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!C4] | 41 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!D4] | 57.3% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E4] |
+| wiiyii | 4 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B5] | CA$7,635 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!C5] | 136 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!D5] | 16.0% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E5] |
+| ScanGauge | 1 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B6] | CA$2,721 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!C6] | 7 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!D6] | 5.7% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E6] |
+| Keenso | 1 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B7] | CA$2,583 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!C7] | 54 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!D7] | 5.4% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E7] |
+| Bully Dog | 3 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B8] | CA$1,918 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!C8] | 3 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!D8] | 4.0% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E8] |
+| Lufi | 4 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B9] | CA$1,748 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!C9] | 10 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!D9] | 3.7% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E9] |
+
+- **Edge.** The Insight CTS3 (B087WMGLF1) is Edge's only listing with sales, at 41 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K4]. Three Evolution tuners appear in the exports but show no sales:
+  - 85450 CTS2 gas: 0 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K31]
+  - 85400-100: 0 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!E61]
+  - 85401-201 "CA Edition" (California/CARB, Section 4.3): 0 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!E62]
+- **wiiyii.** The P6 OBD+GPS HUD (B0957S3F3H) is the top unit seller, with 119 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K5] and CA$6,500 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!J5].
+- **ScanGauge.** ScanGauge 3 SG3 (B0BFBQZZMC) shows 7 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K6] at a Helium 10 price of CA$388.77 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!I6].
+- **Keenso.** The OBD HUD B0CJMM4RLM shows 54 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K7] at CA$47.84 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!I7].
+- **Bully Dog.** Three gas tuners are in the exports, all from the dedicated Bully Dog export file (All Products sheet, Source File column):
+  - 40410 Triple Dog GT Gas (B001P20QDS): CA$1,172 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!E9] on 2 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!F9]
+  - 40417 Triple Dog Platinum GT Gas (B06XWVYJGV): CA$746 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!E10] on 1 unit [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!F10]
+  - 40430 Hemi Plus (B00AJLY628): 0 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!F11]
+- **Bully Dog diesel: export gap.** The diesel 40420 GT Platinum Diesel (B001T8J4YK) and 40428 "canada Only Part" (B01602JWV4) are listed live on amazon.ca [SRC: https://www.amazon.ca/s?k=bully+dog+gt+tuner, accessed 2026-10-02]. They are not in the supplied exports: there is no row for either ASIN in the CA gauge or code-reader union. This is a GAP in export coverage, not evidence of zero sales (Section 8.1).
+- **Innova.** Innova gauge/HUD device listings in this dataset: 0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Innova!A3]. This means zero classified gauge listings in this dataset; it is not a statement about the whole marketplace.
+- **Helium 10 trend fields.** These are vendor proxies, shown per listing only and never aggregated. They are not measured trends.
+  - Insight CTS3: Sales YoY 29% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!P4]. Its "Last Year Sales" field reads 750 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!O4] as reported; the period that field covers is not verified, so it is not compared with this month's units.
+  - wiiyii P6: Sales YoY 37% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!P5].
+  - Bully Dog 40410: Sales YoY -32% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!P9].
 
 ## 3 US benchmark, same month
 
-_Placeholder: filled from the US Benchmark and US vs CA Same-ASIN sheets._
+Sources: the US Benchmark and US vs CA Same-ASIN sheets of `CA_OBD_Gauge_Competitor_Report_202609.xlsx`, and `US_OBD_Gauge_Competitor_Report_202609.xlsx`.
+- US figures are raw Helium 10 estimates without the monthly pipeline's actuals overlay.
+- Revenue is shown in each market's own currency, side by side. No FX conversion, no revenue ratio, no price premium.
+- Tier thresholds are nominal in each currency.
 
-- US observed export revenue (USD) and units for the same gauge classes [WB: TBD], shown next to the CA figures in their own currency. No ratio is taken.
-- Same-ASIN comparison on units, listing counts and ranks only [WB: TBD]. No CAD-vs-USD price premium is stated.
-- Subtype mix US vs CA as shares within each market [WB: TBD].
+### 3.1 Side by side
+
+| Measure (core devices) | CA (amazon.ca, CAD) | US (amazon.com, USD) |
+|---|---|---|
+| Observed export revenue | CA$47,821 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B71] | US$618,071 [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B71] |
+| Units | 328 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B72] | 4,256 [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B72] |
+| Listings | 44 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B73] | 109 [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B73] |
+| Listings with sales > 0 | 26 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B77] | 73 [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B77] |
+
+### 3.2 Brand revenue shares within each market
+
+| Brand | CA share (of CAD revenue) | US share (of USD revenue) |
+|---|---|---|
+| Edge Products | 57.3% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E4] | 50.8% [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E4] |
+| ScanGauge | 5.7% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E6] | 28.8% [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E5] |
+| wiiyii | 16.0% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E5] | 8.6% [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E6] |
+| Lufi | 3.7% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E9] | 2.7% [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E7] |
+| Bully Dog | 4.0% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E8] | listings in US exports: 0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!E11] |
+
+Edge leads both markets. The visible difference is ScanGauge, which holds a much larger share of the US market.
+
+### 3.3 Units by sub-type
+
+| Sub-type | CA units | US units |
+|---|---|---|
+| Truck gauge monitor | 41 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D39] | 690 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!G39] |
+| OBD+GPS HUD | 188 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D40] | 1,610 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!G40] |
+| OBD HUD | 76 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D41] | 713 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!G41] |
+| Gauge display | 20 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D42] | 1,235 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!G42] |
+| Tuner with gauge display | 3 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D38] | 8 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!G38] |
+
+The gauge-display class shows the biggest CA/US difference. On the US side it is driven by ScanGauge SG3 and SG2.
+
+### 3.4 Same-ASIN listings (units only)
+
+The CA and US exports share 26 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!A1] listings.
+
+| Listing | CA units | US units |
+|---|---|---|
+| wiiyii P6 (B0957S3F3H) | 119 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E6] | 1,076 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H6] |
+| Edge Insight CTS3 (B087WMGLF1) | 41 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E5] | 682 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H5] |
+| ScanGauge 3 SG3 (B0BFBQZZMC) | 7 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E7] | 483 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H7] |
+| Keenso OBD HUD (B0CJMM4RLM) | 54 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E8] | 5 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H8] |
+| BYZFCM OBD+GPS HUD (B0GZC9VPRS) | 24 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E10] | 1 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H10] |
+
+Keenso, BYZFCM and MIOLLYBO sell more units in CA than in the US. All three are low-priced HUDs; no premium device does the same.
+
+### 3.5 Sells in the US, not observed in the CA exports
+
+- **ScanGauge SG2** (B000AAMY86): US rank 3 [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!A6], with 298 US units [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K6]. It is not observed in the CA exports. ScanGauge II SGIIFFP (B00VX2NOK2) is listed live on amazon.ca [SRC: https://www.amazon.ca/s?k=scangauge, accessed 2026-10-02], so this is an export-coverage GAP (Section 8.1).
+- **KONNWEI KW206** (B08GYLXJ1V): 130 US units [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K9]. KONNWEI listings in the CA exports: 0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B27]. A CA "Fit for KONNWEI KW206" listing by alektryon (B0DKZ77M4N) shows 0 CA units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E30].
+- **Shadow** (D-Meter displays): 15 US units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!G28]. Shadow listings in the CA exports: 0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B28].
+- **AEM X-Series** OBDII gauges: 13 US units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!G29]. In CA, AEM has 2 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B29] but 0 CA units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D29].
+- **Bully Dog (the reverse case).** Bully Dog is in the CA exports with 3 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B11] but in the US exports with 0 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!E11]. The US gauge export did not capture Bully Dog. GAP: no US Bully Dog benchmark.
 
 ## 4 Who sells gas/diesel gauge units in Canada
 
@@ -103,7 +238,7 @@ Notes on the table:
 
 ### 4.2 amazon.ca live listings (point-in-time, not Helium 10)
 
-These are web observations of amazon.ca search pages on 2026-10-02. They show that each unit family is listed. Prices are the live displayed price in CAD. The Helium 10 price, units and revenue for the same ASINs come from the workbook [WB: TBD].
+These are web observations of amazon.ca search pages on 2026-10-02. They show that each unit family is listed. Prices are the live displayed price in CAD. Most of the tuner and diesel listings below are not in the supplied Helium 10 exports. Sections 2.4 and 8.3 list which ones are present, with their Helium 10 figures.
 
 - Bully Dog family (all observed): 40420 GT Platinum Diesel (B001T8J4YK) CA$515.38; 40410 Triple Dog GT Gas (B001P20QDS) CA$538.80; 40417 Triple Dog Platinum GT Gas (B06XWVYJGV) CA$498.79; 40430 Hemi Plus (B00AJLY628) CA$580.80; "40428canada Only Part" (B01602JWV4) CA$899.00. Edge 84130-3 Insight CTS3 (B087WMGLF1) shows CA$662.83 [SRC: https://www.amazon.ca/s?k=bully+dog+gt+tuner, accessed 2026-10-02]
 - Edge Evolution CTS3 family: 85400-200 (B08N824D1J), 85400-300 (B09JL42PPV) and 85400-100 (B08YJQCTH2) at CA$1,022.98 each; 85401-201 "CA Edition" (B08YJLFVW7) CA$1,085.34; 85452-252 GM gas (B08YJHM4QJ) CA$1,109.03 [SRC: https://www.amazon.ca/s?k=edge+evolution+cts3, accessed 2026-10-02]
@@ -136,16 +271,57 @@ Sources for each are in the Section 4.1 table. This is consistent with a 3-gas /
 
 ## 5 Model 1 — stand-alone unit
 
-_Placeholder: filled from the Price Ladder (Model A) and Feature Matrix (Model A) sheets._
+Sources: the Price Ladder (Model A) and Feature Matrix (Model A) sheets. The feature flags are parsed from listing titles and have not been verified.
 
-- Observed export revenue and units by CAD price tier for gauge devices on amazon.ca [WB: TBD], with where the Lordco-type tuner-with-gauge units sit on that ladder [WB: TBD].
-- Feature matrix of the top device ASINs (data source, screen type, fuel scope, alarms, multi-gauge, km/h-mph) [WB: TBD].
-- The gap an Innova stand-alone unit would aim at (for example, a monitor-only diesel gauge without tuning, priced below tuner units), stated only from tier data [WB: TBD].
-- Channel note from Section 4: Lordco carries both tuner families. Canadian Tire, NAPA Canada and PartSource showed none online.
+### 5.1 Option A: low-price HUD (commodity cluster, the two tiers below 100 dollars)
+
+- **Visible demand, Under $50 tier:** 10 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!B5], 88 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!D5], CA$3,752 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C5].
+- **Visible demand, $50-99 tier:** 19 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!B7], 179 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!D7], CA$10,291 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C7]. The average price is CA$57.49 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!F7].
+- **Leader:** the wiiyii P6 OBD+GPS windshield projector, with 119 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K5].
+- **Required capabilities, from the Feature Matrix columns:**
+  - Data source: OBD+GPS dual mode, which is common in the cluster.
+  - Screen type: windshield projector or dash-top LCD.
+  - Alarms: overspeed, temperature and fatigue alarms are claimed by many titles.
+  - km/h–mph switching: needed for Canada.
+  - Gesture control: claimed by only two listings (BYZFCM B0GZC9VPRS, wiiyii B0H715WB5W).
+  - Fuel scope: "unspecified" on every HUD.
+- **Channel:** Princess Auto already sells an OBD+GPS head-up gauge at CA$49.99 [SRC: https://www.princessauto.com/en/product/obd-plus-gps-smart-gauge/PA0009465543/9465543, accessed 2026-10-02].
+- **Read:** low prices, many small sellers, and no listing tied to a known brand. An Innova unit here would compete on price unless RS2 integration sets it apart.
+
+### 5.2 Option B: mid-price compact dash display (100 to 249 dollars)
+
+- **Visible demand:** 5 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!B9], 10 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!D9], CA$1,748 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C9]. All of it is Lufi.
+- **US contrast (units; tiers nominal in each currency):**
+  - $100-249 tier: US 467 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!G50] vs CA 10 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D50].
+  - $250-499 tier: US 1,172 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!G51] vs CA 7 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D51]. ScanGauge leads this tier.
+- **Required capabilities:** dash-top LCD, multi-gauge pages, OBD data source. ScanGauge 3 is the reference product at CA$388.77 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C55].
+- **Price room:** no core device is priced between CA$98.19 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C47] and CA$127.59 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C48].
+- **Read:** this band is thin in CA and strong in the US. Part of the CA weakness may be an export artefact, because ScanGauge II is missing from the CA exports (Section 3.5).
+
+### 5.3 Option C: premium truck monitor / gauge-tuner (500 dollars and up; the Lordco-type unit)
+
+- **Visible demand:** 7 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!B13] and 44 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!D13], for CA$29,308 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C13]. That is 61.3% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!E13] of core revenue. Only 3 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!H13] of these listings have sales.
+- **Leaders:**
+  - Edge Insight CTS3: 41 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K4].
+  - Bully Dog gas tuners: 3 units in total [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!B4].
+- **Required capabilities:**
+  - Screen type: tuner touchscreen (Bully Dog, Edge Evolution) or dash-top LCD (Insight).
+  - Fuel scope: "gas" for the Bully Dog titles, "unspecified" for the Insight.
+  - All of these units are flagged Lordco-type.
+  - Alarms: the title-derived alarm flag is N for the Insight, but Edge's own page says it gives audible and visual alerts [SRC: https://www.edgeproducts.com/products/in-cabin_monitors/insight/, accessed 2026-10-02]. Title flags understate this class.
+- **Diesel:** no diesel-specific device is in the exports, because of the Bully Dog diesel export gap (Section 2.4).
+- **Channel:** Lordco lists the Edge Insight CTS3 at CA$769.99 [SRC: https://lordco.com/Product/Insight-CTS3-Digital-Gauge-Monitor-PTQ84130-3, accessed 2026-10-02] and the Bully Dog GT diesel at CA$554.46 [SRC: https://lordco.com/Product/GT-diesel-vehicle-tuner-and-multi-gauge-vehicle-monitor-BDT40420, accessed 2026-10-02]. Canadian Tire, NAPA Canada and PartSource showed no such units online (Section 4.1).
+- **Read:** most of the revenue is here, but one incumbent listing holds it, and the channel that matters is Lordco. A monitor-only unit (no tuning) would avoid the emissions-certification questions raised by tuners ("CA Edition" = CARB, Section 4.3).
+
+### 5.4 What Lordco sell-through data would change
+
+- Lordco has over 85 stores [SRC: https://lordco.com/our-story/, accessed 2026-10-02]. Units per store per month for the five SKUs, times the store count, is the size test that Amazon cannot provide. If it confirms steady sell-through for monitor/tuner units, Option C becomes a CONDITIONAL GO.
+- Which SKUs they are matters: Edge Insight-type monitor vs Bully Dog-type tuner, and gas vs diesel. The answer decides between a monitor-only unit and a tuner partnership. It also decides whether diesel support (EGT, DPF, transmission temperature) is required.
+- If sell-through is low (shelf presence only), Model 1 falls back to the Amazon evidence above, which does not support a launch.
 
 ## 6 Model 2 — phone as display (RS2 / CarMD)
 
-_App matrix below: filled from web research. Model-B demand proxy (Dongle tier sheet): placeholder [WB: TBD]._
+_6.1 comes from web research (accessed 2026-10-02). 6.2 comes from the App-Gauge Proxy (Model B) sheet._
 
 ### 6.1 App feature matrix: "phone as gauge display"
 
@@ -170,18 +346,70 @@ What the matrix shows (web facts only):
 - RS2-compatible Innova hardware is on Canadian shelves. Lordco lists Innova 3215RS at CA$159.99 [SRC: https://lordco.com/Product/Wireless-Bluetooth-OBD2-Scanner-No-Subscription-iPhone-Android-Compatibility-Read-Erase-ABS-SRS-Check-Engine-Light-View-and-Graph-Live-Data-Free-Fix-and-Part-Recommendations-3833215RS, accessed 2026-10-02] and 3210RS at CA$75.99 [SRC: https://lordco.com/Product/Code-Scanner-Free-App-With-No-Subscription-Battery-Charging-System-Test-Graph-Record-Live-Data-Read-Clear-Check-Engine-Light-Free-Fix-and-Part-Recommendations-3833210RS, accessed 2026-10-02]. NAPA Canada lists the Innova Drive OBD2 Dongle 3215RS at CA$211.99, the 3210RS at CA$99.99 and the 3020RS at CA$105.99 [SRC: https://www.napacanada.com/en/search?text=obd2&referer=v2, accessed 2026-10-02]. A Model 2 gauge feature would therefore reach Innova hardware that is already listed at Lordco and NAPA Canada. GAP: Canadian unit sell-in of these dongles.
 - Diesel-specific live PIDs (EGT, DPF soot load, trans temp) are not documented for any app except as OEM add-ons (OBDLink) or service functions (Carista DPF regeneration). GAP: per-app diesel PID lists.
 
-### 6.2 Model-B demand proxy (placeholder)
+### 6.2 Model-B demand proxy (App-Gauge Proxy (Model B) sheet)
 
-- amazon.ca code-reader Type = Dongle, by dongle price tier: observed export revenue and units [WB: TBD], and Innova's position in that tier [WB: TBD].
-- If Innova dongle listings are absent: "zero Innova dongle listings in this dataset" [WB: TBD].
+**Universe.** CA code-reader listings typed Dongle. That is 147 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B12] of the 1,828 [WB: CA_Code_Reader_Competitor_Report_202609.xlsx!Summary!B30] CA code-reader listings, with CA$920,664 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C12] of observed export revenue on 8,675 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D12]. Listings from brands whose app shows live gauges number 58 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G12]. That flag comes from a brand-level map, so it is a proxy, not a per-listing check.
+
+| Dongle tier | Listings | Monthly Rev (CAD) | Units | Rev share | App-gauge-capable listings |
+|---|---|---|---|---|---|
+| Under $50 | 38 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B7] | CA$91,974 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C7] | 2,771 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D7] | 10.0% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E7] | 9 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G7] |
+| $50-99 | 46 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B8] | CA$162,810 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C8] | 2,422 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D8] | 17.7% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E8] | 26 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G8] |
+| $100-149 | 17 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B9] | CA$272,705 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C9] | 2,205 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D9] | 29.6% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E9] | 11 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G9] |
+| $150-249 | 17 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B10] | CA$145,021 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C10] | 723 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D10] | 15.8% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E10] | 8 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G10] |
+| $250+ | 29 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B11] | CA$248,154 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C11] | 554 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D11] | 27.0% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E11] | 4 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G11] |
+| Total | 147 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B12] | CA$920,664 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C12] | 8,675 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D12] | 100% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E12] | 58 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G12] |
+
+**Leaders:**
+- BlueDriver: CA$168,641 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C17], a 18.3% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E17] share. Its top listing, B0GL9RL3XS, shows 1,055 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G49].
+- OBDLink: CA$140,713 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C18], a 15.3% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E18] share.
+- VEEPEAK: CA$80,183 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C19] on 1,969 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D19], sold mostly as a carrier for third-party apps (Car Scanner, Torque).
+
+**Innova's dongle position.**
+- 1000 V2 (B0D32BNNQ9): CA$546 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Innova!E9] on 3 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Innova!F9].
+- 3215RS (B09GZMM2GP): 0 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Innova!F10].
+- Both listings are fulfilled by third-party merchants (FBM, sellers "Dominion Pride" and "Cobalt Industrial Supplies"; Innova tab of the code-reader report). They are not sold by Amazon.
+- Innova's whole CA code-reader line is CA$43,242 [WB: CA_Code_Reader_Competitor_Report_202609.xlsx!Summary!C20] from 23 listings [WB: CA_Code_Reader_Competitor_Report_202609.xlsx!Summary!B20], a 1.0% [WB: CA_Code_Reader_Competitor_Report_202609.xlsx!Summary!E20] revenue share. Innova does not appear among the named dongle brands; it falls in the "Other brands" residual row.
+
+**Software-only framing.**
+- Model 2 needs no new hardware.
+- RS2 is live on the Canadian App Store, and its live-data feed already records sessions (Section 6.1).
+- Innova's 3215RS and 3210RS are on Lordco and NAPA Canada shelves (Section 6.1).
+- The work is a gauge/dashboard view (layouts, alarms, and HUD/mirror mode if wanted) that matches what OBDLink, Car Scanner and Torque Pro already offer.
+- CarMD Connect is not on the Canadian iOS App Store [SRC: https://apps.apple.com/ca/app/id6738333261, accessed 2026-10-02], so the CarMD half has no Canadian iOS route today.
+
+**Flags for the map owner.**
+- The brand-level map marks BlueDriver "app gauge capable = Y". BlueDriver's Canadian App Store listing describes multi-PID graphs, not gauge dashboards (Section 6.1).
+- The workbook's "App feature matrix" block (App-Gauge Proxy sheet, from row 78) is still all GAP. The researched matrix is Section 6.1 of this memo.
 
 ## 7 Decision criteria & verdicts
 
-_Placeholder: scorecard filled after Sections 2, 3 and 5 are populated._
+### 7.1 Criteria for leadership to ratify
 
-- Criteria (draft): demand evidence on amazon.ca [WB: TBD]; channel evidence (Lordco sell-through, Section 8 GAP); price-tier headroom [WB: TBD]; build effort (Model 2 reuses RS2 live data, Section 6.1); regulatory exposure (tuning vs monitor-only; "CA Edition" = CARB, Section 4.3).
-- Verdict per model: GO / NO-GO / NEED-DATA, with the deciding evidence tag for each [WB: TBD].
-- Explicit statement of what would flip each verdict.
+| # | Criterion | Evidence | Reading |
+|---|---|---|---|
+| 1 | Amazon-visible demand in the target cluster | Core devices CA$47,821 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B71]; $500+ tier CA$29,308 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C13]; dongle universe CA$920,664 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C12] | The gauge-device market is small; the dongle/app market is much larger |
+| 2 | Concentration and incumbent strength | Edge Products share 57.3% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E4] from a single listing | Highly concentrated; the incumbent is also on the Lordco shelf |
+| 3 | Channel proof (Lordco sell-through) | GAP (Section 8.2) | Unresolved; this decides Model 1 |
+| 4 | Price room | The widest empty range starts at CA$388.77 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C55] and ends at CA$580.80 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!C56] | Room exists below the tuner cluster, but demand there is unproven |
+| 5 | Build effort and reuse | RS2 live-data feed already in the app (Section 6.1) | Low for Model 2; new hardware for Model 1 |
+| 6 | Regulatory exposure | Tuners need emissions certification ("CA Edition" = CARB, Section 4.3) | Monitor-only units avoid it |
+| 7 | Reach in Canada | RS2 on the CA App Store; CarMD Connect not on it (Section 6.1) | RS2 only |
+
+### 7.2 Verdicts
+
+- **Model 1, stand-alone unit: INSUFFICIENT DATA.**
+  - The Amazon-visible gauge market in Canada is small in observed export revenue (CA$47,821 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B71]) and concentrated (Edge 57.3% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E4]).
+  - The Lordco question is unresolved (GAP).
+  - Per option:
+    - Option A, sub-$100 HUD: NO-GO as an Amazon play. It is a commodity cluster at an average price of CA$57.49 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!F7].
+    - Option B, compact display: INSUFFICIENT DATA. It is thin in CA at 10 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!D9], and the export coverage is incomplete.
+    - Option C, $500+ monitor/tuner (7 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!B13]): CONDITIONAL GO only if Lordco sell-through confirms demand for the monitor-type units.
+  - What flips it: Lordco units per store per month for the five SKUs, and the SKU list.
+- **Model 2, phone as display (RS2): CONDITIONAL GO.**
+  - Evidence: 147 dongle listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B12], of which 58 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G12] are from app-gauge-capable brands, plus a live RS2 app in Canada.
+  - Conditions: (a) an engineering estimate for a gauge/dashboard view in RS2; (b) a plan to reach existing Innova dongle owners (3215RS at Lordco and NAPA Canada).
+  - What flips it to NO-GO: a build estimate out of proportion to Innova's dongle base, which is small on amazon.ca (3 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Innova!F9] for the 1000 V2).
+- **Model 2, CarMD half: INSUFFICIENT DATA.** CarMD Connect is not on the Canadian iOS App Store, and Android availability is unchecked (GAP).
 
 ## 8 Data gaps & next pulls
 
@@ -198,6 +426,7 @@ Status key: **confirmed** = this research looked for the item and did not find i
    - Superchips Flashpaq: *Tools & Equipment > Diagnostic & Test Tools* [SRC: https://www.amazon.ca/dp/B017J844SY, accessed 2026-10-02]
 
    Request an amazon.ca Black Box pull of Engine Management Systems, Gauges > Specialty, Gauges > Speedometers (plus any sibling Gauges sub-nodes such as multi-gauge or information-display nodes; their names were not verified) and Engine Computers. Use no OBD keyword filter, so that Bully Dog GT diesel, the full Edge Evolution / Juice / Insight family, Banks and Superchips are captured. Flag: the brief's node name "Performance Tuners/Programmers" could not be verified on amazon.ca. Use the node names above.
+   The exports demonstrably miss these listings (Section 8.3, confirmed).
 2. **The same nodes on amazon.com (assumed).** Needed for a like-for-like US benchmark. It is assumed but not verified that the US nodes carry the same names.
 3. **Helium 10 Xray / Trends 12-month history (assumed)** for the top in-scope CA ASINs and for the Lordco-type ASINs in Section 4.2 (B001T8J4YK, B001P20QDS, B06XWVYJGV, B01602JWV4, B087WMGLF1, B08N824D1J). These replace the "Last Year Sales" / "Sales YoY %" vendor proxies with a monthly series.
 4. **Export-window check (assumed).** Record each export file's date range, so that "September 2026" is not inferred from the export date alone.
@@ -218,6 +447,18 @@ Status key: **confirmed** = this research looked for the item and did not find i
 | Torque Pro CAD price and Canadian Play availability | confirmed | The Play page rendered to a non-Canadian request; needs a Canadian Play account. |
 | Per-app diesel PID coverage (EGT, DPF, trans temp) | confirmed | Not stated in store listings (Section 6.1). |
 | Canadian light-duty diesel fleet size by province | assumed | Not researched. Needed before any channel sizing. This memo does not extrapolate a Canada-wide market size. |
+
+### 8.3 Export coverage gaps confirmed by the build (2026-10-02)
+
+These ASINs were seen live on amazon.ca (Section 4.2) but have no row in the CA gauge or code-reader union (checked against `gauge_decisions_CA_gauge_202609.csv`, which lists every union row). Status: **confirmed**. Their Helium 10 sales are unknown, not zero.
+
+- Bully Dog diesel: 40420 GT Platinum Diesel **B001T8J4YK**; 40428 "canada Only Part" **B01602JWV4**; a second GT Platinum Diesel listing, B07NF7NVZD.
+- Edge Evolution CTS3 diesel: 85400-200 B08N824D1J. The 85400-300 B09JL42PPV and 85452-252 B08YJHM4QJ are also not observed.
+- Banks iDash: B084KPRZ9J, B079WV5GXC, B0GNCW4XKM (B0GNCW4XKM does appear in the US exports).
+- Superchips Flashpaq/Dashpaq: B017J844SY, B017J7SKUS, B09Z7BTBW4, B07232K7PS.
+- ScanGauge II SGIIFFP: B00VX2NOK2.
+
+Bully Dog rows in the exports come from a dedicated Bully Dog export file that captured only gas units (All Products sheet, Source File column). The node pull in 8.1 item 1 closes these gaps.
 
 ## Appendix (sources, method, taxonomy, scripts)
 
@@ -270,7 +511,7 @@ Mirrors `ca_market_reports/memo/sources_202609.csv` (one row per claim; all acce
 | 41 | [SRC: https://partsource.ca/search?q=performance+tuner, accessed 2026-10-02] | PartSource (partsource.ca) | PartSource site search 'performance tuner' returned 2 Equus analog gauges and no tuner. | — | 4 |
 | 42 | [SRC: https://partsource.ca/search?q=heads+up+display, accessed 2026-10-02] | PartSource (partsource.ca) | PartSource site search 'heads up display' returned 0 results. | — | 4 |
 | 43 | [SRC: https://partsource.ca/search?q=edge+insight, accessed 2026-10-02] | PartSource (partsource.ca) | PartSource site search 'edge insight' returned 66 unrelated results (wiper, brake, gasket parts); no Edge product. | — | 4 |
-| 44 | [SRC: https://www.amazon.ca/s?k=bully+dog+gt+tuner, accessed 2026-10-02] | Amazon.ca (live listing page; not a Helium 10 figure) | amazon.ca search on 2026-10-02 showed Bully Dog 40420 GT Platinum Diesel (B001T8J4YK) CA$515.38, 40410 Triple Dog GT Gas (B001P20QDS) CA$538.80, 40417 Triple Dog Platinum GT Gas (B06XWVYJGV) CA$498.79, 40430 Hemi Plus (B00AJLY628) CA$580.80, '40428canada Only Part' (B01602JWV4) CA$899.00, Edge 84130-3 Insight CTS3 (B087WMGLF1) CA$662.83. | 40428canada Only Part | 4 |
+| 44 | [SRC: https://www.amazon.ca/s?k=bully+dog+gt+tuner, accessed 2026-10-02] | Amazon.ca (live listing page; not a Helium 10 figure) | amazon.ca search on 2026-10-02 showed Bully Dog 40420 GT Platinum Diesel (B001T8J4YK) CA$515.38, a second GT Platinum Diesel listing (B07NF7NVZD) CA$510.89, 40410 Triple Dog GT Gas (B001P20QDS) CA$538.80, 40417 Triple Dog Platinum GT Gas (B06XWVYJGV) CA$498.79, 40430 Hemi Plus (B00AJLY628) CA$580.80, '40428canada Only Part' (B01602JWV4) CA$899.00, Edge 84130-3 Insight CTS3 (B087WMGLF1) CA$662.83. | 40428canada Only Part | 4 |
 | 45 | [SRC: https://www.amazon.ca/s?k=edge+evolution+cts3, accessed 2026-10-02] | Amazon.ca (live listing page; not a Helium 10 figure) | amazon.ca search on 2026-10-02 showed Edge Evolution CTS3 85400-200 (B08N824D1J) CA$1,022.98, 85400-300 (B09JL42PPV) CA$1,022.98, 85400-100 (B08YJQCTH2) CA$1,022.98, 85401-201 'CA Edition' (B08YJLFVW7) CA$1,085.34, 85452-252 GM gas (B08YJHM4QJ) CA$1,109.03. | Edge 85401-201 Evolution CTS3 Programmer - CA Edition | 4 |
 | 46 | [SRC: https://www.amazon.ca/s?k=banks+idash, accessed 2026-10-02] | Amazon.ca (live listing page; not a Helium 10 figure) | amazon.ca search on 2026-10-02 showed Banks iDash 1.8 DataMonster 66760 (B084KPRZ9J) CA$789.38, iDash 1.8 Super Gauge (B079WV5GXC) CA$876.42, iDash Data Pro (B0GNCW4XKM) CA$772.25. | Banks iDash 1.8 DataMonster | 4 |
 | 47 | [SRC: https://www.amazon.ca/s?k=scangauge, accessed 2026-10-02] | Amazon.ca (live listing page; not a Helium 10 figure) | amazon.ca search on 2026-10-02 showed ScanGauge II SGIIFFP (B00VX2NOK2) CA$229.95 and ScanGauge 3 SG3 (B0BFBQZZMC) CA$407.59. | 3 Touch Screen OBD2 Scanner, Digital Gauges & Trip Computer SG3 | 4 |
@@ -306,7 +547,7 @@ Mirrors `ca_market_reports/memo/sources_202609.csv` (one row per claim; all acce
 
 - **Web research:** done on 2026-10-02 from retailer sites (lordco.com, canadiantire.ca, princessauto.com, napacanada.com, partsource.ca), manufacturer sites (bullydog.com, edgeproducts.com, carmd.com, us.bluedriver.com), Holley's SEC 10-K, Apple App Store (Canadian storefront unless noted), Google Play, and amazon.ca search and listing pages. Third-party resellers and trade press are marked as such in the sources.
 - **Retail checks:** online catalogue and site search only. Lordco pages were read as server-rendered HTML (BigCommerce product JSON gives price, currency CAD and the in-stock flag). Client-rendered sites (Canadian Tire, Princess Auto, NAPA Canada, PartSource, amazon.ca) were read in a browser. Cookie banners were declined. In-store stock was not observed.
-- **Amazon numbers:** every Helium 10-derived figure (revenue, units, price, YoY, listing counts) will come from the month's workbooks and carry a `[WB: …]` tag. The `[WB: TBD]` markers are placeholders for that. amazon.ca live prices in Section 4.2 are point-in-time page observations, not Helium 10 data.
+- **Amazon numbers:** every Helium 10-derived figure (revenue, units, price, YoY, listing counts) is read from a workbook cell and tagged `[WB: file!sheet!cell]`, with the number placed directly before its tag. The workbooks are the drafts built at integration HEAD 7a1988b from the real September exports; the final copies have the same layout. The amazon.ca live prices in Section 4.2 are point-in-time page observations, not Helium 10 data.
 - **Currency:** CAD figures come from Canadian sites and storefronts. USD figures (bullydog.com, edgeproducts.com, carmd.com, us.bluedriver.com) are labelled USD and are not compared with CAD figures.
 
 ### A.3 Gauge taxonomy (from `ca_common.GAUGE_CLASSES` / `GAUGE_SUBTYPE_LABELS`; first matching rule wins, ASIN map overrides)
@@ -329,3 +570,18 @@ Mirrors `ca_market_reports/memo/sources_202609.csv` (one row per claim; all acce
 - `ca_market_reports/build_gauge_report.py`: builds `CA_OBD_Gauge_Competitor_Report_<month>.xlsx` (and the US benchmark sheets).
 - `ca_market_reports/build_ca_code_reader_report.py`: builds `CA_Code_Reader_Competitor_Report_<month>.xlsx` and `CA_Code_Reader_Analysis_<month>.xlsx` (the Model-B dongle proxy).
 - `ca_market_reports/validate_outputs.py`: runs the `ca_common.VALIDATION_CHECKS` suite. V20 checks that every memo number tagged `[WB: file!sheet!cell]` equals its cell (exact for counts, ±1 for rounded money, ±0.001 for shares) and that every `[SRC:]` url is in the sources CSV.
+
+### A.5 Workbook files and the sheets each section cites
+
+Drafts read with openpyxl (read-only) from `tmp/ca_scratch/draft/` of the integration worktree:
+
+| File | Sheets cited | Sections |
+|---|---|---|
+| `CA_OBD_Gauge_Competitor_Report_202609.xlsx` | Summary, Top 50, Innova, Bully Dog | 0, 2, 3, 5, 6.2, 7 |
+| `CA_OBD_Gauge_Competitor_Report_202609.xlsx` | Price Ladder (Model A), Feature Matrix (Model A) | 2.3, 5, 7 |
+| `CA_OBD_Gauge_Competitor_Report_202609.xlsx` | App-Gauge Proxy (Model B) | 0, 6.2, 7 |
+| `CA_OBD_Gauge_Competitor_Report_202609.xlsx` | US Benchmark, US vs CA Same-ASIN | 2.1, 2.2, 3, 5 |
+| `US_OBD_Gauge_Competitor_Report_202609.xlsx` | Summary, Top 50 | 0, 3 |
+| `CA_Code_Reader_Competitor_Report_202609.xlsx` | Summary (Innova and total listing rows); Innova tab (seller and fulfilment text only) | 6.2 |
+| `CA_Code_Reader_Analysis_202609.xlsx` | not cited; its Total Dongle tab matches the Model-B universe | — |
+| `runs_draft/202609/gauge_decisions_CA_gauge_202609.csv` | context only: confirms which live ASINs are absent from the union | 2.4, 8.3 |
