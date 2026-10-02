@@ -374,11 +374,11 @@ def derive_data(a: argparse.Namespace) -> Data:
     if a.from_normalized:
         ca = X.dataset_from_normalized(X.read_normalized_csv(a.from_normalized), "CA", a.month)
         us = X.dataset_from_normalized(X.read_normalized_csv(a.us_from_normalized), "US", a.month) if a.us_from_normalized else None
-        ca_u, _, fa_ca = GB.gauge_union(ca, preclassified=True, gauge_map_path=gauge_map, runs_dir=a.runs_dir, rederive=False)
+        ca_u, _, fa_ca = GB.gauge_union_with_flags(ca, preclassified=True, gauge_map_path=gauge_map, runs_dir=a.runs_dir, rederive=False)
         fuel_absent = {"CA": fa_ca}
         us_u = None
         if us is not None:
-            us_u, _, fuel_absent["US"] = GB.gauge_union(us, preclassified=True, gauge_map_path=gauge_map, runs_dir=a.runs_dir,
+            us_u, _, fuel_absent["US"] = GB.gauge_union_with_flags(us, preclassified=True, gauge_map_path=gauge_map, runs_dir=a.runs_dir,
                                                         rederive=False)
         cr = CRB.prepare_cr_frame(ca.code_reader)
         frames = {"CA normalized": X.read_normalized_csv(a.from_normalized)}
