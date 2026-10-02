@@ -311,21 +311,21 @@ Mirrors `ca_market_reports/memo/sources_202609.csv` (one row per claim; all acce
 
 ### A.3 Gauge taxonomy (from `ca_common.GAUGE_CLASSES` / `GAUGE_SUBTYPE_LABELS`; first matching rule wins, ASIN map overrides)
 
-| Code | Class | Label | Role |
+| Code | Class | Label | Scope (workbook / device totals) |
 |---|---|---|---|
-| XN | excluded_non_gauge | Excluded - not a gauge | excluded |
-| XD | excluded_app_dongle | Excluded - app dongle | excluded |
-| AC | gauge_accessory | Gauge accessory | in scope, accessory section |
-| TD | tuner_with_gauge_display | Tuner with gauge display | device (Lordco-type) |
-| TM | truck_gauge_monitor | Truck gauge monitor | device (Lordco-type) |
-| HG | obd_gps_hud | OBD+GPS HUD | device |
-| HO | obd_hud | OBD HUD | device |
-| GH | gps_hud | GPS-only HUD (adjacent) | adjacent, excluded from OBD totals |
-| GD | gauge_display | Gauge display | device |
-| AMB | ambiguous | Ambiguous - needs review | review queue / Excluded tab |
+| XN | excluded_non_gauge | Excluded - not a gauge | neither (Excluded tab) |
+| XD | excluded_app_dongle | Excluded - app dongle | neither (Excluded tab) |
+| AC | gauge_accessory | Gauge accessory | workbook only (accessory section) |
+| TD | tuner_with_gauge_display | Tuner with gauge display | workbook + device (Lordco-type) |
+| TM | truck_gauge_monitor | Truck gauge monitor | workbook + device (Lordco-type) |
+| HG | obd_gps_hud | OBD+GPS HUD | workbook + device |
+| HO | obd_hud | OBD HUD | workbook + device |
+| GH | gps_hud | GPS-only HUD (adjacent) | workbook only (adjacent; excluded from OBD device totals) |
+| GD | gauge_display | Gauge display | workbook + device |
+| AMB | ambiguous | Ambiguous - needs review | neither (review queue + Excluded tab) |
 
 ### A.4 Scripts
 
 - `ca_market_reports/build_gauge_report.py`: builds `CA_OBD_Gauge_Competitor_Report_<month>.xlsx` (and the US benchmark sheets).
 - `ca_market_reports/build_ca_code_reader_report.py`: builds `CA_Code_Reader_Competitor_Report_<month>.xlsx` and `CA_Code_Reader_Analysis_<month>.xlsx` (the Model-B dongle proxy).
-- `ca_market_reports/validate_outputs.py`: checks V01–V20, including V20 (every `[WB: file!sheet!cell]` in this memo resolves and matches within ±0.5%).
+- `ca_market_reports/validate_outputs.py`: runs the `ca_common.VALIDATION_CHECKS` suite. V20 checks that every memo number tagged `[WB: file!sheet!cell]` equals its cell (exact for counts, ±1 for rounded money, ±0.001 for shares) and that every `[SRC:]` url is in the sources CSV.
