@@ -565,7 +565,7 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path) -> Path:
         ccy = C.MARKETS[mk].currency
         cols += [Col(f"{mk} # ASINs", f"{mk}_n", "int"), Col(f"{mk} Monthly Rev ({ccy})", f"{mk}_rev", "money", market=mcol(mk)),
                  Col(f"{mk} Monthly Units", f"{mk}_units", "int"), Col(f"{mk} Rev share", f"{mk}_share", "pct")]
-    tr = put(ws, spec("Summary", "subtype_mix", T["subtypes"], cols, rows, total, flt="gauge_device_scope"), X.table_end(tr_b) + 3)
+    tr = tr_sub = put(ws, spec("Summary", "subtype_mix", T["subtypes"], cols, rows, total, flt="gauge_device_scope"), X.table_end(tr_b) + 3)
     # Price tier × sub-type per market (core devices)
     for key, mk in (("tier_ca", "CA"), ("tier_us", "US")):
         ccy, co = C.MARKETS[mk].currency, core[mk]
@@ -595,16 +595,24 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path) -> Path:
             d.update({f"{mk}_n": int(co.loc[m, "asin"].nunique()), f"{mk}_rev": float(co.loc[m, "revenue_month"].sum()),
                       f"{mk}_units": float(co.loc[m, "units_month"].sum())})
         return d
-    rows = []
+    # one label column: "<fuel> — subtotal", then that fuel's sub-type rows with >= 1 ASIN in either market
+    rows, sub_idx = [], []
     for f in FUELS:
-        rows.append(fuel_vals({"fuel": f, "label": "Subtotal"}, f, None))
-        rows += [fuel_vals({"fuel": f, "label": C.GAUGE_SUBTYPE_LABELS[cls]}, f, cls) for cls in C.GAUGE_DEVICE_CLASSES]
-    cols = [Col("Fuel scope", "fuel", "text", 16), Col("Sub-type", "label", "text", 28)]
+        sub_idx.append(len(rows))
+        rows.append(fuel_vals({"label": f"{f} — subtotal"}, f, None))
+        for cls in C.GAUGE_DEVICE_CLASSES:
+            d = fuel_vals({"label": C.GAUGE_SUBTYPE_LABELS[cls]}, f, cls)
+            if d["CA_n"] + d["US_n"] >= 1:
+                rows.append(d)
+    cols = [Col("Fuel / Sub-type", "label", "text", 28)]
     for mk in ("CA", "US"):
         cols += [Col(f"{mk} # ASINs", f"{mk}_n", "int"), Col(f"{mk} Rev", f"{mk}_rev", "money", market=mcol(mk)),
                  Col(f"{mk} Units", f"{mk}_units", "int")]
-    put(ws, spec("Summary", "subtype_mix", T["fuel"], cols, rows, fuel_vals({"fuel": C.TOTAL_ROW_LABEL}, None, None),
-                 flt="core devices; fuel_scope in FEATURE_FUEL_SCOPE"), X.table_end(tr) + 3)
+    tr_f = put(ws, spec("Summary", "subtype_mix", T["fuel"], cols, rows, fuel_vals({"label": C.TOTAL_ROW_LABEL}, None, None),
+                        flt="core devices, both markets; fuel_scope in FEATURE_FUEL_SCOPE"), X.table_end(tr) + 3)
+    extras = {id(tr_f): {"subtotal_rows": [tr_f.first_data_row + i for i in sub_idx]},
+              id(tr_sub): {"excluded_from_total_rows": [tr_sub.last_data_row]},
+              id(tr_b): {"column_markets": [None] + [cbm for mk in ("CA", "US") for cbm in [mk] * 5]}}
     # Top 50 CA / Top 50 US
     for mk in ("CA", "US"):
         ws = book.sheet(f"Top 50 {mk}")
@@ -638,8 +646,8 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path) -> Path:
         ws = book.sheet(name)
         X.write_sheet_header(ws, f"{disp[key]} — CA + US core gauge devices", None, 3)
         flt = f"core devices & brand_key == {key!r}"
-        for i, (label, kind) in enumerate((("Monthly Rev", "money"), ("Monthly Units", "int"), ("# of Listings", "int"),
-                                           ("Monthly Rev Market Share %", "pct"))):
+        for i, (label, kind) in enumerate((("Monthly Rev (CAD | USD)", "money"), ("Monthly Units", "int"), ("# of Listings", "int"),
+                                           ("Rev share within market", "pct"))):
             X.set_text(ws.cell(3 + i, 1), label)
             for j, mk in enumerate(("CA", "US")):
                 rows_ = core[mk][core[mk]["brand_key"] == key]
@@ -667,6 +675,10 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path) -> Path:
     G._feature_matrix(book, cc)
     G._modelb(book, cc)
     G._same_asin(book, cc)
+    tr_sa = book.tables[-1]
+    assert tr_sa.role == "same_asin", tr_sa.role
+    extras[id(tr_sa)] = {"column_markets": [h[-2:] if h in ("Link CA", "Link US") else h[:2] if h[:3] in ("CA ", "US ") else None
+                                            for h in tr_sa.columns]}
     # All Products / Dedupe & Classification Audit / Excluded: "<Sheet> — CA" then "<Sheet> — US"
     ws = book.sheet("All Products")
     r = 1
@@ -709,7 +721,7 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path) -> Path:
     book.save(path)
     reg = {"market": "CAUS", "month": MONTH,
            "workbooks": {COMBINED: {"sheets": book.sheetnames, "brand_sheet_map": dict(book.brand_sheet_map)}},
-           "tables": [t.to_registry(COMBINED, book.brand_sheet_map) for t in book.tables]}
+           "tables": [{**t.to_registry(COMBINED, book.brand_sheet_map), **extras.get(id(t), {})} for t in book.tables]}
     rp = C.run_file(runs_dir, MONTH, "table_registry", "CAUS", "json")
     rp.parent.mkdir(parents=True, exist_ok=True)
     rp.write_text(json.dumps(reg, indent=1, ensure_ascii=False), encoding="utf-8")
@@ -880,7 +892,7 @@ class CombinedWorkbookTest(unittest.TestCase):
         ws = wb["Summary"]
         fuel = _Combined.table(title=T["fuel"][0])
         sub_r = next(r for r in range(fuel["first_data_row"], fuel["last_data_row"] + 1)
-                     if ws.cell(r, fuel["first_col"]).value == "diesel-capable" and ws.cell(r, fuel["first_col"] + 1).value == "Subtotal")
+                     if ws.cell(r, fuel["first_col"]).value == "diesel-capable — subtotal")
         c = ws.cell(sub_r, fuel["first_col"] + fuel["columns"].index("US Units"))
         c.value = c.value + 1
         kf = _Combined.table(title=T["key_figures"][0])
@@ -911,6 +923,40 @@ class CombinedWorkbookTest(unittest.TestCase):
         self.assertIn("2 problem(s)", ev12)       # Key figures + Innova B4
         self.assertEqual(st["V01"][0], "PASS", st["V01"])
         self.assertEqual(st["V05"][0], "PASS", st["V05"])   # the adjacent row is outside the share sum
+
+    def test_fuel_leaf_rows_and_registry_extras_are_checked(self):
+        d = tampered_copy("tamper_fuel_leaf")
+        runs = CMB_ROOT / "tamper_fuel_leaf_runs"
+        if runs.exists():
+            shutil.rmtree(runs)
+        shutil.copytree(RUNS, runs)
+        T = C.COMBINED_SUMMARY_TITLES
+        fuel = _Combined.table(title=T["fuel"][0])
+        wb = load_workbook(d / COMBINED)
+        ws = wb["Summary"]
+        labels = {r: ws.cell(r, fuel["first_col"]).value for r in range(fuel["first_data_row"], fuel["last_data_row"] + 1)}
+        sub_r = next(r for r, v in labels.items() if v == "diesel-capable — subtotal")
+        leaf_r = sub_r + 1                                  # the first sub-type row of the diesel-capable group
+        self.assertIn(labels[leaf_r], {C.GAUGE_SUBTYPE_LABELS[c] for c in C.GAUGE_DEVICE_CLASSES})
+        c = ws.cell(leaf_r, fuel["first_col"] + fuel["columns"].index("US # ASINs"))
+        c.value = c.value + 1
+        wb.save(d / COMBINED)
+        rp = C.run_file(runs, MONTH, "table_registry", "CAUS", "json")
+        reg = json.loads(rp.read_text(encoding="utf-8"))
+        for e in reg["tables"]:
+            if e["title"] == T["fuel"][0]:
+                e["subtotal_rows"] = e["subtotal_rows"][1:]
+            if e["title"] == T["subtypes"][0]:
+                e["excluded_from_total_rows"] = []
+        rp.write_text(json.dumps(reg, indent=1, ensure_ascii=False), encoding="utf-8")
+        rc, st = self._run(d, runs=runs)
+        self.assertEqual(rc, 1)
+        st9, ev9 = st["V09"]
+        self.assertEqual(st9, "FAIL", ev9)
+        self.assertIn("3 problem(s)", ev9)
+        self.assertIn(f"{COMBINED}!Summary/subtype_mix[{T['fuel'][0]}] row {leaf_r} 'US # ASINs'", ev9)
+        self.assertIn("registry subtotal_rows", ev9)
+        self.assertIn("registry excluded_from_total_rows []", ev9)
 
     def test_combined_header_rules(self):
         probs = V.combined_header_problems
