@@ -6,9 +6,10 @@
     US vs CA Same-ASIN, All Products, Dedupe & Classification Audit, Excluded, Source & Method, Metadata
 
 Same numbers as the two single-market gauge workbooks, by construction:
-  * each market goes through build_gauge_report's own path (code_reader_totals, gauge_union_with_flags -> the same loader,
-    classifier, maps and frozen decisions of runs/<m>, replayed with unchanged freeze semantics; modelb_universe and
-    read_app_feature_matrix for CA);
+  * each market goes through the single-market path READ-ONLY: ca_load.load_month(freeze=False, replay_read_only=True)
+    and build_gauge_report.gauge_union_read_only replay the frozen decisions of runs/<m> exactly as the single-market
+    builds froze them, write NO decision file, and raise (COMBINED_FROZEN_MSG) when a decision is missing or would be
+    rewritten — build the single-market gauge workbooks first; modelb_universe and read_app_feature_matrix for CA;
   * every table this workbook repeats from a single-market workbook (Top 50, Innova hardware, All Products, Excluded, Dedupe
     audit, Read Me taxonomy, Source & Method text, Metadata values, brand-tab qualification) is produced by build_gauge_report's
     own sheet writer, run into a throw-away recorder book, and re-laid here (never re-implemented); the Model A/B and
@@ -37,9 +38,12 @@ from openpyxl.worksheet.worksheet import Worksheet
 from ca_market_reports import build_gauge_report as G
 from ca_market_reports import ca_common as C
 from ca_market_reports import ca_xlsx_style as X
+from ca_market_reports.ca_load import FrozenDecisionError
 from ca_market_reports.ca_xlsx_style import ColumnSpec as Col, TableRange, TableSpec
 
 REGISTRY_SCOPE = "CAUS"                     # runs/<m>/table_registry_CAUS_<m>.json
+COMBINED_FROZEN_MSG = ("combined build requires complete, unchanged frozen decisions for CA and US — rebuild the "
+                       "single-market gauge workbooks first (build_gauge_report.py --market US/CA)")
 MARKET_CODES: tuple[str, str] = C.COMBINED_MARKETS
 if MARKET_CODES != ("CA", "US"):
     raise AssertionError(f"combined workbook expects markets ('CA', 'US'), ca_common has {MARKET_CODES}")
@@ -247,13 +251,18 @@ def _fills(ws: Worksheet, book: CombinedBook, tr: TableRange, *, data: bool) -> 
 # --------------------------------------------------------------------------------------
 # Market contexts (build_gauge_report's own path)
 # --------------------------------------------------------------------------------------
-def market_context(ds: C.CaDataset, *, preclassified: bool, gauge_map: Path, runs_dir: Path, rederive: bool) -> G.GCtx:
-    """build_gauge_workbook's context for one market: FULL code-reader totals first, then the union through
-    gauge_union_with_flags (candidate pre-filter for US, union, classify with the frozen prior, freeze/replay)."""
+def market_context(ds: C.CaDataset, *, preclassified: bool, gauge_map: Path, runs_dir: Path) -> G.GCtx:
+    """build_gauge_workbook's context for one market: FULL code-reader totals first, then the union. Loader path:
+    build_gauge_report.gauge_union_read_only (same pre-filter, union and classification with the frozen decisions as
+    prior; nothing is frozen; incomplete/changed decisions raise). Dev path (normalized, already classified frames):
+    gauge_union_with_flags(preclassified=True), which reads and writes no decision file."""
     market = C.MARKETS[ds.market]
     cr_totals = G.code_reader_totals(ds.code_reader, ds.market)
-    u, notes, fuel_absent = G.gauge_union_with_flags(ds, preclassified=preclassified, gauge_map_path=gauge_map, runs_dir=runs_dir,
-                                                     rederive=rederive)
+    if preclassified:
+        u, notes, fuel_absent = G.gauge_union_with_flags(ds, preclassified=True, gauge_map_path=gauge_map, runs_dir=runs_dir,
+                                                         rederive=False)
+    else:
+        u, notes, fuel_absent = G.gauge_union_read_only(ds, gauge_map_path=gauge_map, runs_dir=runs_dir)
     return G.GCtx(ds=ds, market=market, u=u, notes=notes, month=ds.month, mon=X.month_label(ds.month),
                   sub=X.subtitle_text(market, ds.export_dates, ds.month), ccy=market.currency, cr_totals=cr_totals,
                   fuel_absent=fuel_absent)
@@ -810,14 +819,28 @@ def decision_files(runs_dir: Path, month: str) -> list[Path]:
     return [p for p in paths if p.exists()]
 
 
+def frozen_or_fail(fn: Callable[..., Any], *args, **kw) -> Any:
+    """Run a read-only replay step; incomplete/changed frozen decisions -> RuntimeError(COMBINED_FROZEN_MSG, ASINs)."""
+    try:
+        return fn(*args, **kw)
+    except FrozenDecisionError as exc:
+        asins = [a for _, a, _ in exc.problems][:10]
+        raise RuntimeError(f"{COMBINED_FROZEN_MSG}. {exc}. Offending ASINs (first 10): {', '.join(asins)}") from exc
+
+
 def build_combined_gauge_workbook(ca: C.CaDataset, us: C.CaDataset, out_dir: Path, *, overwrite: bool, dated_copy: bool,
                                   runs_dir: Path = C.RUNS_DIR, gauge_map: Path = G.GAUGE_MAP_DEFAULT,
                                   app_feature_matrix: Path = G.APP_FEATURE_MATRIX_DEFAULT, input_paths: Sequence[Path] = (),
-                                  app_gauge_brands: Path = G.APP_GAUGE_BRANDS_DEFAULT, rederive: bool = False) -> Path:
+                                  app_gauge_brands: Path = G.APP_GAUGE_BRANDS_DEFAULT) -> Path:
     """Build CA_US_OBD_Gauge_Competitor_Report_<m>.xlsx in out_dir; returns its path (a dated copy, when asked, sits next to it).
 
-    Both datasets must come from the same input mode: normalized frames (dev/fixture; already classified) or the loader
-    (union/classify/freeze through build_gauge_report.gauge_union_with_flags, replaying runs/<m> unless rederive)."""
+    READ-ONLY with respect to every decision file of runs/<m>: nothing is frozen, merged or rewritten (no
+    freeze_gauge_decisions, no type-review merge). Both datasets must come from the same input mode: normalized frames
+    (dev/fixture; already classified, no decision file read) or the loader, loaded with
+    ca_load.load_month(freeze=False, replay_read_only=True); the gauge decisions are then replayed read-only
+    (build_gauge_report.gauge_union_read_only). Incomplete or changed frozen decisions raise RuntimeError
+    (COMBINED_FROZEN_MSG) naming the ASINs. The decision files are still hashed into the manifest as inputs; the
+    registry JSON (not a decision file) is written to runs/<m>."""
     if (ca.market, us.market) != MARKET_CODES:
         raise ValueError(f"datasets must be CA and US, got {ca.market!r} and {us.market!r}")
     if ca.month != us.month:
@@ -830,8 +853,12 @@ def build_combined_gauge_workbook(ca: C.CaDataset, us: C.CaDataset, out_dir: Pat
     name = C.combined_gauge_report_name(month)
     if not overwrite and (out_dir / name).exists():
         raise FileExistsError(f"{out_dir / name} exists; pass --overwrite (the old file is backed up)")
-    c_ca = market_context(ca, preclassified=pre, gauge_map=gauge_map, runs_dir=runs_dir, rederive=rederive)
-    c_us = market_context(us, preclassified=pre, gauge_map=gauge_map, runs_dir=runs_dir, rederive=rederive)
+    c_ca = frozen_or_fail(market_context, ca, preclassified=pre, gauge_map=gauge_map, runs_dir=runs_dir)
+    c_us = frozen_or_fail(market_context, us, preclassified=pre, gauge_map=gauge_map, runs_dir=runs_dir)
+    if pre:
+        print("combined: normalized frames (already classified); no decision file read or written")
+    else:
+        print(f"combined: decisions replayed read-only (CA n={len(c_ca.u)}, US n={len(c_us.u)})")
     c_ca.modelb = G.modelb_universe(ca, app_gauge_brands)
     c_ca.app_matrix, c_ca.app_matrix_path = G.read_app_feature_matrix(app_feature_matrix), Path(app_feature_matrix)
     c_ca.bu = c_us.u                       # US vs CA Same-ASIN (the CA workbook's benchmark join)
@@ -845,8 +872,7 @@ def build_combined_gauge_workbook(ca: C.CaDataset, us: C.CaDataset, out_dir: Pat
         shutil.copyfile(path, dp)
         outputs.append(dp)
     reg_path = write_registry(book, runs_dir, month)
-    G.write_conflict_review(c_ca.u, "CA", month, runs_dir)      # same merge as the CA gauge build (V17); a no-op when already merged
-    extra = ([] if pre else [Path(gauge_map), Path(app_gauge_brands)]) + [Path(app_feature_matrix)]
+    extra =([] if pre else [Path(gauge_map), Path(app_gauge_brands)]) + [Path(app_feature_matrix)]
     decisions = [] if pre else decision_files(runs_dir, month)
     inputs = X.input_hashes(list(input_paths) + extra + sorted(C.MAPS_DIR.glob("*.csv")) + decisions)
     man_path = X.write_manifest(out_dir, month, outputs, inputs)
@@ -868,7 +894,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
                    help="app feature matrix CSV (ca_common.APP_FEATURE_MATRIX_COLUMNS) for App-Gauge Proxy (Model B)")
     p.add_argument("--runs-dir", type=Path, help="frozen run decisions + registry (default ca_market_reports/runs)")
     p.add_argument("--overwrite", action="store_true", help="replace an existing output (old file moved to _backup/)")
-    p.add_argument("--rederive", action="store_true", help="re-derive decisions instead of replaying frozen ones (as the single builders)")
+    p.add_argument("--rederive", action="store_true",
+                   help="refused: the combined build is read-only with respect to decision files (rederive the single-market builds)")
     p.add_argument("--dated-copy", action="store_true", help="also write <name>_<YYYYMMDD>.xlsx")
     p.add_argument("--from-normalized", type=Path, help="DEV: CA normalized, already-classified CSV (fixtures)")
     p.add_argument("--us-from-normalized", type=Path, help="DEV: US normalized, already-classified CSV (fixtures)")
@@ -880,8 +907,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     raw = [f for f in ("ca_gauge_raw_dir", "ca_cr_raw_dir", "us_gauge_raw_dir", "us_cr_raw_dir") if getattr(a, f) is not None]
     if a.from_normalized and raw:
         p.error(f"dev (--from-normalized) and loader inputs are never mixed: drop {', '.join('--' + f.replace('_', '-') for f in raw)}")
-    if a.from_normalized and a.rederive:
-        p.error("--rederive needs the loader path (normalized frames are already classified)")
+    if a.rederive:
+        p.error("--rederive is refused: the combined build never rewrites decisions; rederive with build_gauge_report.py "
+                "--market CA/US, then rebuild the combined workbook")
     return a
 
 
@@ -903,16 +931,16 @@ def main(argv: list[str] | None = None) -> int:
         mca, mus = C.MARKETS["CA"], C.MARKETS["US"]
         ca_cr, ca_g = a.ca_cr_raw_dir or mca.cr_raw_dir(a.month), a.ca_gauge_raw_dir or mca.gauge_raw_dir(a.month)
         us_cr, us_g = a.us_cr_raw_dir or mus.cr_raw_dir(a.month), a.us_gauge_raw_dir or mus.gauge_raw_dir(a.month)
-        ca = load_month("CA", a.month, cr_raw_dir=ca_cr, gauge_raw_dir=ca_g, gauge_map=a.gauge_map, runs_dir=runs_dir,
-                        assign_types=True, rederive=a.rederive)
+        # read-only replay of the frozen dedupe / brand-recovery / type decisions: nothing is written to runs/<m>
+        ca = frozen_or_fail(load_month, "CA", a.month, cr_raw_dir=ca_cr, gauge_raw_dir=ca_g, gauge_map=a.gauge_map,
+                            runs_dir=runs_dir, assign_types=True, freeze=False, replay_read_only=True)
         inputs = X.raw_input_files(ca, X.loader_raw_dirs("CA", a.month, ca_cr, ca_g)) + [C.US_TYPE_MAP_DEFAULT]
-        us = load_month("US", a.month, cr_raw_dir=us_cr, gauge_raw_dir=us_g, gauge_map=a.gauge_map, runs_dir=runs_dir,
-                        assign_types=False, rederive=a.rederive)
+        us = frozen_or_fail(load_month, "US", a.month, cr_raw_dir=us_cr, gauge_raw_dir=us_g, gauge_map=a.gauge_map,
+                            runs_dir=runs_dir, assign_types=False, freeze=False, replay_read_only=True)
         inputs += X.raw_input_files(us, X.loader_raw_dirs("US", a.month, us_cr, us_g))
         out_dir = a.out_dir or mca.gauge_out_dir()
     path = build_combined_gauge_workbook(ca, us, out_dir, overwrite=a.overwrite, dated_copy=a.dated_copy, runs_dir=runs_dir,
-                                         gauge_map=a.gauge_map, app_feature_matrix=a.app_feature_matrix, input_paths=inputs,
-                                         rederive=a.rederive)
+                                         gauge_map=a.gauge_map, app_feature_matrix=a.app_feature_matrix, input_paths=inputs)
     print(f"wrote {path}")
     return 0
 

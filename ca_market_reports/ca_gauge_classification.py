@@ -551,3 +551,36 @@ def freeze_gauge_decisions(df: pd.DataFrame, runs_dir: Path, month: str, market:
     path.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(path, index=False)
     return out
+
+
+def gauge_decision_drift(df: pd.DataFrame, frozen: pd.DataFrame, month: str, market: str) -> dict[str, list[str]]:
+    """Read-only twin of freeze_gauge_decisions(rederive=False) (additive; the combined CA + US workbook): what that freeze
+    WOULD change for the classified frame `df` against the frozen decision table `frozen` — never writes anything.
+
+    Returns {"unfrozen": ASINs without a frozen row (freeze would append them),
+             "map_rewrites": ASINs whose MAP decision differs from the frozen row (freeze would rewrite them)}, sorted.
+    A malformed frozen table (columns, another month/market, duplicate ASINs) raises as in freeze_gauge_decisions."""
+    if not MONTH_RE.match(str(month)):
+        raise ValueError(f"invalid month {month!r}")
+    _require(df, ("asin", "gauge_class", "gauge_rule_id"))
+    missing = [c for c in GAUGE_DECISIONS_COLUMNS if c not in frozen.columns]
+    if missing:
+        raise ValueError(f"frozen gauge decisions: missing columns {missing}")
+    bad = frozen[(frozen["month"] != month) | (frozen["market"] != market)]
+    if not bad.empty:
+        raise ValueError(f"frozen gauge decisions: rows for another month/market ({len(bad)} rows)")
+    if frozen["asin"].duplicated().any():
+        raise ValueError(f"frozen gauge decisions: duplicate asin rows {sorted(frozen.loc[frozen['asin'].duplicated(), 'asin'])[:5]}")
+    old_by_asin = {_str(r["asin"]).upper(): r for _, r in frozen.iterrows()}
+    unfrozen, rewrites, seen = [], [], set()
+    for _, r in df.iterrows():
+        asin = _str(r["asin"]).upper()
+        if asin in seen:
+            raise ValueError(f"drift: duplicate asin {asin} in frame")
+        seen.add(asin)
+        old = old_by_asin.get(asin)
+        if old is None:
+            unfrozen.append(asin)
+        elif r["gauge_rule_id"] == "MAP" and (old["gauge_class"] != r["gauge_class"] or old["gauge_rule_id"] != "MAP"):
+            rewrites.append(asin)
+    return {"unfrozen": sorted(unfrozen), "map_rewrites": sorted(rewrites)}

@@ -237,6 +237,54 @@ def gauge_union_with_flags(ds: C.CaDataset, *, preclassified: bool, gauge_map_pa
     return u, notes, fuel_absent
 
 
+def assemble_union_read_only(ds: C.CaDataset, gauge_map_path: Path, runs_dir: Path) -> pd.DataFrame:
+    """Read-only twin of _assemble_union_from_loader (additive; the combined CA + US workbook): the same candidate
+    pre-filter (US), union and classification with the frozen gauge decisions as prior, but NOTHING is frozen or written.
+    A missing decision file, a union ASIN without a frozen decision, or a map decision that differs from its frozen row
+    (exactly the cases freeze_gauge_decisions would append / rewrite) raises ca_load.FrozenDecisionError."""
+    from ca_market_reports.ca_load import FrozenDecisionError, union_gauge_frames  # ASSEMBLY: ca_load
+    from ca_market_reports.ca_gauge_classification import candidate_mask, classify_gauges, gauge_decision_drift  # ASSEMBLY
+
+    if ds.gauge_set is None:
+        raise ValueError(f"{ds.market} gauge workbook needs the gauge export (dataset.gauge_set is None)")
+    gauge_map_df = read_gauge_map(gauge_map_path)
+    cr = ds.code_reader
+    if ds.market == "US":
+        cr = cr[candidate_mask(cr, gauge_map_df)].copy()
+    audit_rows: list[dict] = []
+    union = union_gauge_frames(cr, ds.gauge_set, audit_rows)
+    if audit_rows:
+        ds.audits["dedupe_audit"] = pd.concat([ds.audits["dedupe_audit"], pd.DataFrame(audit_rows, columns=list(C.DEDUPE_AUDIT_COLUMNS))],
+                                              ignore_index=True)
+    prior_path = C.run_file(Path(runs_dir), ds.month, "gauge_decisions", f"{ds.market}_gauge")
+    if not prior_path.exists():
+        raise FrozenDecisionError(ds.market, ds.month, [(f"gauge_decisions[{ds.market}_gauge]", "*", f"no frozen file {prior_path}")])
+    prior = pd.read_csv(prior_path, dtype=str, keep_default_na=False)
+    union = classify_gauges(union, gauge_map_df, prior, month=ds.month)
+    drift = gauge_decision_drift(union, prior, ds.month, ds.market)
+    tag = f"gauge_decisions[{ds.market}_gauge]"
+    problems = ([(tag, a, "no frozen decision (freeze would append it)") for a in drift["unfrozen"]]
+                + [(tag, a, "map decision differs from the frozen row (freeze would rewrite it)") for a in drift["map_rewrites"]])
+    if problems:
+        raise FrozenDecisionError(ds.market, ds.month, problems)
+    return union
+
+
+def gauge_union_read_only(ds: C.CaDataset, *, gauge_map_path: Path, runs_dir: Path) -> tuple[pd.DataFrame, list[str], bool]:
+    """gauge_union_with_flags for the loader path, read-only (assemble_union_read_only): (enriched union, notes, fuel_absent)."""
+    notes: list[str] = []
+    union = assemble_union_read_only(ds, gauge_map_path, runs_dir)
+    if union["asin"].duplicated().any():
+        raise ValueError(f"duplicate ASINs after the union: {union.loc[union['asin'].duplicated(), 'asin'].tolist()[:10]}")
+    fuel_absent = "fuel_scope" not in union.columns
+    u = enrich_union(union, C.MARKETS[ds.market], notes)
+    from ca_market_reports.ca_types import flag_type_conflicts  # ASSEMBLY: ca_types.flag_type_conflicts
+    u = flag_type_conflicts(u)
+    if fuel_absent:
+        notes.append("fuel_scope absent in the input: core devices are counted as 'unspecified' in the fuel split")
+    return u, notes, fuel_absent
+
+
 def read_app_gauge_brands(path: Path) -> pd.DataFrame:
     app = pd.read_csv(path, dtype=str, keep_default_na=False)
     X.require_columns(app, C.APP_GAUGE_BRANDS_COLUMNS, str(path))

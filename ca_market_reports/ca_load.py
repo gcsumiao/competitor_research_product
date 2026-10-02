@@ -437,19 +437,123 @@ def _replay_type_decisions(fresh: pd.DataFrame, overrides: dict[str, str], *, ma
 
 
 # --------------------------------------------------------------------------------------------------------------------
+# Read-only replay (additive; the combined CA + US gauge workbook): the frozen decisions are READ and applied exactly as
+# freeze=True / rederive=False would apply them, nothing is written, and every case in which that freeze would APPEND a
+# decision or REWRITE a frozen row is collected as a problem -> FrozenDecisionError.
+# --------------------------------------------------------------------------------------------------------------------
+class FrozenDecisionError(RuntimeError):
+    """A read-only replay found decisions a freeze would append or rewrite (frozen decisions incomplete or changed).
+    problems = [(stem, asin, reason), ...] in discovery order."""
+
+    def __init__(self, market: str, month: str, problems: list[tuple[str, str, str]]):
+        self.market, self.month, self.problems = market, month, list(problems)
+        first = "; ".join(f"{stem} {asin}: {why}" for stem, asin, why in self.problems[:10])
+        super().__init__(f"{market} {month}: {len(self.problems)} frozen decision(s) missing or changed (first 10: {first})")
+
+
+def _dedupe_drift_read_only(rows: list[dict], path: Path, stem_scope: str) -> list[tuple[str, str, str]]:
+    """What _freeze_dedupe_audit (rederive=False) would change: no file, a new key, or a changed winner."""
+    tag = f"dedupe_audit[{stem_scope}]"
+    if not path.exists():
+        return [(tag, "*", f"no frozen file {path.name}")]
+    old = _read_frozen(path, DEDUPE_AUDIT_COLUMNS)
+    old_by_key = {_dedupe_key(r): r for _, r in old.iterrows()}
+    out = []
+    for r in rows:
+        k = _dedupe_key(r)
+        fz = old_by_key.get(k)
+        if fz is None:
+            out.append((tag, str(r["asin"]), "no frozen dedupe row"))
+        elif (str(r["chosen_file"]), str(r["chosen_row"])) != (fz["chosen_file"], fz["chosen_row"]):
+            out.append((tag, str(r["asin"]), f"winner changed {fz['chosen_file']}:{fz['chosen_row']} -> {r['chosen_file']}:{r['chosen_row']}"))
+    return out
+
+
+def _replay_brand_recovery_read_only(frame: pd.DataFrame, vocabulary: set[str], display: dict[str, str], aliases: dict[str, str],
+                                     *, market: str, source_set: str, month: str,
+                                     runs_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, list[tuple[str, str, str]]]:
+    """_recover_and_freeze (freeze=True, rederive=False) without the write: (frame, audit, problems)."""
+    tag = f"brand_recovery[{market}_{source_set}]"
+    path = run_file(runs_dir, month, "brand_recovery", f"{market}_{source_set}")
+    if not path.exists():
+        out, audit = ca_brands.recover_generic_brands(frame, vocabulary, None, display=display, month=month)
+        return out, audit, [(tag, "*", f"no frozen file {path.name}")]
+    raw = _read_frozen(path, BRAND_RECOVERY_COLUMNS)
+    frozen = _read_frozen_brand_recovery(path, month, aliases, f"{market}/{source_set}")
+    out, audit = ca_brands.recover_generic_brands(frame, vocabulary, frozen, display=display, month=month)
+    applied = set(frozen["asin"]) & set(audit["asin"])
+    present = set(frame["asin"])
+    problems = [(tag, a, f"alias map rewrites the frozen new_brand {old!r} -> {new!r}")
+                for a, old, new in zip(raw["asin"], raw["new_brand"], frozen["new_brand"]) if old != new and a in applied]
+    problems += [(tag, a, "frozen decision no longer applies (would be removed)") for a in frozen["asin"]
+                 if a not in applied and a in present]
+    problems += [(tag, a, "no frozen decision (would be appended)") for a in audit["asin"] if a not in applied]
+    LOG.info("brand_recovery[%s/%s]: read-only replay, replayed=%d problems=%d", market, source_set, len(applied), len(problems))
+    return out, audit, problems
+
+
+def _replay_type_decisions_read_only(fresh: pd.DataFrame, overrides: dict[str, str], *, market: str, month: str, runs_dir: Path,
+                                     run_id: str) -> tuple[pd.DataFrame, pd.DataFrame, list[tuple[str, str, str]]]:
+    """_replay_type_decisions (freeze=True, rederive=False) without the write: (typed frame, decisions, problems).
+    A problem = no frozen file, an ASIN without a frozen decision, or an override map row that would rewrite it."""
+    tag = f"type_decisions[{market}_code_reader]"
+    current = _decisions_from(fresh, month, market, run_id)
+    path = run_file(runs_dir, month, "type_decisions", f"{market}_code_reader")
+    if not path.exists():
+        return fresh, current, [(tag, "*", f"no frozen file {path.name}")]
+    frozen = ca_types.read_type_decisions(path)
+    bad = frozen[(frozen["month"] != month) | (frozen["market"] != market)]
+    if len(bad):
+        raise ValueError(f"{path.name}: rows for another month/market: {bad[['month', 'market', 'asin']].head().to_dict('records')}")
+    fz_by_asin = {r["asin"]: r for _, r in frozen.iterrows()}
+    problems: list[tuple[str, str, str]] = []
+    final: dict[str, dict] = {}
+    for _, cur in current.iterrows():
+        asin = cur["asin"]
+        fz = fz_by_asin.get(asin)
+        ov = overrides.get(asin)
+        if fz is None:
+            problems.append((tag, asin, "no frozen decision (would be appended)"))
+            final[asin] = cur.to_dict()
+        elif ov is not None and (fz["type"] != ov or fz["type_source"] != "override"):
+            problems.append((tag, asin, f"override map {ov!r} would rewrite frozen {fz['type']}/{fz['type_source']}"))
+            final[asin] = cur.to_dict()
+        else:
+            final[asin] = fz.to_dict()
+    decisions = pd.DataFrame([final[a] for a in fresh["asin"]], columns=list(TYPE_DECISIONS_COLUMNS))
+    decisions["type_confidence"] = decisions["type_confidence"].astype(float)
+    decisions["type_conflict"] = decisions["type_conflict"].astype(bool)
+    out = fresh.copy()
+    for c in ("type", "type_source", "type_rule_id", "type_confidence", "type_conflict"):
+        out[c] = decisions[c].to_numpy()
+    out["type_confidence"] = out["type_confidence"].astype(float)
+    out["type_conflict"] = out["type_conflict"].astype(bool)
+    LOG.info("type_decisions[%s/code_reader]: read-only replay, replayed=%d problems=%d", market, len(current) - len(problems),
+             len(problems))
+    return out, decisions, problems
+
+
+# --------------------------------------------------------------------------------------------------------------------
 # Public API
 # --------------------------------------------------------------------------------------------------------------------
 def load_month(market: str, month: str, *, cr_raw_dir: Path | None = None, gauge_raw_dir: Path | None = None,
                us_type_map: Path | None = US_TYPE_MAP_DEFAULT, type_map: Path = MAPS_DIR / "ca_type_overrides.csv",
                gauge_map: Path = MAPS_DIR / "ca_gauge_map.csv", runs_dir: Path = RUNS_DIR, assign_types: bool = True,
-               rederive: bool = False, freeze: bool = True) -> CaDataset:
+               rederive: bool = False, freeze: bool = True, replay_read_only: bool = False) -> CaDataset:
     """Load one market/month (see module docstring).
 
     cr_raw_dir / gauge_raw_dir default to MARKETS[market].cr_raw_dir(month) / .gauge_raw_dir(month). When the DEFAULT
     gauge dir does not exist the gauge set is None (logged); an explicitly passed dir that does not exist raises.
     gauge_map is accepted for interface stability; gauge classification (ca_gauge_classification) reads it, the
     loader does not. US + assign_types raises ValueError (US Type assignment is out of scope).
+
+    replay_read_only (additive; needs freeze=False, rederive=False): the frozen dedupe / brand-recovery / type decisions
+    of runs/<m> are read and replayed exactly as freeze=True would replay them, and NOTHING is written; when that freeze
+    would append a decision or rewrite a frozen row (incomplete or changed decisions) FrozenDecisionError is raised.
     """
+    if replay_read_only and (freeze or rederive):
+        raise ValueError("replay_read_only needs freeze=False and rederive=False (a read-only replay never writes or rederives)")
+    problems: list[tuple[str, str, str]] = []
     if market not in MARKETS:
         raise ValueError(f"unknown market {market!r}; expected one of {sorted(MARKETS)}")
     if not isinstance(month, str) or not MONTH_RE.match(month):
@@ -481,6 +585,11 @@ def load_month(market: str, month: str, *, cr_raw_dir: Path | None = None, gauge
         _freeze_dedupe_audit(cr_audit, run_file(runs_dir, month, "dedupe_audit", f"{market}_code_reader"), rederive)
         if g is not None:
             _freeze_dedupe_audit(g_audit, run_file(runs_dir, month, "dedupe_audit", f"{market}_gauge"), rederive)
+    elif replay_read_only:
+        problems += _dedupe_drift_read_only(cr_audit, run_file(runs_dir, month, "dedupe_audit", f"{market}_code_reader"),
+                                            f"{market}_code_reader")
+        if g is not None:
+            problems += _dedupe_drift_read_only(g_audit, run_file(runs_dir, month, "dedupe_audit", f"{market}_gauge"), f"{market}_gauge")
 
     # brands
     aliases = ca_brands.load_aliases(BRAND_ALIASES_PATH)
@@ -497,8 +606,13 @@ def load_month(market: str, month: str, *, cr_raw_dir: Path | None = None, gauge
     vocabulary |= set(aliases.values()) | set(display) | set(ca_brands.GENERIC_RECOVERY_EXTRA_BRANDS)
     recovery = []
     for name in list(frames):
-        frames[name], audit = _recover_and_freeze(frames[name], vocabulary, display, aliases, market=market, source_set=name,
-                                                  month=month, runs_dir=runs_dir, freeze=freeze, rederive=rederive)
+        if replay_read_only:
+            frames[name], audit, found = _replay_brand_recovery_read_only(frames[name], vocabulary, display, aliases, market=market,
+                                                                          source_set=name, month=month, runs_dir=runs_dir)
+            problems += found
+        else:
+            frames[name], audit = _recover_and_freeze(frames[name], vocabulary, display, aliases, market=market, source_set=name,
+                                                      month=month, runs_dir=runs_dir, freeze=freeze, rederive=rederive)
         recovery.append(audit)
     cr, g = frames["code_reader"], frames.get("gauge")
 
@@ -514,14 +628,27 @@ def load_month(market: str, month: str, *, cr_raw_dir: Path | None = None, gauge
         overrides = ca_types.load_overrides(type_map, month)
         prior = ca_types.load_prior_month(runs_dir, month, market)
         fresh = ca_types.assign_types(cr, us_map=us_map, overrides=overrides, prior=prior)
-        cr, decisions = _replay_type_decisions(fresh, overrides, market=market, month=month, runs_dir=runs_dir,
-                                               run_id=run_id, freeze=freeze, rederive=rederive)
+        if replay_read_only:
+            cr, decisions, found = _replay_type_decisions_read_only(fresh, overrides, market=market, month=month,
+                                                                    runs_dir=runs_dir, run_id=run_id)
+            problems += found
+        else:
+            cr, decisions = _replay_type_decisions(fresh, overrides, market=market, month=month, runs_dir=runs_dir,
+                                                   run_id=run_id, freeze=freeze, rederive=rederive)
         review = ca_types.build_type_review(cr)
         if freeze:
             merged = ca_types.write_type_review(review, run_file(runs_dir, month, "type_review", f"{market}_code_reader"))
             human = {a: t for a, t in zip(merged["asin"], merged["reviewed_type"]) if isinstance(t, str) and t.strip()}
             review["reviewed_type"] = [human.get(a, "") for a in review["asin"]]
+        elif replay_read_only:      # the human reviewed_type of the review queue, read (never merged or written)
+            rpath = run_file(runs_dir, month, "type_review", f"{market}_code_reader")
+            if rpath.exists():
+                old = ca_types.read_type_review(rpath)
+                human = {a: t for a, t in zip(old["asin"], old["reviewed_type"]) if isinstance(t, str) and t.strip()}
+                review["reviewed_type"] = [human.get(a, "") for a in review["asin"]]
         LOG.info("types[%s/code_reader]: %s; type_review rows=%d", market, cr["type_source"].value_counts().to_dict(), len(review))
+    if problems:
+        raise FrozenDecisionError(market, month, problems)
     cr = ca_tiers.assign_cr_tiers(cr)
 
     dedupe_audit = pd.DataFrame(cr_audit + g_audit, columns=list(DEDUPE_AUDIT_COLUMNS))
