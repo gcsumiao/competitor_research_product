@@ -152,9 +152,10 @@ The combined workbook adds no check lines: it adds evidence to the existing ones
 `…; CA_US_OBD_Gauge_Competitor_Report CA … / US …`) and FAILs the same check ids. Each table is checked against its
 market block: Key figures and the brand Total against each market's core totals (V01-V03), Top 50 CA / US and the four
 brand-tab ranking tables (V04), shares within each block (V05), amazon.ca links in CA tables and amazon.com links in US
-tables (V06), every money column labelled with one block currency and no cross-currency ratio (V07), the share row,
-Key figures, tier × sub-type revenue and units, fuel subtotals, sub-type mix and every Total (V09), Key figures and
-Innova B3/B4 (V12), Excluded — CA / — US (V13), All Products — CA / — US per ASIN (V18), and the shared manifest (V19).
+tables (V06), every money column labelled with one block currency and no cross-currency ratio (V07), all 11 Key
+figures rows (incl. the full code-reader market totals and the bold "0.00%" gauge-share rows, definition (b)), tier ×
+sub-type revenue and units, fuel subtotals, sub-type mix and every Total (V09), the core / borderline / accessory /
+adjacent Key figures rows and Innova B3/B4 (V12), Excluded — CA / — US (V13), All Products — CA / — US per ASIN (V18), and the shared manifest (V19).
 
 202609 status: the committed result (`ca_market_reports/runs/202609/validation_ALL_202609.txt`) is
 `VALIDATION: PASS (23/23)` on the final outputs with the filled memo. Notes on two checks:

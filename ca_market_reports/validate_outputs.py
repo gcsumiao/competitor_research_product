@@ -88,10 +88,18 @@ COMBINED_SHORT = C.combined_gauge_report_name("202601").split("_202")[0]       #
 COMBINED_KIND = "combined"
 # Key figures rows (Measure | CA | US) -> (scope, measure). "# core device ASINs with sales > 0" counts CORE devices, as the
 # single-market "# core device ASINs with sales > 0" KPI does (FLAGGED: the spec label drops "core").
+# Rows 8-11 (the folded gauge-share table): the FULL code-reader export totals and definition (b) shares, per market.
 COMBINED_KEY_FIGURES: dict[str, tuple[str, str]] = {
     "Core device revenue": ("core", "rev"), "Core device units": ("core", "units"), "# core device ASINs": ("core", "n"),
     "# core device ASINs with sales > 0": ("core", "n_sales"), "Incl. borderline revenue": ("device", "rev"),
-    "Accessories revenue": ("accessory", "rev"), "Adjacent GPS-only HUD revenue": ("adjacent", "rev")}
+    "Accessories revenue": ("accessory", "rev"), "Adjacent GPS-only HUD revenue": ("adjacent", "rev"),
+    "Code-reader market revenue (full export)": ("cr_full", "rev"), "Code-reader market units (full export)": ("cr_full", "units"),
+    "Gauge share of code-reader market — revenue (b)": ("share_b", "s_rev"),
+    "Gauge share of code-reader market — units (b)": ("share_b", "s_u")}
+assert tuple(COMBINED_KEY_FIGURES) == C.COMBINED_KEY_FIGURE_LABELS, "COMBINED_KEY_FIGURES drifted from ca_common"
+COMBINED_KF_SCOPE_ROWS: tuple[str, ...] = tuple(k for k, (s, _) in COMBINED_KEY_FIGURES.items()
+                                               if s in ("core", "device", "accessory", "adjacent"))   # V12
+COMBINED_SHARE_FMT = "0.00%"
 COMBINED_V0X_KPI: dict[str, str] = {"Monthly Rev": "Core device revenue", "Monthly Units": "Core device units",
                                     "# of Listings": "# core device ASINs"}
 COMBINED_BASE_SYNONYMS: dict[str, str] = {"Rev": "Monthly Rev", "Units": "Monthly Units", "Rev Share": "Rev share"}
@@ -870,32 +878,58 @@ class Validator:
             return u[u["gauge_device_scope"]]
         raise ValueError(f"{t.label}: dataset_filter {t.filter!r} names no scope ('core devices…' | 'gauge_device_scope…')")
 
-    def kf_values(self, mk: str) -> dict[str, tuple[float, float]]:
+    def kf_values(self, mk: str, probs: list[str] | None = None) -> dict[str, tuple[float, float]]:
+        """Expected Key figures per row label for market mk. The code-reader rows are the FULL code-reader export totals
+        and the share rows definition (b), both from share_rows (its consistency problems go to probs)."""
         u = self.union_mk(mk)
         sc = {"core": u[u["_core"]], "device": u[u["gauge_device_scope"]],
               "accessory": u[u["gauge_class"].isin(C.GAUGE_ACCESSORY_CLASSES)],
               "adjacent": u[u["gauge_class"].isin(C.GAUGE_ADJACENT_CLASSES)]}
+        sh, p = self.share_rows(mk)
+        if probs is not None:
+            probs += p
+        cr, b = sh[SHARE_LABELS[0]], sh[SHARE_LABELS[2]]
         out = {}
         for label, (scope, what) in COMBINED_KEY_FIGURES.items():
+            if scope == "cr_full":
+                out[label] = (cr["Monthly Rev"], MONEY_TOL) if what == "rev" else (cr["Monthly Units"], EXACT_TOL)
+                continue
+            if scope == "share_b":
+                out[label] = (b["Share of revenue"] if what == "s_rev" else b["Share of units"], SHARE_TOL)
+                continue
             f = sc[scope]
             out[label] = {"rev": (float(f["revenue_month"].sum()), MONEY_TOL), "units": (float(f["units_month"].sum()), EXACT_TOL),
                           "n": (float(f["asin"].nunique()), EXACT_TOL),
                           "n_sales": (float((f["units_month"] > 0).sum()), EXACT_TOL)}[what]
         return out
 
-    def _c_key_figures(self, t: Table) -> tuple[list[str], int]:
+    def _c_key_figures(self, t: Table, only: tuple[str, ...] | None = None) -> tuple[list[str], int]:
+        """Key figures (Measure | CA | US | Unit): the COMBINED_KEY_FIGURE_LABELS rows in order, every value re-derived per
+        market; the gauge-share rows bold with a '0.00%' format in both market columns. only: check just these rows (V12)."""
         probs: list[str] = []
         rows = self.label_rows(t, probs)
-        probs += [f"{t.label}: Key figures row {k!r} missing" for k in COMBINED_KEY_FIGURES if k not in rows]
-        probs += [f"{t.label}: Key figures row {k!r} has no re-derivation rule" for k in rows if k not in COMBINED_KEY_FIGURES]
+        want = list(only or COMBINED_KEY_FIGURES)
+        probs += [f"{t.label}: Key figures row {k!r} missing" for k in want if k not in rows]
+        if only is None:
+            probs += [f"{t.label}: Key figures row {k!r} has no re-derivation rule" for k in rows if k not in COMBINED_KEY_FIGURES]
+            if list(rows) != list(C.COMBINED_KEY_FIGURE_LABELS) and set(rows) == set(C.COMBINED_KEY_FIGURE_LABELS):
+                probs.append(f"{t.label}: rows {list(rows)} out of the frozen order COMBINED_KEY_FIGURE_LABELS")
         n = 0
         for mk in C.COMBINED_MARKETS:
             h = self.market_col(t, mk)
-            exp = self.kf_values(mk)
+            exp = self.kf_values(mk, probs if only is None else None)
             for label, r in rows.items():
-                if label in exp:
-                    self._cmp(t, r, h, *exp[label], probs)
-                    n += 1
+                if label not in exp or label not in want:
+                    continue
+                self._cmp(t, r, h, *exp[label], probs)
+                n += 1
+                if label in C.COMBINED_KEY_FIGURE_SHARE_LABELS:
+                    c = t.cell(r, h)
+                    if not c.font.b:
+                        probs.append(f"{t.label} {c.coordinate}: share row {label!r} ({mk}) is not bold")
+                    if c.number_format != COMBINED_SHARE_FMT:
+                        probs.append(f"{t.label} {c.coordinate}: share row {label!r} ({mk}) format {c.number_format!r} "
+                                     f"!= {COMBINED_SHARE_FMT!r}")
         return probs, n
 
     def _combined_summary(self, w: WB, header_base: str, tol: float, fn: Callable[[pd.DataFrame], float]) -> tuple[list[str], str]:
@@ -1380,8 +1414,9 @@ class Validator:
             if w.kind == COMBINED_KIND:
                 p, nt, nc = self._v09_combined(w)
                 probs += p
-                cev = (f"; {COMBINED_SHORT}: {nt} tables ({nc} cells) re-derived per market block (Key figures, share row, "
-                       f"brands, sub-type mix, tier × sub-type rev + units, fuel subtotals + Total, brand-tab KPIs, Totals, "
+                cev = (f"; {COMBINED_SHORT}: {nt} tables ({nc} cells) re-derived per market block (Key figures incl. "
+                       f"CR market + gauge-share rows, brands, sub-type mix, tier × sub-type rev + units, fuel subtotals + "
+                       f"Total, brand-tab KPIs, Totals, "
                        f"Innova B3/B4)")
                 continue
             for t in self.tables(w):
@@ -1472,7 +1507,7 @@ class Validator:
     def _combined_rule(self, t: Table):
         title = t.e.get("title") or ""
         if t.sheet == "Summary":
-            rules = {"key_figures": self._c_key_figures, "share": self._c_share, "brands": self._c_brands,
+            rules = {"key_figures": self._c_key_figures, "brands": self._c_brands,
                      "subtypes": self._c_subtypes, "tier_ca": self._c_tier, "tier_us": self._c_tier, "fuel": self._c_fuel}
             for key, (ttl, role) in C.COMBINED_SUMMARY_TITLES.items():
                 if title == ttl and t.role == role:
@@ -1509,32 +1544,6 @@ class Validator:
         if tops != sorted(tops):
             probs.append(f"{w.name}!Summary: tables out of the frozen vertical order {list(C.COMBINED_SUMMARY_TITLES)}")
         return probs
-
-    def _c_share(self, t: Table) -> tuple[list[str], int]:
-        """ONE row: (b) all core gauge devices vs the full code-reader export, per market block; share cells bold."""
-        probs: list[str] = []
-        labels = [str(v) for v in t.values(t.columns[0])]
-        if labels != [C.COMBINED_SHARE_ROW_LABEL]:
-            probs.append(f"{t.label}: rows {labels} != [{C.COMBINED_SHARE_ROW_LABEL!r}]")
-        exp = {}
-        for mk in C.COMBINED_MARKETS:
-            rows, p = self.share_rows(mk)
-            exp[mk] = rows[C.COMBINED_SHARE_ROW_LABEL]
-            probs += p
-        seen: set[tuple[str, str]] = set()
-        n = 0
-        for h in t.columns[1:]:
-            mk, b = cbase(h)
-            if mk is None or b not in exp[mk]:
-                probs.append(f"{t.label}: column {h!r} has no re-derivation rule")
-                continue
-            seen.add((mk, b))
-            self._cmp(t, t.first, h, exp[mk][b], self._SHARE_TOL[b], probs)
-            n += 1
-            if b.startswith("Share of") and not t.cell(t.first, h).font.b:
-                probs.append(f"{t.label} {t.cell(t.first, h).coordinate}: share cell {h!r} is not bold")
-        probs += [f"{t.label}: no {mk} {b!r} column" for mk in C.COMBINED_MARKETS for b in self._SHARE_TOL if (mk, b) not in seen]
-        return probs, n
 
     def _c_brands(self, t: Table) -> tuple[list[str], int]:
         """Brand rows per market block, residual = brands not shown, Total = the full core set; shares within the market;
@@ -2021,7 +2030,7 @@ class Validator:
                     ev.append(f"Bully Dog check skipped ({self.real_reason()})")
         cw = self.combined()
         if cw is not None:
-            p, n = self._c_key_figures(self.ctitled(cw, "key_figures"))
+            p, n = self._c_key_figures(self.ctitled(cw, "key_figures"), only=COMBINED_KF_SCOPE_ROWS)
             probs += p
             p, _ = self._c_innova(cw)
             probs += p

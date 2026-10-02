@@ -427,8 +427,7 @@ CMB_SHORT = COMBINED.split("_202")[0]
 CMB_ROOT = ROOT / "combined"
 CMB_OUT = CMB_ROOT / "gauge_ca"          # CA gauge out dir copy + the combined workbook + the merged manifest
 FUELS = tuple(C.FEATURE_FUEL_SCOPE)
-KEY_FIGURE_LABELS = ("Core device revenue", "Core device units", "# core device ASINs", "# core device ASINs with sales > 0",
-                     "Incl. borderline revenue", "Accessories revenue", "Adjacent GPS-only HUD revenue")
+KEY_FIGURE_LABELS = C.COMBINED_KEY_FIGURE_LABELS
 TIER_LABELS = [t for t, _, _ in C.GAUGE_TIERS] + ["All tiers"]
 
 
@@ -478,37 +477,29 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path) -> Path:
     T = {k: v[0] for k, v in C.COMBINED_SUMMARY_TITLES.items()}
     book.text(book.sheet("Read Me"), "CA + US OBD Gauge Competitor Report — Read Me", ["Combined fixture workbook."], role="read_me")
     ws = book.sheet("Summary")
-    # Key figures (Measure | CA | US); money rows carry the market money format per cell
+    # Key figures (Measure | CA | US | Unit), the 11 COMBINED_KEY_FIGURE_LABELS rows: money rows carry the market money
+    # format per cell; the folded gauge-share rows (definition (b)) are bold with a "0.00%" format
 
     def kf(mk):
         uu, co, dv = u[mk], core[mk], dev[mk]
         acc, adj = uu[uu["gauge_class"].isin(C.GAUGE_ACCESSORY_CLASSES)], uu[uu["gauge_class"].isin(C.GAUGE_ADJACENT_CLASSES)]
+        b = next(d for d in G.market_share_rows(uu, ctx[mk].cr_totals, mk) if d["label"] == G.SHARE_ROW_LABELS[2])
+        cr = ctx[mk].cr_totals
         return [float(x) for x in (co["revenue_month"].sum(), co["units_month"].sum(), co["asin"].nunique(),
                                    (co["units_month"] > 0).sum(), dv["revenue_month"].sum(), acc["revenue_month"].sum(),
-                                   adj["revenue_month"].sum())]
-    money_rows = {0, 4, 5, 6}
+                                   adj["revenue_month"].sum(), cr["rev"], cr["units"], b["s_rev"], b["s_u"])]
+    money_rows, share_rows = {0, 4, 5, 6, 7}, {9, 10}
     tr = put(ws, spec("Summary", "kpi", T["key_figures"], [Col("Measure", "label", "text", 34), Col("CA", "ca", "rating"),
-                                                             Col("US", "us", "rating", market="US")],
-                      {"label": KEY_FIGURE_LABELS, "ca": kf("CA"), "us": kf("US")}, flt="see metric labels"), 1)
+                                                             Col("US", "us", "rating", market="US"), Col("Unit", "unit", "text")],
+                      {"label": KEY_FIGURE_LABELS, "ca": kf("CA"), "us": kf("US"),
+                       "unit": ["CAD / USD" if i in money_rows else "share" if i in share_rows else "count"
+                                for i in range(len(KEY_FIGURE_LABELS))]}, flt="see metric labels"), 1)
     for i, r in enumerate(range(tr.first_data_row, tr.last_data_row + 1)):
-        ws.cell(r, 2).number_format = CA.money_fmt if i in money_rows else X.FMT_INT
-        ws.cell(r, 3).number_format = US.money_fmt if i in money_rows else X.FMT_INT
-    # Gauge share of the code-reader market: one row, CA block | US block, share cells bold
-    share = {mk: next(d for d in G.market_share_rows(u[mk], ctx[mk].cr_totals, mk) if d["label"] == C.COMBINED_SHARE_ROW_LABEL)
-             for mk in u}
-    cols, row = [Col("Measure", "label", "text", 34)], {"label": C.COMBINED_SHARE_ROW_LABEL}
-    for mk in ("CA", "US"):
-        ccy = C.MARKETS[mk].currency
-        for h, f, k in (("# ASINs", "n", "int"), (f"Monthly Rev ({ccy})", "rev", "money"), ("Monthly Units", "units", "int"),
-                        ("Share of revenue", "s_rev", "pct2"), ("Share of units", "s_u", "pct2")):
-            cols.append(Col(f"{mk} {h}", f"{mk}_{f}", k, 12, market=mcol(mk)))
-            row[f"{mk}_{f}"] = share[mk][f]
-    tr = put(ws, spec("Summary", "kpi", T["share"], cols, [row], flt="core devices vs the full code-reader export, per market"),
-             X.table_end(tr) + 3)
-    for j, col in enumerate(cols):
-        if "Share of" in col.header:
-            c = ws.cell(tr.first_data_row, 1 + j)
-            c.font = Font(bold=True)
+        for col, mk in ((2, CA), (3, US)):
+            c = ws.cell(r, col)
+            c.number_format = mk.money_fmt if i in money_rows else "0.00%" if i in share_rows else X.FMT_INT
+            if i in share_rows:
+                c.font = Font(bold=True)
     # Brand summary — CA vs US (core devices; top brands by max revenue, residual, Total)
     disp = {**dict(zip(core["US"]["brand_key"], core["US"]["brand_display"])),
             **dict(zip(core["CA"]["brand_key"], core["CA"]["brand_display"]))}
@@ -799,19 +790,32 @@ class CombinedWorkbookTest(unittest.TestCase):
         self.assertIn(COMBINED, st["V15"][1])
 
     def test_tampered_share_cell_fails_v09(self):
+        """The folded gauge-share rows of Key figures: a tampered value, a lost bold and a wrong format each FAIL V09
+        (naming Key figures); V12 checks only the scope rows and stays PASS."""
         d = tampered_copy("tamper_share")
-        title = C.COMBINED_SUMMARY_TITLES["share"][0]
+        title = C.COMBINED_SUMMARY_TITLES["key_figures"][0]
         t = _Combined.table(title=title, sheet="Summary")
+        self.assertNotIn("Gauge share of the code-reader market", {e["title"] for e in _Combined.reg["tables"]})
         wb = load_workbook(d / COMBINED)
-        c = wb["Summary"].cell(t["first_data_row"], t["first_col"] + t["columns"].index("US Share of revenue"))
+        ws = wb["Summary"]
+        rows = {ws.cell(r, t["first_col"]).value: r for r in range(t["first_data_row"], t["last_data_row"] + 1)}
+        self.assertEqual(list(rows), list(C.COMBINED_KEY_FIGURE_LABELS))
+        rev_lbl, units_lbl = C.COMBINED_KEY_FIGURE_SHARE_LABELS
+        us_col, ca_col = t["first_col"] + t["columns"].index("US"), t["first_col"] + t["columns"].index("CA")
+        c = ws.cell(rows[rev_lbl], us_col)
         c.value = c.value + 0.01
+        ws.cell(rows[units_lbl], ca_col).font = Font(bold=False)
+        ws.cell(rows[units_lbl], us_col).number_format = "0.0%"
         wb.save(d / COMBINED)
         rc, st = self._run(d)
         self.assertEqual(rc, 1)
-        self.assertEqual(st["V09"][0], "FAIL", st["V09"])
-        self.assertIn(f"{COMBINED}!Summary/kpi[{title}]", st["V09"][1])
-        self.assertIn("'US Share of revenue'", st["V09"][1])
-        self.assertIn("1 problem(s)", st["V09"][1])
+        st9, ev9 = st["V09"]
+        self.assertEqual(st9, "FAIL", ev9)
+        self.assertIn("3 problem(s)", ev9)
+        self.assertIn(f"{COMBINED}!Summary/kpi[{title}] row {rows[rev_lbl]} 'US'", ev9)
+        self.assertIn(f"share row {units_lbl!r} (CA) is not bold", ev9)
+        self.assertIn(f"share row {units_lbl!r} (US) format '0.0%'", ev9)
+        self.assertEqual(st["V12"][0], "PASS", st["V12"])
 
     def test_tampered_tier_units_cell_fails_v09(self):
         d = tampered_copy("tamper_tier")
