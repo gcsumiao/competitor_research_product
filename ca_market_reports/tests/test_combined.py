@@ -740,6 +740,133 @@ class TestCombinedLayout(unittest.TestCase):
         self.assertIn("CA$", ex)
 
 
+@unittest.skipUnless(C.US_TYPE_MAP_DEFAULT.exists(), f"US type map not present: {C.US_TYPE_MAP_DEFAULT}")
+class TestReadOnlyReplay(unittest.TestCase):
+    """Loader path on the raw Helium 10 fixtures. The single-market gauge builds freeze the decisions; the combined build
+    replays them READ-ONLY: it writes no decision file and refuses incomplete or changed decisions (RuntimeError)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.root = C.SCRATCH_DIR / "test_combined_readonly"
+        if cls.root.exists():
+            shutil.rmtree(cls.root)
+        fx, d = C.FIXTURES_DIR, "2026-10-02"
+        cls.cr, cls.gauge = cls.root / "cr_raw", cls.root / "gauge_raw"
+        for src, dst in (("cr_page1.csv", cls.cr / f"AMAZON_blackBoxProducts_1_{d}.csv"),
+                         ("cr_page2.csv", cls.cr / f"AMAZON_blackBoxProducts_1_{d} (1).csv"),
+                         ("gauge_page1.csv", cls.gauge / f"AMAZON_blackBoxProducts_1_{d}.csv"),
+                         ("gauge_bullydog.csv", cls.gauge / f"AMAZON_blackBoxProducts_bullydog_{d}.csv")):
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(fx / src, dst)
+        cls.runs, cls.single = cls.root / "runs", cls.root / "single"
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            for mk in ("US", "CA"):                    # the single-market builds are the only writers of decision files
+                rc = G.main(["--market", mk, "--month", MONTH, "--cr-raw-dir", str(cls.cr), "--gauge-raw-dir", str(cls.gauge),
+                             "--out-dir", str(cls.single), "--runs-dir", str(cls.runs), "--overwrite"])
+                assert rc == 0, mk
+
+    def _argv(self, runs: Path, out: Path, *extra: str) -> list[str]:
+        return ["--month", MONTH, "--ca-cr-raw-dir", str(self.cr), "--ca-gauge-raw-dir", str(self.gauge),
+                "--us-cr-raw-dir", str(self.cr), "--us-gauge-raw-dir", str(self.gauge), "--out-dir", str(out),
+                "--runs-dir", str(runs), "--overwrite", *extra]
+
+    @staticmethod
+    def _snapshot(runs: Path) -> dict[str, tuple[str, int]]:
+        """Every decision/review CSV of runs/<m>: sha256 + mtime (the registry JSON is not a decision file)."""
+        return {p.name: (_sha(p), p.stat().st_mtime_ns) for p in sorted((runs / MONTH).glob("*.csv"))}
+
+    def _copy_runs(self, name: str) -> Path:
+        dst = self.root / name
+        if dst.exists():
+            shutil.rmtree(dst)
+        shutil.copytree(self.runs, dst)
+        return dst
+
+    @staticmethod
+    def _drop_row(path: Path, asin: str) -> None:
+        df = pd.read_csv(path, dtype=str, keep_default_na=False)
+        assert asin in set(df["asin"]), (path.name, asin)
+        df[df["asin"] != asin].to_csv(path, index=False)
+
+    def test_complete_decisions_build_read_only(self):
+        runs = self._copy_runs("runs_ok")
+        before = self._snapshot(runs)
+        self.assertIn(f"type_review_CA_code_reader_{MONTH}.csv", before)
+        self.assertIn(f"gauge_decisions_US_gauge_{MONTH}.csv", before)
+        out = self.root / "comb_ok"
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+            rc = CB.main(self._argv(runs, out))
+        self.assertEqual(rc, 0)
+        self.assertRegex(buf.getvalue(), r"combined: decisions replayed read-only \(CA n=\d+, US n=\d+\)")
+        self.assertEqual(self._snapshot(runs), before)                  # byte-identical, untouched (mtime), nothing added
+        # same numbers as the single-market loader builds
+        wb = openpyxl.load_workbook(out / NAME)
+        for sheet, single in (("Top 50 CA", C.gauge_report_name("CA", MONTH)), ("Top 50 US", C.gauge_report_name("US", MONTH))):
+            ref = openpyxl.load_workbook(self.single / single)["Top 50"]
+            self.assertEqual([list(r) for r in wb[sheet].iter_rows(values_only=True)],
+                             [list(r) for r in ref.iter_rows(values_only=True)], sheet)
+        man = json.loads((out / C.manifest_name(MONTH)).read_text())
+        hashed = {Path(k).name for k in man["inputs"]}
+        for stem in G.DECISION_STEMS:
+            self.assertTrue(any(n.startswith(stem) for n in hashed), stem)      # decision files are still manifest inputs
+        self.assertFalse(any(n.startswith("type_review_") for n in hashed))
+
+    def _assert_refused(self, runs: Path, asin: str, *extra: str) -> None:
+        before = self._snapshot(runs)
+        out = self.root / f"comb_{runs.name}"
+        with self.assertRaises(RuntimeError) as cm, contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()):
+            CB.main(self._argv(runs, out, *extra))
+        msg = str(cm.exception)
+        self.assertTrue(msg.startswith(CB.COMBINED_FROZEN_MSG), msg)
+        self.assertIn(asin, msg)
+        self.assertEqual(self._snapshot(runs), before)                  # never writes, not even on failure
+        self.assertFalse((out / NAME).exists())
+
+    def test_missing_gauge_decision_is_refused(self):
+        runs = self._copy_runs("runs_no_gauge_row")
+        self._drop_row(C.run_file(runs, MONTH, "gauge_decisions", "US_gauge"), "B0TESTBDG1")
+        self._assert_refused(runs, "B0TESTBDG1")
+
+    def test_missing_type_decision_is_refused(self):
+        runs = self._copy_runs("runs_no_type_row")
+        path = C.run_file(runs, MONTH, "type_decisions", "CA_code_reader")
+        asin = pd.read_csv(path, dtype=str, keep_default_na=False)["asin"].iloc[0]
+        self._drop_row(path, asin)
+        self._assert_refused(runs, asin)
+
+    def test_map_decision_that_would_rewrite_a_frozen_row_is_refused(self):
+        runs = self._copy_runs("runs_map_change")
+        frozen = pd.read_csv(C.run_file(runs, MONTH, "gauge_decisions", "US_gauge"), dtype=str, keep_default_na=False)
+        row = frozen[(frozen["gauge_rule_id"] != "MAP") & (frozen["gauge_class"] != "excluded_non_gauge")].iloc[0]
+        gm = pd.read_csv(G.GAUGE_MAP_DEFAULT, dtype=str, keep_default_na=False)
+        self.assertNotIn(row["asin"], set(gm["asin"]))
+        gm = pd.concat([gm, pd.DataFrame([{"asin": row["asin"], "gauge_class": "excluded_non_gauge", "borderline": "N",
+                                           "reason": "test", "decided_by": "test", "decided_month": MONTH}])], ignore_index=True)
+        gm_path = self.root / "gauge_map_changed.csv"
+        gm.to_csv(gm_path, index=False)
+        self._assert_refused(runs, row["asin"], "--gauge-map", str(gm_path))
+
+    def test_missing_decision_file_and_rederive_are_refused(self):
+        runs = self._copy_runs("runs_no_file")
+        C.run_file(runs, MONTH, "gauge_decisions", "CA_gauge").unlink()
+        self._assert_refused(runs, "*")
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            CB.main(self._argv(self.runs, self.root / "never", "--rederive"))
+
+    def test_loader_read_only_replay_needs_freeze_false(self):
+        from ca_market_reports import ca_load
+        with self.assertRaises(ValueError):
+            ca_load.load_month("US", MONTH, cr_raw_dir=self.cr, gauge_raw_dir=self.gauge, runs_dir=self.runs, assign_types=False,
+                               freeze=True, replay_read_only=True)
+        before = self._snapshot(self.runs)
+        ds = ca_load.load_month("US", MONTH, cr_raw_dir=self.cr, gauge_raw_dir=self.gauge, runs_dir=self.runs, assign_types=False,
+                                freeze=False, replay_read_only=True)
+        self.assertGreater(len(ds.code_reader), 0)
+        self.assertEqual(self._snapshot(self.runs), before)
+
+
 class TestMarketKpiTable(unittest.TestCase):
     def test_per_row_kind_and_per_column_market(self):
         book = X.Book("kpi_matrix.xlsx", C.MARKETS["CA"])
