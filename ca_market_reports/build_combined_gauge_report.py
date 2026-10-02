@@ -67,6 +67,8 @@ COMBINED_SHARE_NOTE = ("Core devices = device scope, not borderline. " + _SHARE_
 GPS_ROW_LABEL = C.GAUGE_SUBTYPE_LABELS["gps_hud"]   # shared label; the note row states that the row is excluded from totals
 FUEL_SUBTOTAL_LABEL = "{fuel} — subtotal"
 NO_LISTINGS_LABEL = "(no listings in this market)"
+DASH = "-"                       # a brand with NO core-device listing in a market: that market's brand cells (never a 0)
+BRAND_BLOCK_FIELDS: tuple[str, ...] = ("n", "rev", "units", "share", "rating")   # the five per-market Brand summary cells
 INNOVA_CA_COUNT_CELL = "B3"      # Innova tab: A3/B3 = CA device-count line + number; A4/B4 = US
 INNOVA_US_COUNT_CELL = "B4"
 INNOVA_US_NOTE = ("US code-reader Types are not assigned (out of scope), so there is no US Innova hardware list: the "
@@ -90,14 +92,16 @@ COMBINED_LAYOUT_PARAGRAPHS: tuple[str, ...] = (
     "Brand summary: rows are the union of the core-device brands of both markets. The brands shown are the top "
     f"{C.SUMMARY_TOP_BRANDS} by the larger of their CA and US revenue (a nominal selection rule only), ordered by CA "
     "revenue, then US revenue; 'Other brands (n)' holds each market's residual, so each market's shares sum to 1 and each "
-    "market's Total equals its full core totals.",
+    "market's Total equals its full core totals. A brand with no core-device listing in a market shows '-' in that "
+    "market's cells (a listed brand with zero revenue shows 0).",
     "Sub-type mix: the GPS-only HUD row is adjacent and excluded from the Total. Price tier × sub-type: one table per "
     "market with revenue and units per tier. Fuel split: each '<fuel> — subtotal' row sums the sub-type rows below it; "
     "the Total equals the sum of the subtotals.",
     "Brand tabs: a brand gets a tab when it meets the single-market rule (core device revenue of at least 1,000 in the "
     f"market currency, or at least {C.GAUGE_BRAND_TAB_MIN_ASINS} device listings) in either market. Each tab holds four "
     "ranking tables (CA — Rank by Revenue, CA — Rank by Units, US — Rank by Revenue, US — Rank by Units) with Total rows; "
-    "a market without listings shows '(no listings in this market)' and a zero Total.",
+    "a market without listings shows '-' in its KPI cells, '(no listings in this market)' in its ranking tables and '-' "
+    "for the Total revenue and units.",
     "Top 50 CA / Top 50 US, All Products, Dedupe & Classification Audit and Excluded repeat the single-market tables, one "
     "per market (the audit sheet keeps the dedupe audit; per-ASIN classification decisions are the matching columns of "
     "All Products). The CA workbook's US Benchmark sheet is replaced by the side-by-side Summary.",
@@ -175,7 +179,7 @@ class CombinedBook(X.Book):
         allowed = tuple(tr.allowed_markets)
         market = allowed[0] if len(allowed) == 1 else None
         e = {"market": market, "column_markets": [market] * len(tr.columns), "subtotal_rows": [], "excluded_from_total_rows": [],
-             "placeholder_rows": []}
+             "placeholder_rows": [], "dash_rows": []}
         e.update(self.extras.get(id(tr), {}))
         if len(e["column_markets"]) != len(tr.columns):
             raise AssertionError(f"{tr.sheet}/{tr.title}: column_markets {e['column_markets']} vs columns {tr.columns}")
@@ -389,13 +393,41 @@ def brand_side_by_side(ca_core: pd.DataFrame, us_core: pd.DataFrame, *, top_n: i
     return frame, residual, total
 
 
-def _hide_rows_without_revenue(ws: Worksheet, tr: TableRange) -> int:
-    """Hide (never delete) brand rows with zero revenue in BOTH markets (the single-market Summary hides zero rows too)."""
-    cols = [tr.col(f"{m} Monthly Rev ({_ccy(m)})") for m in MARKET_CODES]
+def dash_absent_markets(frame: pd.DataFrame) -> tuple[pd.DataFrame, list[tuple[int, str]]]:
+    """Display copy of brand_side_by_side rows: where a brand has NO listing in a market (that market's # of Listings == 0),
+    that market's five cells (BRAND_BLOCK_FIELDS) become DASH. A listed brand with zero revenue keeps its numbers (0 revenue
+    is an observation). Returns (display frame, [(row position, market), ...])."""
+    out = frame.astype(object).copy()
+    dashes: list[tuple[int, str]] = []
+    for i in range(len(frame)):
+        for code in MARKET_CODES:
+            m = code.lower()
+            if int(frame.iloc[i][f"{m}_n"]) == 0:
+                for f in BRAND_BLOCK_FIELDS:
+                    out.iat[i, out.columns.get_loc(f"{m}_{f}")] = DASH
+                dashes.append((i, code))
+    return out, dashes
+
+
+def _style_dash(cell) -> None:
+    """A DASH cell: a string, right-aligned like the numbers around it, General format (the block fill is kept)."""
+    if cell.value != DASH:
+        raise AssertionError(f"{cell.coordinate}: expected {DASH!r}, got {cell.value!r}")
+    cell.number_format = "General"
+    cell.alignment = Alignment(horizontal="right")
+
+
+def _market_cols(book: CombinedBook, tr: TableRange, code: str) -> list[int]:
+    return [tr.first_col + j for j, m in enumerate(book.extras[id(tr)]["column_markets"]) if m == code]
+
+
+def _hide_rows_without_revenue(ws: Worksheet, tr: TableRange, frame: pd.DataFrame) -> int:
+    """Hide (never delete) brand rows with zero revenue in BOTH markets (the single-market Summary hides zero rows too); an
+    absent market (DASH) counts as zero revenue. Decided on the numeric rows, not on the written cells."""
     hidden = 0
-    for r in range(tr.first_data_row, tr.last_data_row + 1):
-        if all(isinstance(ws.cell(r, c).value, (int, float)) and ws.cell(r, c).value == 0 for c in cols):
-            ws.row_dimensions[r].hidden = True
+    for i in range(len(frame)):
+        if all(float(frame.iloc[i][f"{m.lower()}_rev"]) == 0 for m in MARKET_CODES):
+            ws.row_dimensions[tr.first_data_row + i].hidden = True
             hidden += 1
     return hidden
 
@@ -418,13 +450,18 @@ def _summary(book: CombinedBook, ca: G.GCtx, us: G.GCtx) -> None:
                 ws.cell(r, tr.col(code)).font = Font(bold=True)
     # 2. brand summary (core devices), two bar charts right of the table
     frame, residual, total = brand_side_by_side(ca.core, us.core, top_n=C.SUMMARY_TOP_BRANDS)
+    shown, dashes = dash_absent_markets(frame)       # residual and Total stay numeric
     cols = brand_columns()
-    tr_b = book.table(ws, TableSpec("Summary", T["brands"][1], T["brands"][0], cols, frame, X.fit(total, cols), X.fit(residual, cols),
+    tr_b = book.table(ws, TableSpec("Summary", T["brands"][1], T["brands"][0], cols, shown, X.fit(total, cols), X.fit(residual, cols),
                                     MARKET_CODES, note=BRAND_NOTE.format(n=C.SUMMARY_TOP_BRANDS),
                                     dataset_filter="core devices, both markets: gauge_device_scope & ~borderline"),
                       X.table_end(tr) + 3, freeze=False)
     _fills(ws, book, tr_b, data=True)
-    _hide_rows_without_revenue(ws, tr_b)
+    for i, code in dashes:
+        for col in _market_cols(book, tr_b, code):
+            _style_dash(ws.cell(tr_b.first_data_row + i, col))
+    book.note(tr_b, dash_rows=[[tr_b.first_data_row + i, code] for i, code in dashes])
+    _hide_rows_without_revenue(ws, tr_b, frame)
     for code in MARKET_CODES:
         book.bar(ws, tr_b, "Brand", f"{code} Monthly Rev ({_ccy(code)})", f"{code} core device revenue by brand ({_ccy(code)})")
     # 3. sub-type mix (core) + the adjacent GPS-only HUD row (excluded from the Total)
@@ -618,12 +655,24 @@ def _brand_tab(book: CombinedBook, name: str, key: str, display: str, ca: G.GCtx
     book.add(tr, market=None, column_markets=[None, *MARKET_CODES])
     if (tr.first_data_row, tr.last_data_row) != (3, C.BRAND_TAB_RESERVED_ROWS):
         raise AssertionError("combined brand tab KPI block must fill rows 3-6")
+    absent = [c.code for c in (ca, us) if not (c.core["brand_key"] == key).any()]   # no core-device listing in that market
+    kpi_dashes = []
+    for code in absent:
+        for row in range(tr.first_data_row, tr.last_data_row + 1):
+            cell = ws.cell(row, tr.col(code))
+            X.set_text(cell, DASH)
+            _style_dash(cell)
+            kpi_dashes.append([row, code])
+    book.note(tr, dash_rows=kpi_dashes)
     r = C.BRAND_TAB_RESERVED_ROWS + 1
     titles = iter(C.COMBINED_BRAND_TABLE_TITLES)
     for c in (ca, us):
         rows = c.core[c.core["brand_key"] == key]
         cols = cols_by[c.code]
-        total = X.fit(X.listing_totals(rows, cols[0].field, C.TOTAL_ROW_LABEL), cols)
+        if c.code in absent:   # Total row: DASH for Monthly Rev / Units, blank elsewhere (never a 0 for an absent market)
+            total = {cols[0].field: C.TOTAL_ROW_LABEL, "revenue_month": DASH, "units_month": DASH}
+        else:
+            total = X.fit(X.listing_totals(rows, cols[0].field, C.TOTAL_ROW_LABEL), cols)
         for role, by in (("brand_tab_revenue", "revenue"), ("brand_tab_units", "units")):
             title = next(titles)
             if not title.startswith(f"{c.code} — "):
@@ -636,8 +685,10 @@ def _brand_tab(book: CombinedBook, name: str, key: str, display: str, ca: G.GCtx
             if r == C.BRAND_TAB_RESERVED_ROWS + 1 and t.header_row != C.BRAND_TAB_RESERVED_ROWS + 2:
                 raise AssertionError("combined brand tab: first ranking header must be at row 8")
             _fills(ws, book, t, data=True)
-            if not len(rows):
-                book.note(t, placeholder_rows=[t.first_data_row])
+            if c.code in absent:
+                for h in (f"Monthly Rev ({c.ccy})", "Monthly Units"):
+                    _style_dash(ws.cell(t.total_row, t.col(h)))
+                book.note(t, placeholder_rows=[t.first_data_row], dash_rows=[[t.total_row, c.code]])
             r = X.table_end(t) + 4
 
 
@@ -722,7 +773,8 @@ def build_combined_book(ca: G.GCtx, us: G.GCtx) -> CombinedBook:
 # --------------------------------------------------------------------------------------
 def write_registry(book: CombinedBook, runs_dir: Path, month: str) -> Path:
     """runs/<m>/table_registry_CAUS_<m>.json — the shape of ca_xlsx_style.TableRegistry (market = 'CAUS'); each table entry
-    also carries market (table market), column_markets (per column), subtotal_rows, excluded_from_total_rows, placeholder_rows.
+    also carries market (table market), column_markets (per column), subtotal_rows, excluded_from_total_rows, placeholder_rows
+    and dash_rows ([row, market] pairs whose market cells hold DASH: a brand with no listing in that market).
     Entries of other workbooks in the file are kept; this workbook's entries are replaced."""
     path = C.run_file(Path(runs_dir), month, "table_registry", REGISTRY_SCOPE, "json")
     tables: list[dict] = []

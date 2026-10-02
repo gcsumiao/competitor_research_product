@@ -17,6 +17,7 @@ import math
 import shutil
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import openpyxl
 import pandas as pd
@@ -438,7 +439,9 @@ class TestCombinedLayout(unittest.TestCase):
                                        places=12)
                 self.assertEqual(ws.cell(3, c).number_format, C.MARKETS[code].money_fmt)
 
-    def test_brand_missing_in_one_market_gets_placeholder_tables(self):
+    def test_brand_missing_in_one_market_shows_dashes(self):
+        """Edge Products dropped from the US fixture: CA-only brand. Its US cells show '-' (Brand summary five cells, brand
+        tab KPI block, Total revenue/units of the US ranking tables); CA cells, residual and Total rows stay numeric."""
         d = OUT / "one_sided"
         if d.exists():
             shutil.rmtree(d)
@@ -446,22 +449,82 @@ class TestCombinedLayout(unittest.TestCase):
         us_rows = us_rows[us_rows["brand_key"] != "edge products"]
         ca = X.dataset_from_normalized(X.read_normalized_csv(CA_FIXTURE), "CA", MONTH)
         us = X.dataset_from_normalized(us_rows, "US", MONTH)
-        with contextlib.redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), mock.patch.object(C, "SUMMARY_TOP_BRANDS", 5):
             p = CB.build_combined_gauge_workbook(ca, us, d, overwrite=True, dated_copy=False, runs_dir=d / "runs",
                                                  input_paths=[CA_FIXTURE, US_FIXTURE])
         reg = json.loads(C.run_file(d / "runs", MONTH, "table_registry", CB.REGISTRY_SCOPE, "json").read_text())
+        wb = openpyxl.load_workbook(p)
+        # Brand summary: top 5 by max(CA, US) revenue keeps Edge (CA only); 2 brands go to the residual
+        ws = wb["Summary"]
+        t = [t for t in reg["tables"] if t["sheet"] == "Summary" and t["role"] == "summary_brands"][0]
+        rows = {r["Brand"].value: (row, r) for row, r in zip(range(t["first_data_row"], t["last_data_row"] + 1), _rows(ws, t))}
+        self.assertIn("Edge Products", rows)
+        edge_row, edge = rows["Edge Products"]
+        self.assertEqual(t["dash_rows"], [[edge_row, "US"]])
+        for h in ("# of Listings", "Monthly Rev (USD)", "Monthly Units", "Rev Share", "Avg Rating"):
+            cell = edge[f"US {h}"]
+            self.assertEqual(cell.value, CB.DASH, h)
+            self.assertEqual(cell.data_type, "s", h)
+            self.assertEqual(cell.alignment.horizontal, "right", h)
+            self.assertEqual(cell.fill.fgColor.rgb[-6:], C.FILL_MARKET_DATA["US"], h)
+        self.assertEqual(edge["CA # of Listings"].value, 2)
+        self.assertAlmostEqual(edge["CA Monthly Rev (CAD)"].value, 2644.0, places=6)
+        for brand, (_, r) in rows.items():
+            if brand != "Edge Products":
+                for h in t["columns"][1:]:
+                    self.assertNotEqual(r[h].value, CB.DASH, (brand, h))
+        for special in (t["residual_row"], t["total_row"]):
+            self.assertIsNotNone(special)
+            cells = _cells(ws, t, special)
+            for h in t["columns"][1:]:
+                self.assertNotEqual(cells[h].value, CB.DASH, h)
+            self.assertIsInstance(cells["US Monthly Rev (USD)"].value, (int, float))
+            self.assertIsInstance(cells["CA # of Listings"].value, (int, float))
+        self.assertEqual(ws.cell(t["residual_row"], 1).value, C.RESIDUAL_ROW_LABEL.format(noun="brands", n=2))
+        # brand tab: KPI block C3:C6 dashes, US ranking tables keep the text row and show '-' for Total revenue/units
         sheet = reg["workbooks"][p.name]["brand_sheet_map"]["edge products"]
-        ws = openpyxl.load_workbook(p)[sheet]
+        ws = wb[sheet]
+        kpi = [t for t in reg["tables"] if t["sheet"] == sheet and t["role"] == "kpi"][0]
+        self.assertEqual(kpi["dash_rows"], [[r, "US"] for r in range(3, 7)])
+        for r in range(3, 7):
+            self.assertEqual(ws.cell(r, 3).value, CB.DASH, r)
+            self.assertEqual(ws.cell(r, 3).alignment.horizontal, "right")
+            self.assertIsInstance(ws.cell(r, 2).value, (int, float), r)
         ts = [t for t in reg["tables"] if t["sheet"] == sheet and t["title"].startswith("US — ")]
         self.assertEqual(len(ts), 2)
         for t in ts:
             self.assertEqual(t["first_data_row"], t["last_data_row"])
             self.assertEqual(ws.cell(t["first_data_row"], 1).value, CB.NO_LISTINGS_LABEL)
             self.assertEqual(t["placeholder_rows"], [t["first_data_row"]])
+            self.assertEqual(t["dash_rows"], [[t["total_row"], "US"]])
             tot = _cells(ws, t, t["total_row"])
-            self.assertEqual(tot["Monthly Rev (USD)"].value, 0)
-            self.assertEqual(tot["Monthly Units"].value, 0)
-        self.assertEqual(ws.cell(3, 3).value, 0)
+            self.assertEqual(tot["Product Name"].value, C.TOTAL_ROW_LABEL)
+            self.assertEqual((tot["Monthly Rev (USD)"].value, tot["Monthly Units"].value), (CB.DASH, CB.DASH))
+            for h in t["columns"][1:]:
+                if h not in ("Monthly Rev (USD)", "Monthly Units"):
+                    self.assertIsNone(tot[h].value, h)
+        for t in [t for t in reg["tables"] if t["sheet"] == sheet and t["title"].startswith("CA — ")]:
+            self.assertEqual(t["dash_rows"], [])
+            self.assertAlmostEqual(_cells(ws, t, t["total_row"])["Monthly Rev (CAD)"].value, 2644.0, places=6)
+        # nothing else carries a dash: only brand-summary rows, brand-tab KPI blocks and brand-tab Totals
+        for t in reg["tables"]:
+            if t["dash_rows"]:
+                self.assertTrue(t["role"] in ("summary_brands", "kpi", "brand_tab_revenue", "brand_tab_units"), t["title"])
+                self.assertTrue(t["sheet"] == "Summary" or t["sheet"] in reg["workbooks"][p.name]["brand_sheet_map"].values())
+
+    def test_listed_brand_with_zero_revenue_keeps_numbers(self):
+        """AEM is listed in both fixture markets with zero revenue: numeric 0, never '-' (main build has no dash rows)."""
+        ws = _Built.wb["Summary"]
+        t = _one("Summary", "summary_brands", C.COMBINED_SUMMARY_TITLES["brands"][0])
+        self.assertEqual(t["dash_rows"], [])
+        aem = [r for r in _rows(ws, t) if r["Brand"].value == "AEM"][0]
+        for code in ("CA", "US"):
+            ccy = C.MARKETS[code].currency
+            self.assertEqual(aem[f"{code} # of Listings"].value, 1)
+            self.assertEqual(aem[f"{code} Monthly Rev ({ccy})"].value, 0)
+            self.assertIsInstance(aem[f"{code} Monthly Rev ({ccy})"].value, (int, float))
+        for t in _Built.tables:
+            self.assertEqual(t["dash_rows"], [], (t["sheet"], t["title"]))
 
     # ---------------------------------------------------------------- Innova / model sheets / Same-ASIN
     def test_innova_counts_and_ca_hardware_list(self):
@@ -522,7 +585,8 @@ class TestCombinedLayout(unittest.TestCase):
         for t in _Built.tables:
             for k in ("workbook", "sheet", "role", "title", "header_row", "first_data_row", "last_data_row", "total_row",
                       "residual_row", "first_col", "last_col", "columns", "dataset_filter", "allowed_markets", "charts",
-                      "brand_sheet_map", "market", "column_markets", "subtotal_rows", "excluded_from_total_rows", "placeholder_rows"):
+                      "brand_sheet_map", "market", "column_markets", "subtotal_rows", "excluded_from_total_rows", "placeholder_rows",
+                      "dash_rows"):
                 self.assertIn(k, t)
             self.assertIn(t["role"], C.TABLE_ROLES)
             self.assertEqual(t["brand_sheet_map"], bsm)
