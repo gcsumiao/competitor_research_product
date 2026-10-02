@@ -1,8 +1,8 @@
 {
  "market": "CAUS",
  "month": "202609",
- "generated_at": "2026-10-02T14:05:08",
- "pipeline_version": "ac2fc5f4b66c",
+ "generated_at": "2026-10-02T14:11:49",
+ "pipeline_version": "a722785d902c-dirty",
  "workbooks": {
   "CA_US_OBD_Gauge_Competitor_Report_202609.xlsx": {
    "sheets": [
@@ -72,7 +72,7 @@
     "kaolali": "KAOLALI",
     "autometer": "AutoMeter"
    },
-   "generated_at": "2026-10-02T14:05:08"
+   "generated_at": "2026-10-02T14:11:49"
   }
  },
  "tables": [

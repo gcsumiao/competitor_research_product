@@ -86,11 +86,11 @@ COMBINED_SCOPE = "CAUS"                     # run_file(runs_dir, m, "table_regis
 COMBINED_MODES: tuple[str, ...] = ("auto", "require", "off")
 COMBINED_SHORT = C.combined_gauge_report_name("202601").split("_202")[0]       # evidence prefix (no month)
 COMBINED_KIND = "combined"
-# Key figures rows (Measure | CA | US) -> (scope, measure). "# device ASINs with sales > 0" counts CORE devices, as the
+# Key figures rows (Measure | CA | US) -> (scope, measure). "# core device ASINs with sales > 0" counts CORE devices, as the
 # single-market "# core device ASINs with sales > 0" KPI does (FLAGGED: the spec label drops "core").
 COMBINED_KEY_FIGURES: dict[str, tuple[str, str]] = {
     "Core device revenue": ("core", "rev"), "Core device units": ("core", "units"), "# core device ASINs": ("core", "n"),
-    "# device ASINs with sales > 0": ("core", "n_sales"), "Incl. borderline revenue": ("device", "rev"),
+    "# core device ASINs with sales > 0": ("core", "n_sales"), "Incl. borderline revenue": ("device", "rev"),
     "Accessories revenue": ("accessory", "rev"), "Adjacent GPS-only HUD revenue": ("adjacent", "rev")}
 COMBINED_V0X_KPI: dict[str, str] = {"Monthly Rev": "Core device revenue", "Monthly Units": "Core device units",
                                     "# of Listings": "# core device ASINs"}

@@ -427,7 +427,7 @@ CMB_SHORT = COMBINED.split("_202")[0]
 CMB_ROOT = ROOT / "combined"
 CMB_OUT = CMB_ROOT / "gauge_ca"          # CA gauge out dir copy + the combined workbook + the merged manifest
 FUELS = tuple(C.FEATURE_FUEL_SCOPE)
-KEY_FIGURE_LABELS = ("Core device revenue", "Core device units", "# core device ASINs", "# device ASINs with sales > 0",
+KEY_FIGURE_LABELS = ("Core device revenue", "Core device units", "# core device ASINs", "# core device ASINs with sales > 0",
                      "Incl. borderline revenue", "Accessories revenue", "Adjacent GPS-only HUD revenue")
 TIER_LABELS = [t for t, _, _ in C.GAUGE_TIERS] + ["All tiers"]
 

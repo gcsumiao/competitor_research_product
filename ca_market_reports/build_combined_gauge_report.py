@@ -59,7 +59,7 @@ if _SHARE_B_SENTENCE not in G.SHARE_NOTE or G.SHARE_ROW_LABELS[2] != C.COMBINED_
     raise AssertionError("build_gauge_report share definition (b) drifted from the combined share table")
 COMBINED_SHARE_NOTE = ("Core devices = device scope, not borderline. " + _SHARE_B_SENTENCE +
                        " Shares of revenue and of units are computed within each market (no cross-currency ratio).")
-GPS_ROW_LABEL = "GPS-only HUD (adjacent, excluded from totals)"
+GPS_ROW_LABEL = C.GAUGE_SUBTYPE_LABELS["gps_hud"]   # shared label; the note row states that the row is excluded from totals
 FUEL_SUBTOTAL_LABEL = "{fuel} — subtotal"
 NO_LISTINGS_LABEL = "(no listings in this market)"
 INNOVA_CA_COUNT_CELL = "B3"      # Innova tab: A3/B3 = CA device-count line + number; A4/B4 = US
