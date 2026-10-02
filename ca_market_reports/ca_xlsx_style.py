@@ -1004,6 +1004,14 @@ def coerce_frame(df: pd.DataFrame) -> pd.DataFrame:
         bad = out[c][~out[c].isna() & ~out[c].map(lambda x: math.isfinite(x))]
         if len(bad):
             raise ValueError(f"column {c!r}: non-finite values at rows {list(bad.index)[:5]}")
+    # ASSEMBLY (orchestrator): frames that have not been through the gauge classifier carry gauge_class == "" and
+    # gauge_in_scope/gauge_device_scope == <NA> (loader contract). Those rows are out of gauge scope by definition, so
+    # the scope flags become False there; a CLASSIFIED row with a blank scope flag is still an error.
+    if "gauge_class" in out.columns:
+        unclassified = out["gauge_class"].map(_is_blank) | (out["gauge_class"].astype(str).str.strip() == "")
+        for c in STRICT_BOOL_COLUMNS:
+            if c in out.columns:
+                out.loc[unclassified, c] = False
     for c in STRICT_BOOL_COLUMNS + BLANK_FALSE_BOOL_COLUMNS:
         if c not in out.columns:
             continue
