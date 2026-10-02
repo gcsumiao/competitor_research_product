@@ -141,7 +141,6 @@ def _assemble_union_from_loader(ds: C.CaDataset, gauge_map_path: Path, runs_dir:
     from ca_market_reports.ca_load import union_gauge_frames  # ASSEMBLY: ca_load.union_gauge_frames
     from ca_market_reports.ca_gauge_classification import candidate_mask, classify_gauges  # ASSEMBLY: ca_gauge_classification
     from ca_market_reports.ca_gauge_classification import freeze_gauge_decisions  # ASSEMBLY: not in ca_common's frozen list
-    from ca_market_reports.ca_types import flag_type_conflicts  # ASSEMBLY: ca_types.flag_type_conflicts (not in ca_common's list)
 
     if ds.gauge_set is None:
         raise ValueError(f"{ds.market} gauge workbook needs the gauge export (dataset.gauge_set is None)")
@@ -158,8 +157,7 @@ def _assemble_union_from_loader(ds: C.CaDataset, gauge_map_path: Path, runs_dir:
     prior = None if (rederive or not prior_path.exists()) else pd.read_csv(prior_path, dtype=str, keep_default_na=False)
     union = classify_gauges(union, gauge_map_df, prior, month=ds.month)  # ASSEMBLY: ca_gauge_classification.classify_gauges
     freeze_gauge_decisions(union, Path(runs_dir), ds.month, ds.market, rederive=rederive)  # ASSEMBLY: returns the decision table
-    union = flag_type_conflicts(union)  # ASSEMBLY: ca_types.flag_type_conflicts
-    return union
+    return union   # type conflicts are flagged in gauge_union (after enrichment, both input modes)
 
 
 def _dev_union(ds: C.CaDataset) -> pd.DataFrame:
@@ -211,7 +209,15 @@ def enrich_union(union: pd.DataFrame, market: C.Market, notes: list[str]) -> pd.
 
 
 def gauge_union(ds: C.CaDataset, *, preclassified: bool, gauge_map_path: Path, runs_dir: Path,
-                rederive: bool) -> tuple[pd.DataFrame, list[str], bool]:
+                rederive: bool) -> tuple[pd.DataFrame, list[str]]:
+    """(enriched union, notes). Public 2-tuple contract (validate_outputs.derive_data unpacks it)."""
+    u, notes, _ = gauge_union_with_flags(ds, preclassified=preclassified, gauge_map_path=gauge_map_path, runs_dir=runs_dir,
+                                         rederive=rederive)
+    return u, notes
+
+
+def gauge_union_with_flags(ds: C.CaDataset, *, preclassified: bool, gauge_map_path: Path, runs_dir: Path,
+                           rederive: bool) -> tuple[pd.DataFrame, list[str], bool]:
     """(enriched union, notes, fuel_absent) — fuel_absent: the input carried no fuel_scope column (dev frames)."""
     notes: list[str] = []
     if preclassified:
@@ -223,6 +229,8 @@ def gauge_union(ds: C.CaDataset, *, preclassified: bool, gauge_map_path: Path, r
         raise ValueError(f"duplicate ASINs after the union: {union.loc[union['asin'].duplicated(), 'asin'].tolist()[:10]}")
     fuel_absent = "fuel_scope" not in union.columns
     u = enrich_union(union, C.MARKETS[ds.market], notes)
+    from ca_market_reports.ca_types import flag_type_conflicts  # ASSEMBLY: ca_types.flag_type_conflicts
+    u = flag_type_conflicts(u)   # device-scope rows typed Tablet/Handheld/Dongle -> type_conflict (idempotent OR)
     if fuel_absent:
         notes.append("fuel_scope absent in the input: core devices are counted as 'unspecified' in the fuel split")
     return u, notes, fuel_absent
@@ -238,6 +246,27 @@ def read_app_gauge_brands(path: Path) -> pd.DataFrame:
     app["_capable"] = [None if str(v).strip() == "" else X.parse_bool_value(v, column="app_gauge_capable", blank_is_false=False)
                        for v in app["app_gauge_capable"]]
     return app
+
+
+def write_conflict_review(u: pd.DataFrame, market: str, month: str, runs_dir: Path) -> tuple[int, Path | None]:
+    """CA only: gauge_type_conflict rows -> runs/<m>/type_review_CA_code_reader_<m>.csv (V17). Built with
+    ca_types.build_type_review and merged with ca_types.write_type_review (an existing human reviewed_type is kept).
+    The US workbook never writes a review file (US Type assignment is out of scope)."""
+    if market != "CA":
+        return 0, None
+    from ca_market_reports import ca_types  # ASSEMBLY: ca_types.build_type_review / write_type_review
+    rows = u[u["type_conflict"].astype(bool)]
+    if rows.empty:
+        print("type_review: 0 gauge_type_conflict rows (nothing to merge)")
+        return 0, None
+    review = ca_types.build_type_review(rows)
+    other = sorted(set(review["review_reason"]) - {"gauge_type_conflict"})
+    if other or len(review) != len(rows):
+        raise AssertionError(f"conflict review rows carry unexpected reasons {other} ({len(review)} of {len(rows)} rows)")
+    path = C.run_file(Path(runs_dir), month, "type_review", "CA_code_reader")
+    ca_types.write_type_review(review, path)
+    print(f"type_review: {len(review)} gauge_type_conflict rows merged into {path}")
+    return len(review), path
 
 
 def read_app_feature_matrix(path: Path) -> pd.DataFrame:
@@ -764,6 +793,17 @@ def _all_products(book: Book, c: GCtx) -> None:
                              dataset_filter="code-reader ∪ gauge union (all classes)"), 1)
 
 
+AUDIT_MONEY_HEADERS: dict[str, str] = {"revenue_chosen": "Revenue chosen ({ccy})", "revenue_dropped_max": "Revenue dropped max ({ccy})"}
+
+
+def dedupe_audit_columns(ccy: str) -> list[Col]:
+    """DEDUPE_AUDIT_COLUMNS as table columns: field names stay the frozen audit names; only the two money columns get a
+    display header carrying the currency (V07). Every other header is the raw audit column name."""
+    kinds = {"n_rows": "int", "revenue_chosen": "money", "revenue_dropped_max": "money"}
+    return [Col(AUDIT_MONEY_HEADERS.get(h, h).format(ccy=ccy), h, kinds.get(h, "text"), 30 if h in ("chosen_file", "dropped") else 13)
+            for h in C.DEDUPE_AUDIT_COLUMNS]
+
+
 def _audit(book: Book, c: GCtx) -> None:
     ws = book.sheet("Dedupe & Classification Audit")
     audit = c.ds.audits.get("dedupe_audit")
@@ -771,8 +811,7 @@ def _audit(book: Book, c: GCtx) -> None:
         raise KeyError("dataset audits carry no 'dedupe_audit' frame")
     X.require_columns(audit, C.DEDUPE_AUDIT_COLUMNS, "dedupe_audit")
     audit = audit[audit["asin"].isin(set(c.u["asin"]))].reset_index(drop=True)
-    kinds = {"n_rows": "int", "revenue_chosen": "money", "revenue_dropped_max": "money"}
-    cols = [Col(h, h, kinds.get(h, "text"), 30 if h in ("chosen_file", "dropped") else 13) for h in C.DEDUPE_AUDIT_COLUMNS]
+    cols = dedupe_audit_columns(c.ccy)
     note = None
     if X.input_mode(c.ds) == X.INPUT_MODE_NORMALIZED:
         note = "Built from a normalized frame: the loader did not run, so there is no dedupe audit."
@@ -938,7 +977,7 @@ def build_gauge_workbook(ds: C.CaDataset, out_dir: Path, *, benchmark: C.CaDatas
         raise FileExistsError(f"{out_dir / name} exists; pass --overwrite (the old file is backed up)")
     # full code-reader totals BEFORE the union (the US candidate pre-filter only narrows a local copy inside the assembly)
     cr_totals = code_reader_totals(ds.code_reader, ds.market)
-    u, notes, fuel_absent = gauge_union(ds, preclassified=preclassified, gauge_map_path=gauge_map, runs_dir=runs_dir,
+    u, notes, fuel_absent = gauge_union_with_flags(ds, preclassified=preclassified, gauge_map_path=gauge_map, runs_dir=runs_dir,
                                         rederive=rederive)
     c = GCtx(ds=ds, market=market, u=u, notes=notes, month=ds.month, mon=X.month_label(ds.month),
              sub=X.subtitle_text(market, ds.export_dates, ds.month), ccy=market.currency, cr_totals=cr_totals,
@@ -946,7 +985,7 @@ def build_gauge_workbook(ds: C.CaDataset, out_dir: Path, *, benchmark: C.CaDatas
     if benchmark is not None:
         c.bench = benchmark
         c.bench_cr_totals = code_reader_totals(benchmark.code_reader, benchmark.market)
-        c.bu, c.bench_notes, _ = gauge_union(benchmark, preclassified=preclassified, gauge_map_path=gauge_map, runs_dir=runs_dir,
+        c.bu, c.bench_notes = gauge_union(benchmark, preclassified=preclassified, gauge_map_path=gauge_map, runs_dir=runs_dir,
                                              rederive=rederive)
     if ds.market == "CA":
         c.modelb = modelb_universe(ds, app_gauge_brands)
@@ -963,6 +1002,7 @@ def build_gauge_workbook(ds: C.CaDataset, out_dir: Path, *, benchmark: C.CaDatas
     reg = X.TableRegistry(ds.market, ds.month)
     reg.add_book(book)
     reg_path = reg.write(runs_dir)
+    write_conflict_review(u, ds.market, ds.month, runs_dir)
     extra = [gauge_map, app_gauge_brands] if not preclassified else []
     if ds.market == "CA":
         extra.append(app_feature_matrix)
