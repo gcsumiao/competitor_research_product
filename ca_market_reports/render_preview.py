@@ -41,7 +41,7 @@ def fmt_value(cell) -> str:
     fmt = cell.number_format or "General"
     if isinstance(v, (int, float)):
         if "%" in fmt:
-            return f"{v * 100:.1f}%"
+            return f"{v * 100:.2f}%" if "0.00%" in fmt else f"{v * 100:.1f}%"
         sym = "CA$" if '"CA$"' in fmt else ("$" if '"$"' in fmt else "")
         if sym:
             return f"{sym}{v:,.2f}" if ".00" in fmt else f"{sym}{v:,.0f}"

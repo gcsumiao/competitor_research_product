@@ -428,8 +428,138 @@ class TestBuildOutputs(unittest.TestCase):
             for t in _tables(_market_of(p), p.name):
                 if t["role"] in ("brand_tab_revenue",) or (t["role"] == "innova" and p == _Built.cr_paths[0]):
                     self.assertEqual(t["header_row"], C.BRAND_TAB_RESERVED_ROWS + 2, (p.name, t["sheet"]))
-                if t["role"] == "kpi" and t["sheet"] not in ("Summary",):
+                if t["role"] == "kpi" and t["sheet"] not in ("Summary", "US Benchmark"):
                     self.assertEqual((t["first_data_row"], t["last_data_row"]), (3, 6), (p.name, t["sheet"]))
+
+    # ---------------------------------------------------------------- gauge share of the code-reader market / fuel split
+    @staticmethod
+    def _table(path: Path, sheet: str, role: str, title: str):
+        ts = [t for t in _tables(_market_of(path), path.name) if t["sheet"] == sheet and t["role"] == role and t["title"] == title]
+        return ts
+
+    @staticmethod
+    def _rows_by_label(ws, t) -> dict:
+        out = {}
+        for r in range(t["first_data_row"], t["last_data_row"] + 1):
+            out[ws.cell(r, t["first_col"]).value] = {h: ws.cell(r, t["first_col"] + i) for i, h in enumerate(t["columns"])}
+        if t["total_row"]:
+            out[C.TOTAL_ROW_LABEL] = {h: ws.cell(t["total_row"], t["first_col"] + i) for i, h in enumerate(t["columns"])}
+        return out
+
+    @staticmethod
+    def _expected_shares(rows: pd.DataFrame) -> dict:
+        cr = rows[rows["source_set"].isin(["code_reader", "both"])]
+        core = rows[rows["gauge_class"].isin(C.GAUGE_DEVICE_CLASSES)]          # fixtures carry no borderline rows
+        a = core[core["source_set"].isin(["code_reader", "both"])]
+        g_only = core[core["source_set"] == "gauge"]
+        cr_n, cr_rev, cr_u = len(cr), float(cr["revenue_month"].sum()), float(cr["units_month"].sum())
+        den_n, den_rev, den_u = cr_n + len(g_only), cr_rev + float(g_only["revenue_month"].sum()), cr_u + float(g_only["units_month"].sum())
+        a_rev, a_u = float(a["revenue_month"].sum()), float(a["units_month"].sum())
+        b_rev, b_u = float(core["revenue_month"].sum()), float(core["units_month"].sum())
+        L = G.SHARE_ROW_LABELS
+        return {L[0]: (cr_n, cr_rev, cr_u, 1.0, 1.0), L[1]: (len(a), a_rev, a_u, a_rev / cr_rev, a_u / cr_u),
+                L[2]: (len(core), b_rev, b_u, b_rev / den_rev, b_u / den_u), L[3]: (den_n, den_rev, den_u, 1.0, 1.0)}
+
+    def test_gauge_share_of_code_reader_market(self):
+        for path, rows in ((_Built.ca_gauge, _Built.ca_rows), (_Built.us_gauge, _Built.us_rows)):
+            ccy = C.MARKETS[_market_of(path)].currency
+            ts = self._table(path, "Summary", "kpi", G.SHARE_TITLE)
+            self.assertEqual(len(ts), 1, path.name)
+            t = ts[0]
+            self.assertEqual(t["columns"], ["Measure", "# ASINs", f"Monthly Rev ({ccy})", "Monthly Units", "Share of revenue",
+                                            "Share of units"])
+            self.assertFalse(any(h in ("CA share", "US share") or h.startswith("US ") for h in t["columns"]), t["columns"])
+            ws = openpyxl.load_workbook(path)["Summary"]
+            got = self._rows_by_label(ws, t)
+            exp = self._expected_shares(rows)
+            self.assertEqual(list(got), list(G.SHARE_ROW_LABELS))
+            for label, (n, rev, units, s_rev, s_u) in exp.items():
+                cells = got[label]
+                self.assertEqual(cells["# ASINs"].value, n, (path.name, label))
+                self.assertAlmostEqual(cells[f"Monthly Rev ({ccy})"].value, rev, places=6, msg=(path.name, label))
+                self.assertAlmostEqual(cells["Monthly Units"].value, units, places=6, msg=(path.name, label))
+                self.assertAlmostEqual(cells["Share of revenue"].value, s_rev, places=12, msg=(path.name, label))
+                self.assertAlmostEqual(cells["Share of units"].value, s_u, places=12, msg=(path.name, label))
+                self.assertEqual(cells["Share of revenue"].number_format, "0.00%")
+                self.assertEqual(cells["Share of units"].number_format, "0.00%")
+        # CA fixture by hand: (a) 4 ASINs CA$10,562.71 over CR CA$59,706.13; (b) 9 ASINs CA$14,970.86 over CA$64,114.28
+        exp = self._expected_shares(_Built.ca_rows)
+        self.assertEqual(exp[G.SHARE_ROW_LABELS[1]][0], 4)
+        self.assertAlmostEqual(exp[G.SHARE_ROW_LABELS[1]][1], 10562.71, places=6)
+        self.assertAlmostEqual(exp[G.SHARE_ROW_LABELS[3]][1], 64114.28, places=6)
+
+    def test_benchmark_share_columns_only_with_benchmark(self):
+        ts = self._table(_Built.ca_gauge, "US Benchmark", "kpi", G.BENCH_SHARE_TITLE)
+        self.assertEqual(len(ts), 1)
+        t = ts[0]
+        self.assertEqual(t["columns"], ["Measure", "CA share", "US share"])
+        ws = openpyxl.load_workbook(_Built.ca_gauge)["US Benchmark"]
+        got = self._rows_by_label(ws, t)
+        ca, us = self._expected_shares(_Built.ca_rows), self._expected_shares(_Built.us_rows)
+        L = G.SHARE_ROW_LABELS
+        want = {G.BENCH_SHARE_ROWS[0]: (ca[L[1]][3], us[L[1]][3]), G.BENCH_SHARE_ROWS[1]: (ca[L[1]][4], us[L[1]][4]),
+                G.BENCH_SHARE_ROWS[2]: (ca[L[2]][3], us[L[2]][3]), G.BENCH_SHARE_ROWS[3]: (ca[L[2]][4], us[L[2]][4])}
+        self.assertEqual(list(got), list(want))
+        for label, (c_s, u_s) in want.items():
+            self.assertAlmostEqual(got[label]["CA share"].value, c_s, places=12, msg=label)
+            self.assertAlmostEqual(got[label]["US share"].value, u_s, places=12, msg=label)
+            self.assertEqual(got[label]["US share"].number_format, "0.00%")
+        # never in the US workbook, never without a benchmark
+        def share_headers(path):
+            return [h for t in _tables(_market_of(path), path.name) for h in t["columns"] if h in ("CA share", "US share")]
+        self.assertEqual(share_headers(_Built.us_gauge), [])
+        nob = C.SCRATCH_DIR / "test_out_nobench"
+        if nob.exists():
+            shutil.rmtree(nob)
+        ca_ds = X.dataset_from_normalized(X.read_normalized_csv(CA_FIXTURE), "CA", MONTH)
+        with contextlib.redirect_stdout(io.StringIO()):
+            p = G.build_gauge_workbook(ca_ds, nob, benchmark=None, overwrite=True, dated_copy=False, runs_dir=nob / "runs",
+                                       preclassified=True, input_paths=[CA_FIXTURE])
+        reg = json.loads(C.run_file(nob / "runs", MONTH, "table_registry", "CA", "json").read_text())
+        hdrs = [h for t in reg["tables"] if t["workbook"] == p.name for h in t["columns"]]
+        self.assertNotIn("US share", hdrs)
+        self.assertNotIn("US Benchmark", openpyxl.load_workbook(p).sheetnames)
+        self.assertEqual(len([t for t in reg["tables"] if t["title"] == G.SHARE_TITLE]), 1)
+
+    def test_fuel_split_sums_to_core_device_totals(self):
+        for path, rows in ((_Built.ca_gauge, _Built.ca_rows), (_Built.us_gauge, _Built.us_rows)):
+            ccy = C.MARKETS[_market_of(path)].currency
+            ts = self._table(path, "Summary", "subtype_mix", G.FUEL_TITLE)
+            self.assertEqual(len(ts), 1, path.name)
+            t = ts[0]
+            self.assertEqual(t["columns"], ["Sub-type"] + G.fuel_headers(ccy))
+            ws = openpyxl.load_workbook(path)["Summary"]
+            notes = [c for row in ws.iter_rows(min_row=t["header_row"] - 2, max_row=t["header_row"] - 1, values_only=True)
+                     for c in row if isinstance(c, str)]
+            self.assertIn(G.FUEL_NOTE, notes)
+            got = self._rows_by_label(ws, t)
+            self.assertEqual(list(got), [C.GAUGE_SUBTYPE_LABELS[c] for c in C.GAUGE_DEVICE_CLASSES] + [C.TOTAL_ROW_LABEL])
+            core = rows[rows["gauge_class"].isin(C.GAUGE_DEVICE_CLASSES)]
+            for cls in C.GAUGE_DEVICE_CLASSES + (None,):
+                sub = core if cls is None else core[core["gauge_class"] == cls]
+                cells = got[C.TOTAL_ROW_LABEL if cls is None else C.GAUGE_SUBTYPE_LABELS[cls]]
+                n = sum(cells[f"{f}: # ASINs"].value for f in C.FEATURE_FUEL_SCOPE)
+                rev = sum(cells[f"{f}: Monthly Rev ({ccy})"].value for f in C.FEATURE_FUEL_SCOPE)
+                units = sum(cells[f"{f}: Monthly Units"].value for f in C.FEATURE_FUEL_SCOPE)
+                self.assertEqual(n, len(sub), (path.name, cls))
+                self.assertAlmostEqual(rev, float(sub["revenue_month"].sum()), places=6, msg=(path.name, cls))
+                self.assertAlmostEqual(units, float(sub["units_month"].sum()), places=6, msg=(path.name, cls))
+        # US fixture carries fuel_scope: tuner = diesel-capable, Lufi XF = gas, the rest unspecified
+        ws = openpyxl.load_workbook(_Built.us_gauge)["Summary"]
+        t = self._table(_Built.us_gauge, "Summary", "subtype_mix", G.FUEL_TITLE)[0]
+        tot = self._rows_by_label(ws, t)[C.TOTAL_ROW_LABEL]
+        us_core = _Built.us_rows[_Built.us_rows["gauge_class"].isin(C.GAUGE_DEVICE_CLASSES)]
+        for f in C.FEATURE_FUEL_SCOPE:
+            self.assertAlmostEqual(tot[f"{f}: Monthly Units"].value, float(us_core.loc[us_core["fuel_scope"] == f, "units_month"].sum()))
+        self.assertEqual(tot["diesel-capable: Monthly Units"].value, 12)
+        self.assertEqual(tot["gas: Monthly Units"].value, 20)
+        # CA fixture has no fuel_scope column: everything is 'unspecified' and Metadata says so
+        ws = openpyxl.load_workbook(_Built.ca_gauge)["Summary"]
+        t = self._table(_Built.ca_gauge, "Summary", "subtype_mix", G.FUEL_TITLE)[0]
+        tot = self._rows_by_label(ws, t)[C.TOTAL_ROW_LABEL]
+        self.assertEqual(tot["unspecified: # ASINs"].value, 9)
+        meta = {r[0]: r[1] for r in openpyxl.load_workbook(_Built.ca_gauge)["Metadata"].iter_rows(values_only=True) if r and r[0]}
+        self.assertIn("fuel_scope absent", meta["Enrichment columns"])
 
     def test_innova_tab(self):
         rows = _Built.ca_rows[_Built.ca_rows["source_set"].isin(["code_reader", "both"])]

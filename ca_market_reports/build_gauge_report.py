@@ -49,6 +49,66 @@ DEDUPE_RULE = ("Within each source export, rows are deduped to one row per ASIN;
                "the gauge row is kept in the dedupe audit. The winning row is classified, then aggregated.")
 
 
+SHARE_TITLE = "Gauge share of the code-reader market"
+SHARE_ROW_LABELS: tuple[str, ...] = ("Code-reader export total", "(a) Gauge devices inside the code-reader export",
+                                     "(b) All core gauge devices (CR ∪ gauge export)", "(b) denominator: CR total + gauge-only rows")
+SHARE_NOTE = ("Core devices = device scope, not borderline. (a) = core devices present in the code-reader export ÷ the FULL "
+              "code-reader export (before any gauge candidate filter). (b) = all core devices ÷ (full code-reader export + core "
+              "devices found only in the gauge export). Shares of revenue and of units are computed within this market.")
+BENCH_SHARE_TITLE = "Gauge share of the code-reader market — CA vs US"
+BENCH_SHARE_ROWS: tuple[str, ...] = ("(a) Gauge devices inside the code-reader export: share of revenue",
+                                     "(a) Gauge devices inside the code-reader export: share of units",
+                                     "(b) All core gauge devices (CR ∪ gauge export): share of revenue",
+                                     "(b) All core gauge devices (CR ∪ gauge export): share of units")
+FUEL_TITLE = "Fuel split (core devices)"
+FUEL_NOTE = ("Fuel scope is derived from model numbers (tuners/monitors) or title tokens; HUD/gauge-display listings are generic "
+             "OBD-II products and stay 'unspecified' unless the title states a fuel.")
+
+
+def fuel_headers(ccy: str) -> list[str]:
+    """Fuel split columns, built from ca_common.FEATURE_FUEL_SCOPE at runtime (new fuel values flow in automatically)."""
+    return [h for f in C.FEATURE_FUEL_SCOPE for h in (f"{f}: # ASINs", f"{f}: Monthly Rev ({ccy})", f"{f}: Monthly Units")]
+
+
+def code_reader_totals(df: pd.DataFrame, market: str) -> dict:
+    """Totals of the FULL code-reader export (for US: before the gauge candidate filter)."""
+    X.require_columns(df, ("asin", "revenue_month", "units_month"), f"{market} code-reader export")
+    f = X.coerce_frame(df[["asin", "revenue_month", "units_month"]])
+    for col in ("revenue_month", "units_month"):
+        bad = f.loc[f[col].isna() | (f[col] < 0), "asin"].tolist()
+        if bad:
+            raise ValueError(f"{market} code-reader export: missing/negative {col} for {bad[:10]}")
+    if f["asin"].duplicated().any():
+        raise ValueError(f"{market} code-reader export: duplicate ASINs {f.loc[f['asin'].duplicated(), 'asin'].tolist()[:10]}")
+    return {"n": int(f["asin"].nunique()), "rev": float(f["revenue_month"].sum()), "units": float(f["units_month"].sum()),
+            "asins": frozenset(f["asin"])}
+
+
+def market_share_rows(u: pd.DataFrame, cr: dict, market: str) -> list[dict]:
+    core = u[u["_core"]]
+    a = core[core["source_set"].isin(["code_reader", "both"])]
+    g = core[core["source_set"] == "gauge"]
+    missing = sorted(set(a["asin"]) - cr["asins"])
+    if missing:
+        raise ValueError(f"{market}: core rows marked code_reader/both are not in the code-reader export: {missing[:10]}")
+    overlap = sorted(set(g["asin"]) & cr["asins"])
+    if overlap:
+        raise ValueError(f"{market}: gauge-only rows are also in the code-reader export: {overlap[:10]}")
+    den_n, den_rev = cr["n"] + int(g["asin"].nunique()), cr["rev"] + float(g["revenue_month"].sum())
+    den_u = cr["units"] + float(g["units_month"].sum())
+    a_rev, a_u = float(a["revenue_month"].sum()), float(a["units_month"].sum())
+    b_rev, b_u = float(core["revenue_month"].sum()), float(core["units_month"].sum())
+    L = SHARE_ROW_LABELS
+    return [{"label": L[0], "n": cr["n"], "rev": cr["rev"], "units": cr["units"], "s_rev": X.safe_div(cr["rev"], cr["rev"]),
+             "s_u": X.safe_div(cr["units"], cr["units"])},
+            {"label": L[1], "n": int(a["asin"].nunique()), "rev": a_rev, "units": a_u, "s_rev": X.safe_div(a_rev, cr["rev"]),
+             "s_u": X.safe_div(a_u, cr["units"])},
+            {"label": L[2], "n": int(core["asin"].nunique()), "rev": b_rev, "units": b_u, "s_rev": X.safe_div(b_rev, den_rev),
+             "s_u": X.safe_div(b_u, den_u)},
+            {"label": L[3], "n": den_n, "rev": den_rev, "units": den_u, "s_rev": X.safe_div(den_rev, den_rev),
+             "s_u": X.safe_div(den_u, den_u)}]
+
+
 def _scope_text(cls: str) -> str:
     if cls in C.GAUGE_DEVICE_CLASSES:
         return "device: counted in totals, tiers, shares, benchmark"
@@ -144,7 +204,8 @@ def enrich_union(union: pd.DataFrame, market: C.Market, notes: list[str]) -> pd.
 
 
 def gauge_union(ds: C.CaDataset, *, preclassified: bool, gauge_map_path: Path, runs_dir: Path,
-                rederive: bool) -> tuple[pd.DataFrame, list[str]]:
+                rederive: bool) -> tuple[pd.DataFrame, list[str], bool]:
+    """(enriched union, notes, fuel_absent) — fuel_absent: the input carried no fuel_scope column (dev frames)."""
     notes: list[str] = []
     if preclassified:
         union = _dev_union(ds)
@@ -153,7 +214,11 @@ def gauge_union(ds: C.CaDataset, *, preclassified: bool, gauge_map_path: Path, r
         union = _assemble_union_from_loader(ds, gauge_map_path, runs_dir, rederive)
     if union["asin"].duplicated().any():
         raise ValueError(f"duplicate ASINs after the union: {union.loc[union['asin'].duplicated(), 'asin'].tolist()[:10]}")
-    return enrich_union(union, C.MARKETS[ds.market], notes), notes
+    fuel_absent = "fuel_scope" not in union.columns
+    u = enrich_union(union, C.MARKETS[ds.market], notes)
+    if fuel_absent:
+        notes.append("fuel_scope absent in the input: core devices are counted as 'unspecified' in the fuel split")
+    return u, notes, fuel_absent
 
 
 def read_app_gauge_brands(path: Path) -> pd.DataFrame:
@@ -200,9 +265,12 @@ class GCtx:
     mon: str
     sub: str
     ccy: str
+    cr_totals: dict = field(default_factory=dict)       # FULL code-reader export totals (before any candidate filter)
+    fuel_absent: bool = False
     bench: C.CaDataset | None = None
     bu: pd.DataFrame | None = None
     bench_notes: list[str] = field(default_factory=list)
+    bench_cr_totals: dict = field(default_factory=dict)
     modelb: pd.DataFrame | None = None
 
     @property
@@ -330,9 +398,44 @@ def _summary(book: Book, c: GCtx) -> None:
              (f"Gauge accessories revenue ({ccy})", float(acc["revenue_month"].sum()), "money"),
              (f"Adjacent GPS-only HUD revenue ({ccy})", float(adj["revenue_month"].sum()), "money"),
              ("# core device ASINs with sales > 0", int((core["units_month"] > 0).sum()), "int")]
-    book.kpi(ws, r, items, title="Key figures", dataset_filter="see metric labels")
+    tr_d = book.kpi(ws, r, items, title="Key figures", dataset_filter="see metric labels")
+    # charts first: anchors sit beside (a) and (b), left of the wider tables written below
     book.bar(ws, tr_a, "Brand", f"Monthly Rev ({ccy})", f"Core device revenue by brand ({ccy})")
     book.pie(ws, tr_b, "Sub-type", "Rev share", "Device revenue by sub-type")
+    # (e) gauge share of the whole code-reader market (this market only; the CA vs US view is on US Benchmark)
+    cols_e = [Col("Measure", "label", "text", 34), Col("# ASINs", "n", "int", 10), Col(f"Monthly Rev ({ccy})", "rev", "money", 15),
+              Col("Monthly Units", "units", "int", 12), Col("Share of revenue", "s_rev", "pct2", 12),
+              Col("Share of units", "s_u", "pct2", 12)]
+    tr_e = book.table(ws, TableSpec("Summary", "kpi", SHARE_TITLE, cols_e, pd.DataFrame(market_share_rows(c.u, c.cr_totals, code)),
+                                    None, None, (code,), note=SHARE_NOTE,
+                                    dataset_filter="core devices vs the full code-reader export"), X.table_end(tr_d) + 3)
+    # (f) fuel split of core devices by sub-type
+    fuels = tuple(C.FEATURE_FUEL_SCOPE)
+    fuel = pd.Series("unspecified", index=core.index) if c.fuel_absent else core["fuel_scope"].astype(str)
+    bad = sorted(set(fuel) - set(fuels))
+    if bad:
+        raise ValueError(f"core devices with fuel_scope outside FEATURE_FUEL_SCOPE {fuels}: {bad} "
+                         f"(e.g. {core.loc[~fuel.isin(fuels), 'asin'].tolist()[:5]})")
+
+    def fuel_row(sub: pd.DataFrame, f_sub: pd.Series, label: str) -> dict:
+        d = {"label": label}
+        for i, f in enumerate(fuels):
+            m = f_sub == f
+            d[f"f{i}_n"] = int(sub.loc[m, "asin"].nunique())
+            d[f"f{i}_rev"] = float(sub.loc[m, "revenue_month"].sum())
+            d[f"f{i}_units"] = float(sub.loc[m, "units_month"].sum())
+        return d
+
+    frows = [fuel_row(core[core["gauge_class"] == cls], fuel[core["gauge_class"] == cls], C.GAUGE_SUBTYPE_LABELS[cls])
+             for cls in C.GAUGE_DEVICE_CLASSES]
+    hdrs = fuel_headers(ccy)
+    cols_f = [Col("Sub-type", "label", "text", 28)]
+    for i, _ in enumerate(fuels):
+        cols_f += [Col(hdrs[3 * i], f"f{i}_n", "int", 10), Col(hdrs[3 * i + 1], f"f{i}_rev", "money", 14),
+                   Col(hdrs[3 * i + 2], f"f{i}_units", "int", 11)]
+    book.table(ws, TableSpec("Summary", "subtype_mix", FUEL_TITLE, cols_f, pd.DataFrame(frows),
+                             fuel_row(core, fuel, C.TOTAL_ROW_LABEL), None, (code,), note=FUEL_NOTE,
+                             dataset_filter="core devices; fuel_scope in FEATURE_FUEL_SCOPE"), X.table_end(tr_e) + 3)
 
 
 def _top50_columns(ccy: str) -> list[Col]:
@@ -555,9 +658,22 @@ def _benchmark(book: Book, c: GCtx) -> None:
                                   _sbs_total(ca, us, C.TOTAL_ROW_LABEL), None, ("CA", "US"),
                                   dataset_filter="core devices, both markets"), X.table_end(tr) + 3)
     frame = _side_by_side(ca, us, "_gtier", [(t, t) for t, _, _ in C.GAUGE_TIERS])
-    book.table(ws, TableSpec("US Benchmark", "benchmark_tiers", "Price tiers (CA in CAD, US in USD)", cols("Price tier"), frame,
-                             _sbs_total(ca, us, C.TOTAL_ROW_LABEL), None, ("CA", "US"),
-                             dataset_filter="core devices, both markets; GAUGE_TIERS per market currency"), X.table_end(tr) + 3)
+    tr = book.table(ws, TableSpec("US Benchmark", "benchmark_tiers", "Price tiers (CA in CAD, US in USD)", cols("Price tier"), frame,
+                                  _sbs_total(ca, us, C.TOTAL_ROW_LABEL), None, ("CA", "US"),
+                                  dataset_filter="core devices, both markets; GAUGE_TIERS per market currency"), X.table_end(tr) + 3)
+    # gauge share of each market's code-reader market: shares only (each computed within its own currency)
+    s_ca = {d["label"]: d for d in market_share_rows(c.u, c.cr_totals, "CA")}
+    s_us = {d["label"]: d for d in market_share_rows(c.bu, c.bench_cr_totals, "US")}
+    L = SHARE_ROW_LABELS
+    rows = [{"label": BENCH_SHARE_ROWS[0], "ca": s_ca[L[1]]["s_rev"], "us": s_us[L[1]]["s_rev"]},
+            {"label": BENCH_SHARE_ROWS[1], "ca": s_ca[L[1]]["s_u"], "us": s_us[L[1]]["s_u"]},
+            {"label": BENCH_SHARE_ROWS[2], "ca": s_ca[L[2]]["s_rev"], "us": s_us[L[2]]["s_rev"]},
+            {"label": BENCH_SHARE_ROWS[3], "ca": s_ca[L[2]]["s_u"], "us": s_us[L[2]]["s_u"]}]
+    cols_s = [Col("Measure", "label", "text", 52), Col("CA share", "ca", "pct2", 11), Col("US share", "us", "pct2", 11)]
+    book.table(ws, TableSpec("US Benchmark", "kpi", BENCH_SHARE_TITLE, cols_s, pd.DataFrame(rows), None, None, ("CA", "US"),
+                             note="Each share is computed within its own market and currency (definitions as on Summary); "
+                                  "no cross-currency ratio.",
+                             dataset_filter="core devices vs the full code-reader export, per market"), X.table_end(tr) + 3)
 
 
 def _same_asin(book: Book, c: GCtx) -> None:
@@ -669,7 +785,11 @@ def _source_method(book: Book, c: GCtx) -> None:
               "truncated tables end with an 'Other …' residual row so the Total row equals the full dataset. Avg price = revenue ÷ "
               "units. Avg rating = units-weighted mean over listings with rating > 0, blank when none.",
               f"Price tiers: half-open [low, high) on the listing price ({', '.join(t for t, _, _ in C.GAUGE_TIERS)}), nominal in "
-              f"the market currency."]
+              f"the market currency.",
+              "Gauge share of the code-reader market: (a) core devices present in the code-reader export ÷ the full code-reader "
+              "export totals (taken before any gauge candidate filter); (b) all core devices ÷ (full code-reader export + core "
+              "devices found only in the gauge export). Revenue and unit shares are computed within each market.",
+              "Fuel split: core devices by fuel_scope (" + ", ".join(C.FEATURE_FUEL_SCOPE) + "). " + FUEL_NOTE]
     if c.code == "CA":
         paras += ["# Models",
                   "Model A tables use core devices. Model B universe = CA code-reader listings typed Dongle; app-gauge capability is "
@@ -698,6 +818,9 @@ def _metadata(book: Book, c: GCtx) -> None:
     d["Scope note"] = (f"Single month; no MoM/Rolling-12; gauge price tiers are nominal break points in {c.ccy}; "
                        f"totals use core devices (device scope, not borderline)")
     d["Enrichment columns"] = "; ".join(c.notes) or "all enrichment columns present in the classified frame"
+    d["Code-reader market totals"] = (f"{c.cr_totals['n']} ASINs, {X.fmt_money(c.cr_totals['rev'], c.market)}, "
+                                      f"{c.cr_totals['units']:,.0f} units (full {c.code} code-reader export, before any gauge "
+                                      f"candidate filter)")
     if c.code == "CA":
         d["Model B universe"] = (f"{len(c.modelb)} CA code-reader rows typed Dongle; app-gauge map {APP_GAUGE_BRANDS_DEFAULT.name}"
                                  if c.modelb is not None else "not built")
@@ -708,6 +831,9 @@ def _metadata(book: Book, c: GCtx) -> None:
         d["US benchmark raw files"] = "; ".join(f"{n}: {r}" for n, r in c.bench.raw_files) or "none recorded"
         if c.bench_notes:
             d["US benchmark enrichment"] = "; ".join(c.bench_notes)
+        d["US code-reader market totals"] = (f"{c.bench_cr_totals['n']} ASINs, {X.fmt_money(c.bench_cr_totals['rev'], C.MARKETS['US'])}, "
+                                             f"{c.bench_cr_totals['units']:,.0f} units (full US code-reader export, before the gauge "
+                                             f"candidate filter)")
     book.metadata(book.sheet("Metadata"), d)
 
 
@@ -762,13 +888,18 @@ def build_gauge_workbook(ds: C.CaDataset, out_dir: Path, *, benchmark: C.CaDatas
     name = C.gauge_report_name(ds.market, ds.month)
     if not overwrite and (out_dir / name).exists():
         raise FileExistsError(f"{out_dir / name} exists; pass --overwrite (the old file is backed up)")
-    u, notes = gauge_union(ds, preclassified=preclassified, gauge_map_path=gauge_map, runs_dir=runs_dir, rederive=rederive)
+    # full code-reader totals BEFORE the union (the US candidate pre-filter only narrows a local copy inside the assembly)
+    cr_totals = code_reader_totals(ds.code_reader, ds.market)
+    u, notes, fuel_absent = gauge_union(ds, preclassified=preclassified, gauge_map_path=gauge_map, runs_dir=runs_dir,
+                                        rederive=rederive)
     c = GCtx(ds=ds, market=market, u=u, notes=notes, month=ds.month, mon=X.month_label(ds.month),
-             sub=X.subtitle_text(market, ds.export_dates, ds.month), ccy=market.currency)
+             sub=X.subtitle_text(market, ds.export_dates, ds.month), ccy=market.currency, cr_totals=cr_totals,
+             fuel_absent=fuel_absent)
     if benchmark is not None:
         c.bench = benchmark
-        c.bu, c.bench_notes = gauge_union(benchmark, preclassified=preclassified, gauge_map_path=gauge_map, runs_dir=runs_dir,
-                                          rederive=rederive)
+        c.bench_cr_totals = code_reader_totals(benchmark.code_reader, benchmark.market)
+        c.bu, c.bench_notes, _ = gauge_union(benchmark, preclassified=preclassified, gauge_map_path=gauge_map, runs_dir=runs_dir,
+                                             rederive=rederive)
     if ds.market == "CA":
         c.modelb = modelb_universe(ds, app_gauge_brands)
     book = build_gauge_book(c)
