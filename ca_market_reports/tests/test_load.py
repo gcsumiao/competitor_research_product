@@ -214,9 +214,10 @@ class LoadFixtureTest(unittest.TestCase):
         self.assertEqual(cr.loc["B0TESTCBL2", "type"], "Cable/Adapter")
         self.assertEqual(cr.loc["B0TESTHUD1", "type_rule_id"], "gauge_hud")
         self.assertEqual(cr.loc["B0TESTBRK1", "type_source"], "default_other")
-        # 'Case for Innova 5610 Scanner' at CA$19.99: the scanner_lt380 keyword rule (last rule) types it Handheld
-        self.assertEqual((cr.loc["B0TESTGEN2", "type"], cr.loc["B0TESTGEN2", "type_rule_id"], cr.loc["B0TESTGEN2", "type_confidence"]),
-                         ("Handheld", "scanner_lt380", 0.8))
+        # 'Case for Innova 5610 Scanner' at CA$19.99: scanner_lt380 is blocked by its accessory exclusion ("case"), so the
+        # row stays default_other and lands in the review queue instead of being typed Handheld
+        self.assertEqual((cr.loc["B0TESTGEN2", "type"], cr.loc["B0TESTGEN2", "type_source"], cr.loc["B0TESTGEN2", "type_confidence"]),
+                         ("Other", "default_other", 0.0))
         self.assertEqual(cr.loc["B0TESTEX40", "price_tier"], "Tablet $400-$800")
         self.assertEqual(cr.loc["B0TESTTAB1", "price_tier"], "Tablet $800+")
         self.assertEqual(cr.loc["B0TESTINN1", "price_tier"], "Handheld $75+")

@@ -54,6 +54,7 @@ GAUGE_HUD_RE = re.compile(
     r"\bgauge\b|\bgague\b|\bhud\b|heads?[- ]?up|scangauge|insight ct|\bcts[23]\b|idash|trip computer|on[- ]?board computer")
 
 SCANNER_LT380_RE = re.compile(r"\bscanner\b|\bscan tool\b|\bobd2? reader\b|bi-?directional tool")
+SCANNER_LT380_EXCLUDE_RE = re.compile(r"\bcase\b|cases\b|screen protector|hydrogel|tempered glass|microchip|credit card|barcode|bar code|\bbattery\b|\bpet\b|document scanner|\bqr\b", re.I)   # orchestrator one-liner: scanner_lt380 false positives
 
 # (rule name, type, keywords) in US order; gauge_hud is a regex rule. The two price-gated rules follow (keyword_rule).
 _KEYWORD_RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
@@ -222,7 +223,7 @@ def keyword_rule(title, price) -> tuple[str, str, float] | None:
     p = float(price) if not _is_blank(price) else float("nan")
     if p >= PRICE_TABLET_HINT and "scanner" in text:
         return "Tablet", "price_tablet_hint", KEYWORD_CONFIDENCE
-    if p < PRICE_TABLET_HINT and SCANNER_LT380_RE.search(text):     # NaN compares False: no realized price, no hit
+    if p < PRICE_TABLET_HINT and SCANNER_LT380_RE.search(text) and not SCANNER_LT380_EXCLUDE_RE.search(text):     # NaN compares False: no realized price, no hit; non-automotive "scanners" and accessories fall through to review
         return "Handheld", "scanner_lt380", SCANNER_LT380_CONFIDENCE
     return None
 
