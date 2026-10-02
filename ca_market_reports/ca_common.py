@@ -310,15 +310,23 @@ COMBINED_MODEL_SHEETS: tuple[str, ...] = ("Price Ladder (Model A)", "Feature Mat
 COMBINED_TAIL_SHEETS: tuple[str, ...] = ("US vs CA Same-ASIN", "All Products", "Dedupe & Classification Audit", "Excluded", "Source & Method", "Metadata")
 # Summary tables, in this vertical order (role in brackets); every table is ONE table with CA and US columns side by side
 COMBINED_SUMMARY_TITLES: dict[str, tuple[str, str]] = {
-    "key_figures": ("Key figures", "kpi"),                                              # rows = KPIs, columns CA (CAD) | US (USD)
-    "share":       ("Gauge share of the code-reader market", "kpi"),                    # ONE row: (b) all core gauge devices; CA block | US block; share columns bold
+    "key_figures": ("Key figures", "kpi"),                                              # rows = COMBINED_KEY_FIGURE_LABELS, columns Measure | CA | US | Unit; the gauge-share rows are part of THIS table (user request 2026-10-02), bold, "0.00%"
     "brands":      ("Brand summary — CA vs US", "summary_brands"),                      # Brand | CA # Listings | CA Monthly Rev (CAD) | CA Monthly Units | CA Rev Share | CA Avg Rating | US … ; residual per market; Total
     "subtypes":    ("Sub-type mix — CA vs US", "subtype_mix"),                          # rows = device sub-types + "GPS-only HUD (adjacent)" + Total
     "tier_ca":     ("Price tier × sub-type — CA (CAD)", "tier_matrix"),                 # rows = sub-types + Total; columns per tier: "<tier> Rev (CAD)", "<tier> Units"; last pair "All tiers"
     "tier_us":     ("Price tier × sub-type — US (USD)", "tier_matrix"),
     "fuel":        ("Fuel split — CA vs US", "subtype_mix"),                            # rows = (fuel, sub-type) + per-fuel subtotal + Total; columns CA # ASINs | CA Rev | CA Units | US # ASINs | US Rev | US Units
 }
-COMBINED_SHARE_ROW_LABEL = "(b) All core gauge devices (CR ∪ gauge export)"
+# Key figures rows, in order. Rows 8-11 fold the former "Gauge share of the code-reader market" table into Key figures
+# (definition (b): all core devices ÷ (full code-reader export + core devices found only in the gauge export)); the two share rows are bold.
+COMBINED_KEY_FIGURE_LABELS: tuple[str, ...] = (
+    "Core device revenue", "Core device units", "# core device ASINs", "# core device ASINs with sales > 0",
+    "Incl. borderline revenue", "Accessories revenue", "Adjacent GPS-only HUD revenue",
+    "Code-reader market revenue (full export)", "Code-reader market units (full export)",
+    "Gauge share of code-reader market — revenue (b)", "Gauge share of code-reader market — units (b)",
+)
+COMBINED_KEY_FIGURE_SHARE_LABELS: tuple[str, ...] = COMBINED_KEY_FIGURE_LABELS[-2:]
+COMBINED_SHARE_ROW_LABEL = "(b) All core gauge devices (CR ∪ gauge export)"   # legacy name of the folded table's row (no longer a table)
 # Market highlight: header fills per market block (CA purple, US blue) and a faint data tint; applied to every side-by-side table
 FILL_MARKET_HEADER: dict[str, str] = {"CA": "D9D2E9", "US": "DCE6F1"}
 FILL_MARKET_DATA: dict[str, str] = {"CA": "F4F1F9", "US": "F3F7FB"}
