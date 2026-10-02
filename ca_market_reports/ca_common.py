@@ -253,6 +253,10 @@ H10_NEVER_SUM: tuple[str, ...] = ("Parent Level Sales", "Parent Level Revenue")
 TYPE_OVERRIDES_COLUMNS = ("asin", "type", "reason", "decided_by", "decided_month")
 GAUGE_MAP_COLUMNS = ("asin", "gauge_class", "borderline", "reason", "decided_by", "decided_month")   # scope is DERIVED from gauge_class, never stored
 APP_GAUGE_BRANDS_COLUMNS = ("brand_key", "app_name", "app_gauge_capable", "source_url", "accessed", "note")   # maps/ca_app_gauge_brands.csv (Model B)
+# maps/ca_app_feature_matrix.csv (Model B app comparison, filled from the memo research; every non-GAP cell needs source_url+accessed)
+APP_FEATURE_MATRIX_COLUMNS = ("app", "vendor", "live_gauges", "custom_dashboards", "hud_mirror_mode", "alarms", "data_logging",
+                              "enhanced_diesel_pids", "carplay_android_auto", "subscription", "canada_availability", "source_url", "accessed", "note")
+APP_FEATURE_MATRIX_APPS = ("OBDLink", "BlueDriver", "FIXD", "Carista", "Torque Pro", "Car Scanner ELM OBD2", "DashCommand", "Innova RS2 (RepairSolutions2)", "CarMD")
 BRAND_ALIASES_COLUMNS = ("raw_key", "canonical_key", "note")
 BRAND_DISPLAY_COLUMNS = ("canonical_key", "display")
 DEDUPE_AUDIT_COLUMNS = ("market", "source_set", "asin", "n_rows", "chosen_file", "chosen_row", "dropped", "values_identical",
