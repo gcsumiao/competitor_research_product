@@ -1295,6 +1295,10 @@ class Validator:
                 probs.append(f"{t.label}: {t.market_conflict}")
             rows = list(t.data_rows) + [r for r in (t.total_row, t.residual_row) if r]
             kpi_style = t.columns == ["Metric", "Value"]
+            # the only money columns without a currency token: the CA / US value columns of a KPI matrix (Key figures
+            # Measure | CA | US | Unit, brand-tab Metric | CA | US); each money row must name its currency itself
+            kpi_matrix = (t.role == "kpi" and t.market is None and t.columns[1:3] == list(C.COMBINED_MARKETS)
+                          and set(t.columns[3:]) <= {"Unit"})
             cms = t.e.get("column_markets")
             if cms is not None and len(cms) != len(t.columns):
                 probs.append(f"{t.label}: registry column_markets {cms} do not match the {len(t.columns)} columns")
@@ -1320,9 +1324,16 @@ class Validator:
                     "%" in (c.number_format or "") for c in nums)
                 if money or rev_like:
                     n_hdr += 1
-                    labelled = bool(toks) or (prefix is not None and t.market is None)
-                    if not labelled:
-                        want = f"({C.MARKETS[mk].currency})" if mk else "(CAD)/(USD) or a CA/US block prefix"
+                    if kpi_matrix and h in C.COMBINED_MARKETS:
+                        # Measure | CA | US value columns: the currency is stated per row (Unit cell or label), checked here
+                        for c in money:
+                            note = " ".join(str(t.ws.cell(c.row, t.first_col + k).value or "")
+                                            for k in [0] + ([t.columns.index("Unit")] if "Unit" in t.columns else []))
+                            if C.MARKETS[h].currency not in note:
+                                probs.append(f"{t.label} {c.coordinate}: money value in the {h} column but neither the row "
+                                             f"label nor its Unit cell names {C.MARKETS[h].currency}")
+                    elif not toks:
+                        want = f"({C.MARKETS[mk].currency})" if mk else "(CAD)/(USD)"
                         probs.append(f"{t.label}: money column {h!r} lacks {want}")
                 if money and mk is None:
                     probs.append(f"{t.label}: money column {h!r} belongs to no market block")
@@ -1500,6 +1511,8 @@ class Validator:
                 if not dash_ok:
                     probs.append(f"{t.label} Total {h!r}: '-' where listings exist")
                 continue
+            if dash_ok and _is_blank(v):
+                continue           # absent market: '-' for Monthly Rev / Units, blank for every other numeric column
             got = _num(v)
             n_cells += 1
             if got is None:
@@ -1527,7 +1540,7 @@ class Validator:
 
     # ---------------------------------------------------------------- V09 combined workbook
     def _v09_combined(self, w: WB) -> tuple[list[str], int, int]:
-        probs = self._combined_structure(w)
+        probs = self._combined_structure(w) + self._combined_brand_kpi_structure(w)
         n_tables = n_cells = 0
         brands_title = C.COMBINED_SUMMARY_TITLES["brands"][0]
         for t in self.tables(w):
@@ -1597,35 +1610,97 @@ class Validator:
             probs.append(f"{w.name}!Summary: tables out of the frozen vertical order {list(C.COMBINED_SUMMARY_TITLES)}")
         return probs
 
+    def _combined_brand_kpi_structure(self, w: WB) -> list[str]:
+        """Every brand tab of brand_sheet_map (Innova excluded) carries the KPI block BEFORE its values are checked:
+        B2/C2 = 'CA'/'US', rows 3-6 labelled Monthly Rev …, Monthly Units, # of Listings, Rev share … (in this order), and
+        exactly one registered kpi table over rows 3-6 with columns <label> | CA | US."""
+        probs = []
+        entry = self.cregistry.get()["workbooks"].get(w.name, {})
+        sheets = [v for k, v in entry.get("brand_sheet_map", {}).items() if v != "Innova"]
+        for sheet in sheets:
+            if sheet not in w.book.sheetnames:
+                probs.append(f"{w.name}!{sheet}: brand tab in brand_sheet_map but no such sheet")
+                continue
+            ws = w.book[sheet]
+            heads = [ws.cell(2, 2).value, ws.cell(2, 3).value]
+            if heads != list(C.COMBINED_MARKETS):
+                probs.append(f"{w.name}!{sheet}: KPI column labels B2/C2 {heads} != {list(C.COMBINED_MARKETS)}")
+            labels = [ws.cell(r, 1).value for r in range(3, C.BRAND_TAB_RESERVED_ROWS + 1)]
+            bases = [kpi_label_base(str(v)) if isinstance(v, str) else None for v in labels]
+            ok = (len(bases) == 4 and bases[0] == "Monthly Rev" and bases[1] == "Monthly Units" and bases[2] == "# of Listings"
+                  and bases[3] in REV_SHARE_BASES)
+            if not ok:
+                probs.append(f"{w.name}!{sheet}: KPI rows 3-6 labels {labels} != Monthly Rev …, Monthly Units, # of Listings, "
+                             f"Rev share …")
+            ts = [t for t in self.tables(w, "kpi", sheet) if t.market is None]
+            good = [t for t in ts if (t.first, t.last, t.first_col) == (3, C.BRAND_TAB_RESERVED_ROWS, 1)
+                    and t.columns[1:] == list(C.COMBINED_MARKETS)]
+            if len(ts) != 1 or len(good) != 1:
+                probs.append(f"{w.name}!{sheet}: expected one registered KPI block over rows 3-{C.BRAND_TAB_RESERVED_ROWS} "
+                             f"(columns <label> | CA | US), found "
+                             f"{[(t.first, t.last, t.columns) for t in ts]}")
+        return probs
+
+    def expected_brand_rows(self, frames: dict[str, pd.DataFrame]) -> tuple[list[str], list[str], dict[str, str], list[str]]:
+        """(shown keys in display order, residual keys, display by key, problems) of the Brand summary, re-implemented from
+        the documented rule: rows are brand KEYS of both markets' scope rows; the shown keys are the top SUMMARY_TOP_BRANDS
+        by max(CA revenue, US revenue) (ties: display, key), displayed by CA revenue desc, then US revenue desc, then display,
+        then key. Two keys sharing one display label cannot be told apart in the sheet: a problem, never a guess."""
+        disp: dict[str, str] = {}
+        for mk in ("US", "CA"):                                       # CA display wins, as in the builder
+            disp.update(dict(zip(frames[mk]["brand_key"], frames[mk]["brand_display"].astype(str))))
+        probs = []
+        by_label: dict[str, list[str]] = {}
+        for k, lb in disp.items():
+            by_label.setdefault(lb, []).append(k)
+        for lb, ks in sorted(by_label.items()):
+            if len(ks) > 1:
+                probs.append(f"brand keys {sorted(ks)} share the display label {lb!r}: their Brand summary rows are ambiguous")
+        rev = {mk: f.groupby("brand_key")["revenue_month"].sum() for mk, f in frames.items()}
+
+        def r(mk: str, k: str) -> float:
+            return float(rev[mk].get(k, 0.0))
+        keys = sorted(disp)
+        chosen = sorted(keys, key=lambda k: (-max(r("CA", k), r("US", k)), disp[k], k))[:C.SUMMARY_TOP_BRANDS]
+        rest = sorted(set(keys) - set(chosen))
+        shown = sorted(chosen, key=lambda k: (-r("CA", k), -r("US", k), disp[k], k))
+        return shown, rest, disp, probs
+
     def _c_brands(self, t: Table) -> tuple[list[str], int]:
-        """Brand rows per market block, residual = brands not shown, Total = the full core set; shares within the market;
-        shown brands = the top SUMMARY_TOP_BRANDS by max(CA revenue, US revenue). A brand with no listings in a market
-        shows '-' in all of that market's cells (required); residual and Total rows stay numeric."""
+        """Brand rows compared BY POSITION with the re-derived ordered key list (expected_brand_rows): label, then every
+        market block over that key's scope rows; residual = the keys not shown; Total = the full scope; shares within the
+        market. A brand with no listings in a market shows '-' in all of that market's cells (required); residual and
+        Total rows stay numeric."""
         probs: list[str] = []
         mc = self.mcols(t, probs)
         frames = {mk: self.scope_frame(t, mk) for mk in C.COMBINED_MARKETS}
+        shown, rest, disp, p = self.expected_brand_rows(frames)
+        probs += [f"{t.label}: {x}" for x in p]
         n = 0
-        shown = self.label_rows(t, probs)
+        rows = list(t.data_rows)
+        if len(rows) != len(shown):
+            probs.append(f"{t.label}: {len(rows)} brand rows shown, expected {len(shown)} "
+                         f"(min({C.SUMMARY_TOP_BRANDS}, {len(disp)} brands))")
         absent: set[tuple[int, str]] = set()
-        for label, r in shown.items():
-            subs = {mk: f[f["brand_display"] == label] for mk, f in frames.items()}
-            if all(len(s) == 0 for s in subs.values()):
-                probs.append(f"{t.label} row {r}: brand {label!r} has no rows in either market scope")
+        for r, k in zip(rows, shown):
+            got = t.ws.cell(r, t.first_col).value
+            if got != disp[k]:
+                probs.append(f"{t.label} row {r}: brand {got!r} != expected {disp[k]!r} at this position "
+                             f"(CA revenue desc, then US revenue desc)")
                 continue
+            subs = {mk: f[f["brand_key"] == k] for mk, f in frames.items()}
             absent |= {(r, mk) for mk, s in subs.items() if len(s) == 0}
             n += self.cmp_block(t, r, mc, subs, frames, probs, dash="require")
         self.check_dash_rows(t, absent, probs)
-        brands = set().union(*(set(f["brand_display"]) for f in frames.values()))
-        rest = brands - set(shown)
         if rest:
             if t.residual_row is None:
-                probs.append(f"{t.label}: {len(shown)} brands shown of {len(brands)} but no residual row")
+                probs.append(f"{t.label}: {len(shown)} brands shown of {len(disp)} but no residual row")
             else:
                 want = C.RESIDUAL_ROW_LABEL.format(noun="brands", n=len(rest))
                 got = t.ws.cell(t.residual_row, t.first_col).value
                 if got != want:
                     probs.append(f"{t.label}: residual label {got!r} != {want!r}")
-                subs = {mk: f[f["brand_display"].isin(rest)] for mk, f in frames.items()}
+                subs = {mk: f[f["brand_key"].isin(rest)] for mk, f in frames.items()}
                 n += self.cmp_block(t, t.residual_row, mc, subs, frames, probs)
         elif t.residual_row is not None:
             probs.append(f"{t.label}: residual row but every brand is shown")
@@ -1633,17 +1708,6 @@ class Validator:
             probs.append(f"{t.label}: no Total row")
         else:
             n += self.cmp_block(t, t.total_row, mc, frames, frames, probs)
-        if len(shown) != min(C.SUMMARY_TOP_BRANDS, len(brands)):
-            probs.append(f"{t.label}: {len(shown)} brands shown, expected min({C.SUMMARY_TOP_BRANDS}, {len(brands)})")
-
-        def maxrev(b: str) -> float:
-            return max(float(f.loc[f["brand_display"] == b, "revenue_month"].sum()) for f in frames.values())
-        known = [b for b in shown if b in brands]
-        if known and rest:
-            lo_b, hi_b = min(known, key=maxrev), max(rest, key=maxrev)
-            if maxrev(hi_b) > maxrev(lo_b) + MONEY_TOL:
-                probs.append(f"{t.label}: {hi_b!r} (max revenue {maxrev(hi_b):,.2f}) left out while {lo_b!r} "
-                             f"({maxrev(lo_b):,.2f}) is shown")
         return probs, n
 
     def _c_subtypes(self, t: Table) -> tuple[list[str], int]:

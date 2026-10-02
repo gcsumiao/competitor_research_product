@@ -529,8 +529,11 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path, us_csv: Path) -> Path:
         return {f"{mk}_n": int(sub["asin"].nunique()), f"{mk}_rev": rev, f"{mk}_units": float(sub["units_month"].sum()),
                 f"{mk}_share": X.safe_div(rev, tot_rev[mk]), f"{mk}_rating": X.weighted_rating(sub)}
     maxrev = {k: max(float(core[mk].loc[core[mk]["brand_key"] == k, "revenue_month"].sum()) for mk in core) for k in disp}
-    keys = sorted(disp, key=lambda k: (-maxrev[k], disp[k]))
-    shown, rest = keys[:C.SUMMARY_TOP_BRANDS], keys[C.SUMMARY_TOP_BRANDS:]
+    # the builder's documented order: top-N by max(CA, US) revenue, displayed by CA revenue desc, then US revenue desc
+    brev = {mk: core[mk].groupby("brand_key")["revenue_month"].sum() for mk in core}
+    chosen = sorted(disp, key=lambda k: (-maxrev[k], disp[k], k))[:C.SUMMARY_TOP_BRANDS]
+    rest = sorted(set(disp) - set(chosen))
+    shown = sorted(chosen, key=lambda k: (-float(brev["CA"].get(k, 0.0)), -float(brev["US"].get(k, 0.0)), disp[k], k))
     rows, brand_dash = [], []           # a market with no listings of the brand shows DASH in its five cells
     for i, k in enumerate(shown):
         d = {"brand": disp[k], "brand_key": k}
@@ -619,7 +622,8 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path, us_csv: Path) -> Path:
                 rows.append(d)
     cols = [Col("Fuel / Sub-type", "label", "text", 28)]
     for mk in ("CA", "US"):
-        cols += [Col(f"{mk} # ASINs", f"{mk}_n", "int"), Col(f"{mk} Rev", f"{mk}_rev", "money", market=mcol(mk)),
+        cols += [Col(f"{mk} # ASINs", f"{mk}_n", "int"),
+                 Col(f"{mk} Monthly Rev ({C.MARKETS[mk].currency})", f"{mk}_rev", "money", market=mcol(mk)),
                  Col(f"{mk} Units", f"{mk}_units", "int")]
     tr_f = put(ws, spec("Summary", "subtype_mix", T["fuel"], cols, rows, fuel_vals({"label": C.TOTAL_ROW_LABEL}, None, None),
                         flt="core devices, both markets; fuel_scope in FEATURE_FUEL_SCOPE"), X.table_end(tr) + 3)
@@ -659,6 +663,8 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path, us_csv: Path) -> Path:
         name = C.sheet_name_for_brand(disp[key], taken)
         ws = book.sheet(name)
         X.write_sheet_header(ws, f"{disp[key]} — CA + US core gauge devices", None, 3)
+        for j, mk in enumerate(("CA", "US")):
+            X.set_text(ws.cell(2, 2 + j), mk)                          # KPI column labels B2 / C2
         flt = f"core devices & brand_key == {key!r}"
         for i, (label, kind) in enumerate((("Monthly Rev (CAD | USD)", "money"), ("Monthly Units", "int"), ("# of Listings", "int"),
                                            ("Rev share within market", "pct"))):
@@ -685,7 +691,8 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path, us_csv: Path) -> Path:
             rows_ = core[mk][core[mk]["brand_key"] == key]
             total_ = X.fit(X.listing_totals(rows_, "title", C.TOTAL_ROW_LABEL), cols)
             if not len(rows_):
-                total_.update({"revenue_month": "-", "units_month": "-"})       # absent market: '-' on the Total row
+                total_.update({"revenue_month": "-", "units_month": "-",       # absent market: '-' on the Total row,
+                               "review_count": None, "rating": None})          # blank in every other numeric column
             for role, by in (("brand_tab_revenue", "revenue"), ("brand_tab_units", "units")):
                 data = X.rank_listings(rows_, by) if len(rows_) else pd.DataFrame(
                     [{**{c.field: None for c in cols}, "title": f"No {mk} core gauge devices for this brand"}])
@@ -1049,6 +1056,113 @@ class CombinedWorkbookTest(unittest.TestCase):
         self.assertIn(f"{COMBINED}!{a_sheet}/kpi[]: registry dash_rows", ev9)
         self.assertEqual(st["V05"][0], "PASS", st["V05"])
         self.assertEqual(st["V07"][0], "PASS", st["V07"])
+
+    def _tamper_registry(self, name: str, edit) -> Path:
+        runs = CMB_ROOT / f"{name}_runs"
+        if runs.exists():
+            shutil.rmtree(runs)
+        shutil.copytree(CMB_RUNS, runs)
+        rp = C.run_file(runs, MONTH, "table_registry", "CAUS", "json")
+        reg = json.loads(rp.read_text(encoding="utf-8"))
+        edit(reg)
+        rp.write_text(json.dumps(reg, indent=1, ensure_ascii=False), encoding="utf-8")
+        return runs
+
+    def test_money_header_without_currency_token_fails_v07(self):
+        """A 'US ' block prefix is not a currency label: every money header carries (CAD)/(USD) (only the Key figures /
+        brand-tab KPI CA | US value columns are exempt, their rows name the currency)."""
+        d = tampered_copy("tamper_no_token")
+        title = C.COMBINED_SUMMARY_TITLES["brands"][0]
+        t = _Combined.table(title=title)
+        old, new = "US Monthly Rev (USD)", "US Monthly Rev"
+        wb = load_workbook(d / COMBINED)
+        wb["Summary"].cell(t["header_row"], t["first_col"] + t["columns"].index(old)).value = new
+
+        def edit(reg):
+            for e in reg["tables"]:
+                if e["title"] == title:
+                    e["columns"] = [new if h == old else h for h in e["columns"]]
+        wb.save(d / COMBINED)
+        rc, st = self._run(d, runs=self._tamper_registry("tamper_no_token", edit))
+        self.assertEqual(rc, 1)
+        st7, ev7 = st["V07"]
+        self.assertEqual(st7, "FAIL", ev7)
+        self.assertIn(f"{COMBINED}!Summary/summary_brands[{title}]: money column 'US Monthly Rev' lacks (USD)", ev7)
+        self.assertIn("1 problem(s)", ev7)
+
+    def test_swapped_brand_rows_fail_v09(self):
+        """Brand summary rows are compared by position with the re-derived key order (CA revenue desc, then US)."""
+        d = tampered_copy("tamper_brand_swap")
+        title = C.COMBINED_SUMMARY_TITLES["brands"][0]
+        t = _Combined.table(title=title)
+        wb = load_workbook(d / COMBINED)
+        ws = wb["Summary"]
+        r1, r2 = t["first_data_row"], t["first_data_row"] + 1
+        a, b = ws.cell(r1, t["first_col"]).value, ws.cell(r2, t["first_col"]).value
+        for j in range(len(t["columns"])):
+            c1, c2 = ws.cell(r1, t["first_col"] + j), ws.cell(r2, t["first_col"] + j)
+            c1.value, c2.value = c2.value, c1.value
+        wb.save(d / COMBINED)
+        rc, st = self._run(d)
+        self.assertEqual(rc, 1)
+        st9, ev9 = st["V09"]
+        self.assertEqual(st9, "FAIL", ev9)
+        self.assertIn(f"{COMBINED}!Summary/summary_brands[{title}] row {r1}: brand {b!r} != expected {a!r} at this position", ev9)
+        self.assertIn(f"row {r2}: brand {a!r} != expected {b!r}", ev9)
+
+    def test_brand_display_collision_is_explicit(self):
+        v = V.Validator(V.parse_args(["--month", MONTH]))
+        frames = {"CA": pd.DataFrame({"brand_key": ["acme", "acme inc"], "brand_display": ["Acme", "Acme"],
+                                      "revenue_month": [10.0, 5.0]}),
+                  "US": pd.DataFrame({"brand_key": ["acme"], "brand_display": ["Acme"], "revenue_month": [7.0]})}
+        shown, rest, disp, probs = v.expected_brand_rows(frames)
+        self.assertEqual(shown, ["acme", "acme inc"])
+        self.assertEqual(probs, ["brand keys ['acme', 'acme inc'] share the display label 'Acme': their Brand summary rows "
+                                 "are ambiguous"])
+
+    def test_brand_tab_kpi_block_structure_fails_v09(self):
+        """Every brand tab: B2/C2 = CA/US, rows 3-6 labelled in order, one registered block over rows 3-6."""
+        d = tampered_copy("tamper_kpi_block")
+        sheet = _Combined.reg["workbooks"][COMBINED]["brand_sheet_map"]["keenso"]
+        wb = load_workbook(d / COMBINED)
+        ws = wb[sheet]
+        for col in (1, 2, 3):
+            ws.cell(6, col).value = None                       # the 'Rev share' row removed
+        ws.cell(2, 3).value = None                             # the US column label removed
+        wb.save(d / COMBINED)
+
+        def edit(reg):
+            for e in reg["tables"]:
+                if e["sheet"] == sheet and e["role"] == "kpi":
+                    e["last_data_row"] = 5                     # registry shortened to rows 3-5
+        rc, st = self._run(d, runs=self._tamper_registry("tamper_kpi_block", edit))
+        self.assertEqual(rc, 1)
+        st9, ev9 = st["V09"]
+        self.assertEqual(st9, "FAIL", ev9)
+        self.assertIn(f"{COMBINED}!{sheet}: KPI column labels B2/C2 ['CA', None] != ['CA', 'US']", ev9)
+        self.assertIn(f"{COMBINED}!{sheet}: KPI rows 3-6 labels", ev9)
+        self.assertIn(f"{COMBINED}!{sheet}: expected one registered KPI block over rows 3-6", ev9)
+
+    def test_absent_market_total_blank_ok_present_market_blank_fails(self):
+        """Absent market (Autool CA): '-' or blank in every numeric Total column passes (clean run); a blank on a
+        present market's Total ('# of Reviews') FAILs V09."""
+        self.assertEqual(self.st["V09"][0], "PASS", self.st["V09"])
+        a_sheet = _Combined.reg["workbooks"][COMBINED]["brand_sheet_map"][US_ONLY_KEY]
+        at = _Combined.table(sheet=a_sheet, title="CA — Rank by Revenue")
+        wb = load_workbook(_Combined.path)
+        self.assertIsNone(wb[a_sheet].cell(at["total_row"], at["first_col"] + at["columns"].index("# of Reviews")).value)
+        d = tampered_copy("tamper_total_blank")
+        sheet = _Combined.reg["workbooks"][COMBINED]["brand_sheet_map"]["scangauge"]
+        rt = _Combined.table(sheet=sheet, title="US — Rank by Units")
+        wb = load_workbook(d / COMBINED)
+        wb[sheet].cell(rt["total_row"], rt["first_col"] + rt["columns"].index("# of Reviews")).value = None
+        wb.save(d / COMBINED)
+        rc, st = self._run(d)
+        self.assertEqual(rc, 1)
+        st9, ev9 = st["V09"]
+        self.assertEqual(st9, "FAIL", ev9)
+        self.assertIn(f"{COMBINED}!{sheet}/brand_tab_units[US — Rank by Units] Total '# of Reviews' blank", ev9)
+        self.assertIn("1 problem(s)", ev9)
 
     def test_combined_header_rules(self):
         probs = V.combined_header_problems
