@@ -872,8 +872,8 @@ class Validator:
             probs.append(f"{t.label} {c.coordinate} {h!r}: {what}")
             return
         if empty and dash == "require":
-            probs.append(f"{t.label} {c.coordinate} {h!r}: {'blank' if _is_blank(c.value) else c.value!r} where '-' expected "
-                         f"(no listings in this market)")
+            shown = "blank" if _is_blank(c.value) else repr(c.value)
+            probs.append(f"{t.label} {c.coordinate} {h!r}: {shown} where '-' expected (no listings in this market)")
             return
         if empty and _is_blank(c.value):
             return
