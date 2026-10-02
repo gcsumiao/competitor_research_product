@@ -1,8 +1,8 @@
 {
  "market": "US",
  "month": "202609",
- "generated_at": "2026-10-02T12:38:35",
- "pipeline_version": "dd683fd74bdd-dirty",
+ "generated_at": "2026-10-02T12:51:10",
+ "pipeline_version": "5f768cb5557e-dirty",
  "workbooks": {
   "US_OBD_Gauge_Competitor_Report_202609.xlsx": {
    "sheets": [
@@ -61,7 +61,7 @@
     "kaolali": "KAOLALI",
     "autometer": "AutoMeter"
    },
-   "generated_at": "2026-10-02T12:38:35"
+   "generated_at": "2026-10-02T12:51:10"
   }
  },
  "tables": [
@@ -4200,8 +4200,8 @@
     "chosen_row",
     "dropped",
     "values_identical",
-    "revenue_chosen",
-    "revenue_dropped_max",
+    "Revenue chosen (USD)",
+    "Revenue dropped max (USD)",
     "units_diff",
     "price_diff",
     "title_diff",

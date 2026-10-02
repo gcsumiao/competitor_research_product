@@ -925,8 +925,9 @@ def write_manifest(out_dir: Path, month: str, outputs: list[Path], inputs: dict[
         if p.name == path.name:
             continue
         outs[p.name] = {"sha256": sha256_file(p), "bytes": p.stat().st_size, "generated_at": now}
-    ins = dict(prev.get("inputs", {})) if prev else {}
-    ins.update(inputs)
+    # inputs are those of THIS run only (a stale entry from an earlier run would make V19 fail on files that other
+    # builders legitimately append to, e.g. the type review queue); outputs stay merged across builders sharing a dir
+    ins = dict(inputs)
     manifest = {"month": month, "generated_at": now, "pipeline_git_sha": pipeline_version(),
                 "outputs": dict(sorted(outs.items())), "inputs": dict(sorted(ins.items()))}
     tmp = path.with_suffix(".json.tmp")

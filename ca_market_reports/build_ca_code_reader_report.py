@@ -467,7 +467,8 @@ def main(argv: list[str] | None = None) -> int:
         ds = load_month("CA", a.month, cr_raw_dir=raw_dir, us_type_map=a.us_type_map, type_map=a.type_map, runs_dir=runs_dir,
                         assign_types=True, rederive=a.rederive)
         inputs = sorted(Path(raw_dir).glob("*.csv")) + [a.us_type_map, a.type_map]
-        inputs += sorted((Path(runs_dir) / a.month).glob("*_CA_code_reader_*.csv"))
+        # frozen decision files are replay inputs; the review queue is an OUTPUT (and the gauge build appends to it), so it is not hashed
+        inputs += sorted(p for p in (Path(runs_dir) / a.month).glob("*_CA_code_reader_*.csv") if not p.name.startswith("type_review_"))
         out_dir = a.out_dir or MARKET.cr_out_dir()
     paths = build_code_reader_workbooks(ds, out_dir, overwrite=a.overwrite, dated_copy=a.dated_copy, runs_dir=runs_dir,
                                         input_paths=inputs)
