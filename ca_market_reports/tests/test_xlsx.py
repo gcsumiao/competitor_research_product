@@ -360,6 +360,69 @@ class TestBuildOutputs(unittest.TestCase):
         prev_end = t["total_row"] or t["residual_row"] or t["last_data_row"]
         self.assertEqual(u["header_row"] - 1 - prev_end, 4)   # 3 blank rows then the table title row
 
+    def test_trend_proxy_never_divides_units_by_last_year_sales(self):
+        """Helium 10 'Last Year Sales' is not a same-month figure: it is shown as reported, never divided into monthly units,
+        and listing 'Sales YoY %' values are only counted (never averaged or summed)."""
+        p = _Built.cr_paths[1]
+        t = [t for t in _tables("CA", p.name) if t["role"] == "trend_proxy"]
+        self.assertEqual(len(t), 1)
+        t = t[0]
+        self.assertEqual(t["columns"], list(CR.TREND_PROXY_HEADERS))
+        self.assertEqual(t["columns"], ["Brand", "Monthly Rev (CAD)", "Monthly Units",
+                                        "Last Year Sales (Helium 10 field; semantics unverified)",
+                                        "# Listings with Helium 10 YoY data", "# Listings with YoY > 0", "# Listings with YoY < 0",
+                                        "Revenue share of listings with YoY > 0", "Revenue share of listings with YoY data"])
+        ws = openpyxl.load_workbook(p)["Trend Proxy"]
+        notes = [c for row in ws.iter_rows(min_row=1, max_row=t["header_row"] - 1, values_only=True) for c in row if isinstance(c, str)]
+        self.assertIn(CR.TREND_NOTE, notes)
+        rows = _Built.ca_rows[_Built.ca_rows["source_set"].isin(["code_reader", "both"])]
+        col = {h: t["first_col"] + i for i, h in enumerate(t["columns"])}
+        checked = 0
+        for r in list(range(t["first_data_row"], t["last_data_row"] + 1)) + [t["total_row"]]:
+            name = ws.cell(r, col["Brand"]).value
+            sub = rows if name == C.TOTAL_ROW_LABEL else rows[rows["brand_display"] == name]
+            ly = sub["last_year_units"].dropna()
+            got_ly = ws.cell(r, col["Last Year Sales (Helium 10 field; semantics unverified)"]).value
+            if len(ly):
+                self.assertAlmostEqual(got_ly, float(ly.sum()), places=6, msg=name)
+            else:
+                self.assertIsNone(got_ly, name)          # no listing carries the field -> blank, never 0
+            yoy = sub["yoy_units_pct"]
+            rev = float(sub["revenue_month"].sum())
+            self.assertEqual(ws.cell(r, col["# Listings with Helium 10 YoY data"]).value, int(yoy.notna().sum()))
+            self.assertEqual(ws.cell(r, col["# Listings with YoY > 0"]).value, int((yoy > 0).sum()))
+            self.assertEqual(ws.cell(r, col["# Listings with YoY < 0"]).value, int((yoy < 0).sum()))
+            share_pos = ws.cell(r, col["Revenue share of listings with YoY > 0"]).value
+            share_any = ws.cell(r, col["Revenue share of listings with YoY data"]).value
+            if rev > 0:
+                self.assertAlmostEqual(share_pos, float(sub.loc[yoy > 0, "revenue_month"].sum()) / rev, places=9, msg=name)
+                self.assertAlmostEqual(share_any, float(sub.loc[yoy.notna(), "revenue_month"].sum()) / rev, places=9, msg=name)
+            else:
+                self.assertIsNone(share_pos, name)
+                self.assertIsNone(share_any, name)
+            # no cell of the row equals monthly units / last-year sales (or that ratio - 1)
+            units, lysum = float(sub["units_month"].sum()), float(ly.sum())
+            if lysum > 0:
+                vals = [ws.cell(r, c).value for c in range(t["first_col"], t["last_col"] + 1)]
+                for v in vals:
+                    if isinstance(v, float):
+                        self.assertNotAlmostEqual(v, units / lysum - 1.0, places=9, msg=(name, vals))
+                        self.assertNotAlmostEqual(v, units / lysum, places=9, msg=(name, vals))
+            checked += 1
+        self.assertGreater(checked, 5)
+        self.assertGreater(ws.cell(t["total_row"], col["# Listings with YoY < 0"]).value, 0)   # fixture has negative YoY rows
+
+    def test_no_units_over_last_year_ratio_in_source(self):
+        """Neither builder computes a ratio between units_month and last_year_units (gauge Price Ladder / brand tabs included)."""
+        rx = re.compile(r"last_year_units[^\n]*/|/[^\n]*last_year_units|\bly_paired\b|units_paired|paired sums", re.I)
+        for m in ("build_ca_code_reader_report.py", "build_gauge_report.py", "ca_xlsx_style.py"):
+            src = (C.PACKAGE_ROOT / m).read_text()
+            self.assertIsNone(rx.search(src), (m, rx.search(src) and rx.search(src).group(0)))
+        for p in (_Built.ca_gauge, _Built.us_gauge, _Built.cr_paths[0]):
+            for t in _tables(_market_of(p), p.name):
+                for h in t["columns"]:
+                    self.assertNotIn("paired", h.lower(), (p.name, t["sheet"], h))
+
     def test_brand_tab_layout(self):
         for p in (_Built.cr_paths[0], _Built.ca_gauge):
             for t in _tables(_market_of(p), p.name):
