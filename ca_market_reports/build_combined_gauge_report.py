@@ -48,15 +48,20 @@ if C.GAUGE_ADJACENT_CLASSES != ("gps_hud",):
 HEADER_FILL = {m: PatternFill("solid", fgColor=C.FILL_MARKET_HEADER[m]) for m in MARKET_CODES}
 DATA_FILL = {m: PatternFill("solid", fgColor=C.FILL_MARKET_DATA[m]) for m in MARKET_CODES}
 
-KEY_FIGURE_LABELS: tuple[str, ...] = ("Core device revenue", "Core device units", "# core device ASINs",
-                                      "# core device ASINs with sales > 0", "Incl. borderline revenue", "Accessories revenue",
-                                      "Adjacent GPS-only HUD revenue")
-KEY_FIGURES_NOTE = ("Core devices = device scope (tuner with gauge display, truck gauge monitor, OBD+GPS HUD, OBD HUD, gauge "
-                    "display), not borderline. 'Incl. borderline' = device scope. Accessories and GPS-only HUDs are shown, never "
-                    "counted in device totals. Money rows are in each market's own currency (CA in CAD, US in USD).")
+KEY_FIGURE_LABELS: tuple[str, ...] = C.COMBINED_KEY_FIGURE_LABELS          # 11 rows; the last two are the (b) gauge shares
+KEY_FIGURE_SHARE_LABELS: tuple[str, ...] = C.COMBINED_KEY_FIGURE_SHARE_LABELS
+if KEY_FIGURE_LABELS[-2:] != KEY_FIGURE_SHARE_LABELS or len(KEY_FIGURE_LABELS) != 11:
+    raise AssertionError(f"COMBINED_KEY_FIGURE_LABELS drifted: {KEY_FIGURE_LABELS}")
+KEY_FIGURE_UNITS: tuple[str, ...] = ("CAD / USD", "units", "count", "count", "CAD / USD", "CAD / USD", "CAD / USD",
+                                     "CAD / USD", "units", "share", "share")
+KEY_FIGURES_NOTE = ("Device scope = tuner with gauge display, truck gauge monitor, OBD+GPS HUD, OBD HUD, gauge display; "
+                    "'Incl. borderline' = device scope. Accessories and GPS-only HUDs are shown, never counted in device totals. "
+                    "Code-reader market = the FULL code-reader export of the market (before any gauge candidate filter). Money "
+                    "rows are in each market's own currency (CA in CAD, US in USD).")
 _SHARE_B_SENTENCE = "(b) = all core devices ÷ (full code-reader export + core devices found only in the gauge export)."
-if _SHARE_B_SENTENCE not in G.SHARE_NOTE or G.SHARE_ROW_LABELS[2] != C.COMBINED_SHARE_ROW_LABEL:
-    raise AssertionError("build_gauge_report share definition (b) drifted from the combined share table")
+SHARE_B_ROW = 2                  # index of the (b) row in build_gauge_report.market_share_rows / SHARE_ROW_LABELS
+if _SHARE_B_SENTENCE not in G.SHARE_NOTE or not G.SHARE_ROW_LABELS[SHARE_B_ROW].startswith("(b) All core gauge devices"):
+    raise AssertionError("build_gauge_report share definition (b) drifted from the combined Key figures share rows")
 COMBINED_SHARE_NOTE = ("Core devices = device scope, not borderline. " + _SHARE_B_SENTENCE +
                        " Shares of revenue and of units are computed within each market (no cross-currency ratio).")
 GPS_ROW_LABEL = C.GAUGE_SUBTYPE_LABELS["gps_hud"]   # shared label; the note row states that the row is excluded from totals
@@ -291,13 +296,6 @@ def _ccy(code: str) -> str:
     return C.MARKETS[code].currency
 
 
-def share_columns() -> list[Col]:
-    return [Col("Measure", "label", "text", 40)] + [
-        c for m in MARKET_CODES for c in _block(m, (("# ASINs", "n", "int", 10), (f"Monthly Rev ({_ccy(m)})", "rev", "money", 15),
-                                                    ("Monthly Units", "units", "int", 12), ("Share of revenue", "s_rev", "pct2", 12),
-                                                    ("Share of units", "s_u", "pct2", 12)))]
-
-
 def brand_columns() -> list[Col]:
     return [Col("Brand", "brand", "text", 28)] + [
         c for m in MARKET_CODES for c in _block(m, (("# of Listings", "n", "int", 11), (f"Monthly Rev ({_ccy(m)})", "rev", "money", 15),
@@ -330,7 +328,6 @@ def tier_matrix_headers(ccy: str) -> tuple[str, ...]:
     return tuple(c.header for c in tier_matrix_columns(code))
 
 
-SHARE_HEADERS: tuple[str, ...] = tuple(c.header for c in share_columns())
 BRAND_HEADERS: tuple[str, ...] = tuple(c.header for c in brand_columns())
 SUBTYPE_HEADERS: tuple[str, ...] = tuple(c.header for c in subtype_columns())
 FUEL_HEADERS: tuple[str, ...] = tuple(c.header for c in fuel_columns())
@@ -340,15 +337,24 @@ FUEL_HEADERS: tuple[str, ...] = tuple(c.header for c in fuel_columns())
 # Summary data
 # --------------------------------------------------------------------------------------
 def key_figure_items(ca: G.GCtx, us: G.GCtx) -> list[tuple[str, dict[str, tuple[Any, str]], str]]:
+    """Rows of the Key figures table (COMBINED_KEY_FIGURE_LABELS): core-device KPIs, the FULL code-reader export totals and
+    the gauge share of the code-reader market by definition (b) (build_gauge_report.market_share_rows, the same row the
+    single-market Summary shows), each value in its own market's currency / format."""
     def vals(c: G.GCtx) -> list[tuple[Any, str]]:
         core, dev = c.core, c.device
+        b = G.market_share_rows(c.u, c.cr_totals, c.code)[SHARE_B_ROW]
+        if b["label"] != G.SHARE_ROW_LABELS[SHARE_B_ROW]:
+            raise AssertionError(f"{c.code}: market_share_rows()[{SHARE_B_ROW}] is {b['label']!r}, not the (b) row")
         return [(float(core["revenue_month"].sum()), "money"), (float(core["units_month"].sum()), "int"),
                 (int(core["asin"].nunique()), "int"), (int((core["units_month"] > 0).sum()), "int"),
                 (float(dev["revenue_month"].sum()), "money"), (float(_accessories(c)["revenue_month"].sum()), "money"),
-                (float(_adjacent(c)["revenue_month"].sum()), "money")]
-    units = ("CAD / USD", "units", "count", "count", "CAD / USD", "CAD / USD", "CAD / USD")
+                (float(_adjacent(c)["revenue_month"].sum()), "money"),
+                (float(c.cr_totals["rev"]), "money"), (float(c.cr_totals["units"]), "int"),
+                (b["s_rev"], "pct2"), (b["s_u"], "pct2")]
     per = {c.code: vals(c) for c in (ca, us)}
-    return [(label, {m: per[m][i] for m in MARKET_CODES}, units[i]) for i, label in enumerate(KEY_FIGURE_LABELS)]
+    if any(len(v) != len(KEY_FIGURE_LABELS) for v in per.values()):
+        raise AssertionError("key figure values drifted from COMBINED_KEY_FIGURE_LABELS")
+    return [(label, {m: per[m][i] for m in MARKET_CODES}, KEY_FIGURE_UNITS[i]) for i, label in enumerate(KEY_FIGURE_LABELS)]
 
 
 def brand_side_by_side(ca_core: pd.DataFrame, us_core: pd.DataFrame, *, top_n: int) -> tuple[pd.DataFrame, dict | None, dict]:
@@ -398,29 +404,19 @@ def _summary(book: CombinedBook, ca: G.GCtx, us: G.GCtx) -> None:
     ws = book.sheet("Summary")
     T = C.COMBINED_SUMMARY_TITLES
     ctx = {"CA": ca, "US": us}
-    # 1. key figures (rows = KPIs, columns CA | US, each row in its market's currency)
+    # 1. key figures (rows = COMBINED_KEY_FIGURE_LABELS, columns CA | US, each row in its market's currency); the gauge
+    #    share of the code-reader market (definition (b)) is part of this table, its two rows bold in both market columns
     tr = X.write_market_kpi_table(ws, 1, T["key_figures"][0], key_figure_items(ca, us), MARKET_CODES,
                                   subtitle=f"CA vs US · Report month {ca.mon} · each figure in its market's own currency, never converted",
-                                  note=f"CA = {ca.sub}. US = {us.sub}. {KEY_FIGURES_NOTE}", header_fills=C.FILL_MARKET_HEADER,
-                                  data_fills=C.FILL_MARKET_DATA, role=T["key_figures"][1],
+                                  note=f"{COMBINED_SHARE_NOTE} {KEY_FIGURES_NOTE} CA = {ca.sub}. US = {us.sub}.",
+                                  header_fills=C.FILL_MARKET_HEADER, data_fills=C.FILL_MARKET_DATA, role=T["key_figures"][1],
                                   dataset_filter="see metric labels; each market from its own rows")
     book.add(tr, market=None, column_markets=[None, *MARKET_CODES, None])
-    # 2. gauge share of the code-reader market: ONE row, (b) all core devices; share cells bold
-    row = {"label": C.COMBINED_SHARE_ROW_LABEL}
-    for code, c in ctx.items():
-        b = G.market_share_rows(c.u, c.cr_totals, code)[2]
-        if b["label"] != C.COMBINED_SHARE_ROW_LABEL:
-            raise AssertionError(f"{code}: market_share_rows()[2] is {b['label']!r}, not the (b) row")
-        _put(row, code, b, ("n", "rev", "units", "s_rev", "s_u"))
-    tr = book.table(ws, TableSpec("Summary", T["share"][1], T["share"][0], share_columns(), pd.DataFrame([row]), None, None,
-                                  MARKET_CODES, note=COMBINED_SHARE_NOTE,
-                                  dataset_filter="core devices vs the full code-reader export, per market"),
-                    X.table_end(tr) + 2, freeze=False)
-    _fills(ws, book, tr, data=True)
-    for code in MARKET_CODES:
-        for h in (f"{code} Share of revenue", f"{code} Share of units"):
-            ws.cell(tr.first_data_row, tr.col(h)).font = Font(bold=True)
-    # 3. brand summary (core devices), two bar charts right of the table
+    for r in range(tr.first_data_row, tr.last_data_row + 1):
+        if ws.cell(r, tr.first_col).value in KEY_FIGURE_SHARE_LABELS:
+            for code in MARKET_CODES:
+                ws.cell(r, tr.col(code)).font = Font(bold=True)
+    # 2. brand summary (core devices), two bar charts right of the table
     frame, residual, total = brand_side_by_side(ca.core, us.core, top_n=C.SUMMARY_TOP_BRANDS)
     cols = brand_columns()
     tr_b = book.table(ws, TableSpec("Summary", T["brands"][1], T["brands"][0], cols, frame, X.fit(total, cols), X.fit(residual, cols),
@@ -431,7 +427,7 @@ def _summary(book: CombinedBook, ca: G.GCtx, us: G.GCtx) -> None:
     _hide_rows_without_revenue(ws, tr_b)
     for code in MARKET_CODES:
         book.bar(ws, tr_b, "Brand", f"{code} Monthly Rev ({_ccy(code)})", f"{code} core device revenue by brand ({_ccy(code)})")
-    # 4. sub-type mix (core) + the adjacent GPS-only HUD row (excluded from the Total)
+    # 3. sub-type mix (core) + the adjacent GPS-only HUD row (excluded from the Total)
     rows = []
     for cls in C.GAUGE_DEVICE_CLASSES:
         d = {"label": C.GAUGE_SUBTYPE_LABELS[cls]}
@@ -451,7 +447,7 @@ def _summary(book: CombinedBook, ca: G.GCtx, us: G.GCtx) -> None:
                     X.table_end(tr_b) + 3, freeze=False)
     _fills(ws, book, tr, data=True)
     book.note(tr, excluded_from_total_rows=[tr.last_data_row])
-    # 5./6. price tier x sub-type, one table per market, revenue and units together
+    # 4./5. price tier x sub-type, one table per market, revenue and units together
     r = X.table_end(tr) + 3
     for key, c in (("tier_ca", ca), ("tier_us", us)):
         cols = tier_matrix_columns(c.code)
@@ -471,7 +467,7 @@ def _summary(book: CombinedBook, ca: G.GCtx, us: G.GCtx) -> None:
                         r, freeze=False, market=c.market)
         _fills(ws, book, tr, data=True)
         r = X.table_end(tr) + 3
-    # 7. fuel split: '<fuel> — subtotal' rows, each followed by its sub-type rows (>= 1 ASIN in either market), then Total
+    # 6. fuel split: '<fuel> — subtotal' rows, each followed by its sub-type rows (>= 1 ASIN in either market), then Total
     fuels = {code: _fuel(c) for code, c in ctx.items()}
     rows, group_idx = [], []
     for f in C.FEATURE_FUEL_SCOPE:
@@ -531,8 +527,8 @@ def _read_me(book: CombinedBook, ca: G.GCtx, us: G.GCtx) -> None:
              f"amazon.com (US, USD), built from Helium 10 Black Box exports. Revenue and unit figures are Helium 10 estimates in "
              f"each market's own currency; CAD and USD are never converted, added or divided into one figure.",
              "# How to read this workbook",
-             "Summary: Key figures, the gauge share of the code-reader market, then brand, sub-type, price tier × sub-type and "
-             "fuel tables. Each Summary table holds a CA block (purple header) and a US block (blue header) side by side; shares "
+             "Summary: Key figures (incl. the full code-reader market and the gauge share of it, definition (b)), then brand, "
+             "sub-type, price tier × sub-type and fuel tables. Each Summary table holds a CA block (purple header) and a US block (blue header) side by side; shares "
              "are computed within each market.",
              "Top 50 CA / Top 50 US: the single-market Top 50 rankings (by revenue, then by units).",
              "Innova: Innova gauge/HUD device counts per market and the CA app-capable Innova hardware (Model B).",

@@ -133,10 +133,11 @@ class TestCombinedLayout(unittest.TestCase):
         self.assertEqual(got, ca_keys | us_keys)
         self.assertNotEqual(ca_keys, us_keys, "fixture should exercise a brand qualifying in one market only")
 
-    # ---------------------------------------------------------------- Summary: key figures + share
+    # ---------------------------------------------------------------- Summary: key figures (incl. the folded gauge share)
     def test_summary_table_order_titles_and_roles(self):
         summ = _t("Summary")
-        want = [C.COMBINED_SUMMARY_TITLES[k] for k in ("key_figures", "share", "brands", "subtypes", "tier_ca", "tier_us", "fuel")]
+        want = [C.COMBINED_SUMMARY_TITLES[k] for k in ("key_figures", "brands", "subtypes", "tier_ca", "tier_us", "fuel")]
+        self.assertEqual(list(C.COMBINED_SUMMARY_TITLES), ["key_figures", "brands", "subtypes", "tier_ca", "tier_us", "fuel"])
         self.assertEqual([(t["title"], t["role"]) for t in summ], want)
         tops = [t["header_row"] for t in summ]
         self.assertEqual(tops, sorted(tops))
@@ -145,63 +146,74 @@ class TestCombinedLayout(unittest.TestCase):
         self.assertEqual(ws.cell(1, 1).value, "Key figures")
         self.assertEqual(kf["columns"], ["Measure", "CA", "US", "Unit"])
         self.assertEqual(tuple(kf["allowed_markets"]), ("CA", "US"))
-        # the share table sits directly below the key figures (nothing in between)
-        share = summ[1]
-        self.assertLess(X_end(kf), share["header_row"])
-        for r in range(X_end(kf) + 1, share["header_row"] - 2):
+        # no separate share table any more: the Brand summary follows the Key figures directly
+        texts = [v for row in ws.iter_rows(values_only=True) for v in row if isinstance(v, str)]
+        self.assertNotIn("Gauge share of the code-reader market", texts)
+        self.assertNotIn(C.COMBINED_SHARE_ROW_LABEL, texts)
+        self.assertFalse(any(t["title"] == "Gauge share of the code-reader market" for t in _Built.tables))
+        brands = summ[1]
+        self.assertLess(X_end(kf), brands["header_row"])
+        for r in range(X_end(kf) + 1, brands["header_row"] - 2):
             self.assertTrue(all(ws.cell(r, c).value is None for c in range(1, 12)), r)
 
     def test_key_figures_values_and_formats(self):
         ws = _Built.wb["Summary"]
         kf = _one("Summary", "kpi", "Key figures")
         got = {ws.cell(r, kf["first_col"]).value: _cells(ws, kf, r) for r in range(kf["first_data_row"], kf["last_data_row"] + 1)}
-        self.assertEqual(list(got), list(CB.KEY_FIGURE_LABELS))
+        self.assertEqual(list(got), list(C.COMBINED_KEY_FIGURE_LABELS))
+        self.assertEqual(len(got), 11)
+        self.assertEqual(CB.KEY_FIGURE_LABELS, C.COMBINED_KEY_FIGURE_LABELS)
         for code, rows in (("CA", _Built.ca_rows), ("US", _Built.us_rows)):
             core = _core(rows)
             dev = rows[rows["gauge_class"].isin(C.GAUGE_DEVICE_CLASSES)]
             acc = rows[rows["gauge_class"].isin(C.GAUGE_ACCESSORY_CLASSES)]
             adj = rows[rows["gauge_class"].isin(C.GAUGE_ADJACENT_CLASSES)]
+            cr = rows[rows["source_set"].isin(["code_reader", "both"])]           # the full code-reader export of the fixture
             want = [core["revenue_month"].sum(), core["units_month"].sum(), core["asin"].nunique(), (core["units_month"] > 0).sum(),
-                    dev["revenue_month"].sum(), acc["revenue_month"].sum(), adj["revenue_month"].sum()]
-            for label, w in zip(CB.KEY_FIGURE_LABELS, want):
+                    dev["revenue_month"].sum(), acc["revenue_month"].sum(), adj["revenue_month"].sum(),
+                    cr["revenue_month"].sum(), cr["units_month"].sum()]
+            for label, w in zip(C.COMBINED_KEY_FIGURE_LABELS, want):
                 self.assertAlmostEqual(got[label][code].value, float(w), places=6, msg=(code, label))
             money_fmt = C.MARKETS[code].money_fmt
             self.assertEqual(got["Core device revenue"][code].number_format, money_fmt)
+            self.assertEqual(got["Code-reader market revenue (full export)"][code].number_format, money_fmt)
             self.assertEqual(got["Core device units"][code].number_format, X.FMT_INT)
+            self.assertEqual(got["Code-reader market units (full export)"][code].number_format, X.FMT_INT)
             self.assertEqual(got["# core device ASINs"][code].number_format, X.FMT_INT)
             self.assertEqual(got["# core device ASINs"][code].fill.fgColor.rgb[-6:], C.FILL_MARKET_DATA[code])
             self.assertEqual(ws.cell(kf["header_row"], kf["first_col"] + kf["columns"].index(code)).fill.fgColor.rgb[-6:],
                              C.FILL_MARKET_HEADER[code])
+            for label in C.COMBINED_KEY_FIGURE_LABELS:
+                self.assertEqual(bool(got[label][code].font.b), label in C.COMBINED_KEY_FIGURE_SHARE_LABELS, (code, label))
         self.assertEqual(got["Core device revenue"]["Unit"].value, "CAD / USD")
+        self.assertEqual(got["Code-reader market revenue (full export)"]["Unit"].value, "CAD / USD")
 
-    def test_share_table_one_row_bold_equal_to_single_market(self):
+    def test_key_figures_share_rows_equal_single_market_b_row(self):
         ws = _Built.wb["Summary"]
-        t = _one("Summary", "kpi", C.COMBINED_SUMMARY_TITLES["share"][0])
-        self.assertEqual(t["columns"], list(CB.SHARE_HEADERS))
-        self.assertEqual(t["first_data_row"], t["last_data_row"])
-        self.assertIsNone(t["total_row"])
-        self.assertEqual(tuple(t["allowed_markets"]), ("CA", "US"))
-        row = _cells(ws, t, t["first_data_row"])
-        self.assertEqual(row["Measure"].value, C.COMBINED_SHARE_ROW_LABEL)
-        notes = [ws.cell(r, 1).value for r in range(t["header_row"] - 2, t["header_row"])]
-        self.assertIn(CB.COMBINED_SHARE_NOTE, notes)
+        kf = _one("Summary", "kpi", "Key figures")
+        notes = [ws.cell(r, 1).value for r in range(1, kf["header_row"])]
+        self.assertTrue(any(isinstance(n, str) and CB.COMBINED_SHARE_NOTE in n for n in notes), notes)
+        self.assertIn("(b) = all core devices ÷ (full code-reader export + core devices found only in the gauge export)",
+                      CB.COMBINED_SHARE_NOTE)
+        got = {ws.cell(r, kf["first_col"]).value: _cells(ws, kf, r) for r in range(kf["first_data_row"], kf["last_data_row"] + 1)}
+        s_rev_label, s_u_label = C.COMBINED_KEY_FIGURE_SHARE_LABELS
         for code, single in (("CA", _Built.ca_wb), ("US", _Built.us_wb)):
-            ccy = C.MARKETS[code].currency
-            sws = single["Summary"]
-            ref = [r for r in sws.iter_rows(values_only=True) if r[0] == C.COMBINED_SHARE_ROW_LABEL]
+            ref = [r for r in single["Summary"].iter_rows(values_only=True) if r[0] == G.SHARE_ROW_LABELS[2]]
             self.assertEqual(len(ref), 1, code)
             n, rev, units, s_rev, s_u = ref[0][1:6]
-            self.assertEqual(row[f"{code} # ASINs"].value, n)
-            self.assertAlmostEqual(row[f"{code} Monthly Rev ({ccy})"].value, rev, places=9)
-            self.assertAlmostEqual(row[f"{code} Monthly Units"].value, units, places=9)
-            self.assertAlmostEqual(row[f"{code} Share of revenue"].value, s_rev, places=12)
-            self.assertAlmostEqual(row[f"{code} Share of units"].value, s_u, places=12)
-            for h in (f"{code} Share of revenue", f"{code} Share of units"):
-                self.assertTrue(row[h].font.b, h)
-                self.assertEqual(row[h].number_format, "0.00%")
-            for h in (f"{code} # ASINs", f"{code} Monthly Units"):
-                self.assertFalse(row[h].font.b, h)
-            self.assertEqual(row[f"{code} Monthly Rev ({ccy})"].number_format, C.MARKETS[code].money_fmt)
+            self.assertAlmostEqual(got[s_rev_label][code].value, s_rev, places=12)
+            self.assertAlmostEqual(got[s_u_label][code].value, s_u, places=12)
+            self.assertEqual(got["# core device ASINs"][code].value, n)
+            self.assertAlmostEqual(got["Core device revenue"][code].value, rev, places=9)
+            self.assertAlmostEqual(got["Core device units"][code].value, units, places=9)
+            cr_ref = [r for r in single["Summary"].iter_rows(values_only=True) if r[0] == G.SHARE_ROW_LABELS[0]][0]
+            self.assertAlmostEqual(got["Code-reader market revenue (full export)"][code].value, cr_ref[2], places=9)
+            self.assertAlmostEqual(got["Code-reader market units (full export)"][code].value, cr_ref[3], places=9)
+            for label in C.COMBINED_KEY_FIGURE_SHARE_LABELS:
+                cell = got[label][code]
+                self.assertTrue(cell.font.b, (code, label))
+                self.assertEqual(cell.number_format, "0.00%")
+                self.assertEqual(got[label]["Unit"].value, "share")
 
     # ---------------------------------------------------------------- Summary: brands
     def test_brand_summary_values_shares_and_charts(self):
