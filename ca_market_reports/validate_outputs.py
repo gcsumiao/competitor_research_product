@@ -1512,6 +1512,7 @@ class Validator:
             for key, (ttl, role) in C.COMBINED_SUMMARY_TITLES.items():
                 if title == ttl and t.role == role:
                     return rules[key]
+            return lambda tt: ([f"{tt.label}: not one of the frozen Summary tables {list(C.COMBINED_SUMMARY_TITLES)}"], 0)
         if t.role == "kpi" and t.sheet == "Innova":
             return "skip"                       # B3 / B4: _c_innova (one rule for both cells)
         if t.role == "kpi" and t.sheet == "US vs CA Same-ASIN":
