@@ -40,6 +40,7 @@ if len(APP_MATRIX_HEADERS) != len(C.APP_FEATURE_MATRIX_COLUMNS) or len(APP_MATRI
 APP_MATRIX_PLACEHOLDER = "GAP"
 APP_MATRIX_NOTE = ("Features as described by app-store listings / vendor pages on the accessed date; 'GAP' = not found. "
                    "Not derived from Helium 10.")
+DECISION_STEMS: tuple[str, ...] = ("dedupe_audit", "brand_recovery", "type_decisions", "gauge_decisions")   # frozen run decisions
 INNOVA_COUNT_CELL = "B3"       # gauge Innova tab: A3 = the device-count line, B3 = the same count as a number (role kpi)
 SAME_ASIN_COUNT_CELL = "B3"    # US vs CA Same-ASIN: A3 = "Listings in both marketplaces", B3 = the intersection count (role kpi)
 FEATURE_HEADERS: dict[str, str] = {"data_source": "Data Source", "screen_type": "Screen Type", "fuel_scope": "Fuel Scope",
@@ -1069,20 +1070,28 @@ def main(argv: list[str] | None = None) -> int:
         g_dir = a.gauge_raw_dir or market.gauge_raw_dir(a.month)
         ds = load_month(a.market, a.month, cr_raw_dir=cr_dir, gauge_raw_dir=g_dir, gauge_map=a.gauge_map, runs_dir=runs_dir,
                         assign_types=(a.market == "CA"), rederive=a.rederive)  # ASSEMBLY: ca_load.load_month
-        inputs = sorted(Path(cr_dir).glob("*.csv")) + sorted(Path(g_dir).glob("*.csv"))
+        # every CSV the loader read, recursively (its own listing); CA also reads the default US type map (assign_types)
+        inputs = X.raw_input_files(ds, X.loader_raw_dirs(a.market, a.month, cr_dir, g_dir))
+        if a.market == "CA":
+            inputs.append(C.US_TYPE_MAP_DEFAULT)
+        markets_read = [a.market]
         if a.benchmark_market:
             us = C.MARKETS["US"]
             bcr = a.benchmark_cr_raw_dir or us.cr_raw_dir(a.month)
             bg = a.benchmark_gauge_raw_dir or us.gauge_raw_dir(a.month)
             bench = load_month("US", a.month, cr_raw_dir=bcr, gauge_raw_dir=bg, gauge_map=a.gauge_map, runs_dir=runs_dir,
                                assign_types=False, rederive=a.rederive)  # ASSEMBLY: ca_load.load_month
-            inputs += sorted(Path(bcr).glob("*.csv")) + sorted(Path(bg).glob("*.csv"))
+            inputs += X.raw_input_files(bench, X.loader_raw_dirs("US", a.month, bcr, bg))
+            markets_read.append("US")
         out_dir, pre = (a.out_dir or market.gauge_out_dir()), False
     path = build_gauge_workbook(ds, out_dir, benchmark=bench, overwrite=a.overwrite, dated_copy=a.dated_copy, runs_dir=runs_dir,
                                 preclassified=pre, gauge_map=a.gauge_map, app_feature_matrix=a.app_feature_matrix,
                                 rederive=a.rederive, input_paths=inputs)
     if not pre:
-        decisions = sorted((Path(runs_dir) / a.month).glob(f"*_{a.market}_*.csv"))
+        # frozen decision files of every market this run loaded; the type review queue is an output, never an input
+        decisions = [C.run_file(Path(runs_dir), a.month, stem, f"{mk}_{src}") for mk in markets_read
+                     for stem in DECISION_STEMS for src in ("code_reader", "gauge")]
+        decisions = [d for d in decisions if d.exists()]
         if decisions:
             X.write_manifest(Path(out_dir), a.month, [path], X.input_hashes(decisions))
     print(f"wrote {path}")

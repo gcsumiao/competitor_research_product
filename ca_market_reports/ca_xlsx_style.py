@@ -874,6 +874,31 @@ def input_hashes(paths: Iterable[Path]) -> dict[str, str]:
     return out
 
 
+def loader_raw_dirs(market: str, month: str, cr_raw_dir: Path | None, gauge_raw_dir: Path | None) -> list[Path]:
+    """The raw dirs ca_load.load_month reads for these arguments: the code-reader dir (explicit, else the market default)
+    and the gauge dir (explicit, else the market default when that folder exists). raw_input_files cross-checks the
+    result against the dataset, so a drift from the loader's resolution fails loudly."""
+    mk = C.MARKETS[market]
+    dirs = [Path(cr_raw_dir) if cr_raw_dir is not None else mk.cr_raw_dir(month)]
+    if gauge_raw_dir is not None:
+        dirs.append(Path(gauge_raw_dir))
+    elif mk.gauge_raw_dir(month).is_dir():
+        dirs.append(mk.gauge_raw_dir(month))
+    return dirs
+
+
+def raw_input_files(ds: C.CaDataset, dirs: Sequence[Path]) -> list[Path]:
+    """Every CSV the loader read for `ds`: ca_load.discover_raw_files(dir) (recursive, the loader's own listing) for each dir,
+    in read order. Must equal ds.raw_files file by file, else a manifest could miss a file the build used."""
+    from ca_market_reports.ca_load import discover_raw_files  # ASSEMBLY: ca_load.discover_raw_files (the loader's listing)
+    files = [p for d in dirs for p in discover_raw_files(Path(d))]
+    got, want = [p.name for p in files], [n for n, _ in ds.raw_files]
+    if got != want:
+        raise ValueError(f"{ds.market} raw inputs drifted from the loader: listed {got} but the dataset read {want} "
+                         f"(dirs {[str(d) for d in dirs]})")
+    return files
+
+
 _GIT_SHA: str | None = None
 
 
