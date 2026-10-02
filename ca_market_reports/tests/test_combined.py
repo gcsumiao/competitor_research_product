@@ -542,12 +542,15 @@ class TestCombinedLayout(unittest.TestCase):
                     if "$" not in fmt:
                         continue
                     self.assertIsNotNone(m, (t["sheet"], t["title"], h))
+                    ccy = C.MARKETS[m].currency
+                    if h == m:      # Key figures: columns 'CA' / 'US', the row's Unit cell names the currencies
+                        self.assertIn(ccy, ws.cell(r, t["first_col"] + t["columns"].index("Unit")).value, (t["sheet"], r))
+                    else:
+                        self.assertIn(f"({ccy})", h, (t["sheet"], t["title"]))
                     if m == "CA":
                         self.assertIn('"CA$"', fmt, (t["sheet"], h))
-                        self.assertIn("(CAD)", h)
                     else:
                         self.assertNotIn("CA$", fmt, (t["sheet"], h))
-                        self.assertIn("(USD)", h)
                     n[m] += 1
         self.assertGreater(n["CA"], 0)
         self.assertGreater(n["US"], 0)
