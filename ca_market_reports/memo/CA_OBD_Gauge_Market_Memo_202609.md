@@ -14,7 +14,7 @@ Wording rules for this memo:
 
 ## 0 Bottom line
 
-**What Amazon shows.** In the supplied Helium 10 exports (September 2026 sales month, exported 2026-10-02), the amazon.ca OBD gauge device market is small. Observed export revenue for core gauge devices is CA$47,821 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B71] on 328 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B72]. It is also concentrated. Edge Products holds 57.3% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E4] of that revenue, all from one listing, the Edge Insight CTS3 (CA$27,390 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!J4]). For the same month the amazon.com core device figure is US$618,071 [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B71], shown here in its own currency. No ratio is taken. Gauge devices are a small slice of the amazon.ca code-reader market. They take 1.11% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E85] of its revenue in Canada, against 1.82% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!C61] in the US, with each share computed within its own market (Sections 2.5 and 3.6). Innova has zero classified gauge listings in this dataset (count 0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Innova!A3]).
+**What Amazon shows.** In the supplied Helium 10 exports (September 2026 sales month, exported 2026-10-02), the amazon.ca OBD gauge device market is small. Observed export revenue for core gauge devices is CA$47,821 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B71] on 328 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B72]. It is also concentrated. Edge Products holds 57.3% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E4] of that revenue, all from one listing, the Edge Insight CTS3 (CA$27,390 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!J4]). For the same month the amazon.com core device figure is US$618,071 [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B71], shown here in its own currency. No ratio is taken. Gauge devices are a small slice of the amazon.ca code-reader market. They take 1.11% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E85] of its revenue in Canada, against 1.82% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!C61] in the US, with each share computed within its own market (Sections 2.5 and 3.6). Innova has zero classified gauge listings in this dataset (count 0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Innova!B3]).
 
 **Model 1, stand-alone unit: INSUFFICIENT DATA.**
 - The exports show three price clusters (Section 5):
@@ -61,7 +61,7 @@ Basis for every figure in this section:
 - Observed export revenue, core gauge devices: CA$47,821 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B71].
 - Units: 328 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B72].
 - Listings: 44 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B73]. Of these, the number with sales above zero is 26 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B77].
-- Including the one borderline listing, device revenue is CA$49,356 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B74]. The borderline listing is the AIM Solo 2 DL lap timer with OBD harness (B07FFF4457), at CA$1,535 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!F9].
+- Including the one borderline listing, device revenue is CA$49,356 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B74]. The borderline listing is the AIM Solo 2 DL lap timer with OBD harness (B07FFF4457), at CA$1,535 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!F12].
 - Gauge accessories, outside device totals: CA$439 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B75].
 - Adjacent GPS-only HUDs: CA$0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B76]. No GPS-only HUD was classified in this dataset, although GPS-only HUDs are sold at Princess Auto (Section 4.1). GAP: the Gauges > Speedometers node was not pulled without an OBD filter (Section 8.1).
 
@@ -120,7 +120,7 @@ Empty price ranges from the Gap rows, using each boundary listing's Helium 10 pr
   - 40417 Triple Dog Platinum GT Gas (B06XWVYJGV): CA$746 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!E10] on 1 unit [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!F10]
   - 40430 Hemi Plus (B00AJLY628): 0 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!F11]
 - **Bully Dog diesel: export gap.** The diesel 40420 GT Platinum Diesel (B001T8J4YK) and 40428 "canada Only Part" (B01602JWV4) are listed live on amazon.ca [SRC: https://www.amazon.ca/s?k=bully+dog+gt+tuner, accessed 2026-10-02]. They are not in the supplied exports: there is no row for either ASIN in the CA gauge or code-reader union. This is a GAP in export coverage, not evidence of zero sales (Section 8.1).
-- **Innova.** Innova gauge/HUD device listings in this dataset: 0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Innova!A3]. This means zero classified gauge listings in this dataset; it is not a statement about the whole marketplace.
+- **Innova.** Innova gauge/HUD device listings in this dataset: 0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Innova!B3]. This means zero classified gauge listings in this dataset; it is not a statement about the whole marketplace.
 - **Helium 10 trend fields.** These are vendor proxies, shown per listing only and never aggregated. They are not measured trends.
   - Insight CTS3: Sales YoY 29% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!P4]. Its "Last Year Sales" field reads 750 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!O4] as reported; the period that field covers is not verified, so it is not compared with this month's units.
   - wiiyii P6: Sales YoY 37% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!P5].
@@ -186,22 +186,22 @@ The gauge-display class shows the biggest CA/US difference. On the US side it is
 
 ### 3.4 Same-ASIN listings (units only)
 
-The CA and US exports share 26 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!A1] listings.
+The CA and US exports share 26 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!B3] listings.
 
 | Listing | CA units | US units |
 |---|---|---|
-| wiiyii P6 (B0957S3F3H) | 119 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E6] | 1,076 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H6] |
-| Edge Insight CTS3 (B087WMGLF1) | 41 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E5] | 682 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H5] |
-| ScanGauge 3 SG3 (B0BFBQZZMC) | 7 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E7] | 483 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H7] |
-| Keenso OBD HUD (B0CJMM4RLM) | 54 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E8] | 5 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H8] |
-| BYZFCM OBD+GPS HUD (B0GZC9VPRS) | 24 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E10] | 1 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H10] |
+| wiiyii P6 (B0957S3F3H) | 119 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E9] | 1,076 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H9] |
+| Edge Insight CTS3 (B087WMGLF1) | 41 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E8] | 682 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H8] |
+| ScanGauge 3 SG3 (B0BFBQZZMC) | 7 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E10] | 483 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H10] |
+| Keenso OBD HUD (B0CJMM4RLM) | 54 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E11] | 5 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H11] |
+| BYZFCM OBD+GPS HUD (B0GZC9VPRS) | 24 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E13] | 1 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H13] |
 
 Keenso, BYZFCM and MIOLLYBO sell more units in CA than in the US. All three are low-priced HUDs; no premium device does the same.
 
 ### 3.5 Sells in the US, not observed in the CA exports
 
 - **ScanGauge SG2** (B000AAMY86): US rank 3 [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!A6], with 298 US units [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K6]. It is not observed in the CA exports. ScanGauge II SGIIFFP (B00VX2NOK2) is listed live on amazon.ca [SRC: https://www.amazon.ca/s?k=scangauge, accessed 2026-10-02], so this is an export-coverage GAP (Section 8.1).
-- **KONNWEI KW206** (B08GYLXJ1V): 130 US units [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K9]. KONNWEI listings in the CA exports: 0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B27]. A CA "Fit for KONNWEI KW206" listing by alektryon (B0DKZ77M4N) shows 0 CA units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E30].
+- **KONNWEI KW206** (B08GYLXJ1V): 130 US units [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K9]. KONNWEI listings in the CA exports: 0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B27]. A CA "Fit for KONNWEI KW206" listing by alektryon (B0DKZ77M4N) shows 0 CA units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E33].
 - **Shadow** (D-Meter displays): 15 US units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!G28]. Shadow listings in the CA exports: 0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B28].
 - **AEM X-Series** OBDII gauges: 13 US units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!G29]. In CA, AEM has 2 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B29] but 0 CA units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D29].
 - **Bully Dog (the reverse case).** Bully Dog is in the CA exports with 3 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B11] but in the US exports with 0 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!E11]. The US gauge export did not capture Bully Dog. GAP: no US Bully Dog benchmark.
@@ -356,7 +356,7 @@ _6.1 comes from web research (accessed 2026-10-02). 6.2 comes from the App-Gauge
 
 ### 6.1 App feature matrix: "phone as gauge display"
 
-Prices are in the currency shown. "CA storefront" means the Canadian Apple App Store listing, which displays CAD. "Not stated" means the listing does not describe the feature, so it is unverified rather than proven absent.
+The same matrix is in the workbook: the "App feature matrix" block on the App-Gauge Proxy (Model B) sheet of `CA_OBD_Gauge_Competitor_Report_202609.xlsx`, read from `maps/ca_app_feature_matrix.csv`. Prices are in the currency shown. "CA storefront" means the Canadian Apple App Store listing, which displays CAD. "Not stated" means the listing does not describe the feature, so it is unverified rather than proven absent.
 
 | App (developer) | Live-data gauges / dashboards | Custom layouts / themes | HUD / mirror mode | Alarms / thresholds | Logging / export | Enhanced PIDs (incl. diesel) | CarPlay / Android Auto | Price | Canada availability | Source |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -379,16 +379,16 @@ What the matrix shows (web facts only):
 
 ### 6.2 Model-B demand proxy (App-Gauge Proxy (Model B) sheet)
 
-**Universe.** CA code-reader listings typed Dongle. That is 147 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B12] of the 1,828 [WB: CA_Code_Reader_Competitor_Report_202609.xlsx!Summary!B30] CA code-reader listings, with CA$920,664 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C12] of observed export revenue on 8,675 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D12]. Listings from brands whose app shows live gauges number 58 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G12]. That flag comes from a brand-level map, so it is a proxy, not a per-listing check.
+**Universe.** CA code-reader listings typed Dongle. That is 147 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B12] of the 1,828 [WB: CA_Code_Reader_Competitor_Report_202609.xlsx!Summary!B30] CA code-reader listings, with CA$920,664 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C12] of observed export revenue on 8,675 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D12]. Listings from brands whose app shows live gauges number 55 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G12]. That flag comes from a brand-level map, so it is a proxy, not a per-listing check.
 
 | Dongle tier | Listings | Monthly Rev (CAD) | Units | Rev share | App-gauge-capable listings |
 |---|---|---|---|---|---|
 | Under $50 | 38 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B7] | CA$91,974 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C7] | 2,771 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D7] | 10.0% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E7] | 9 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G7] |
 | $50-99 | 46 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B8] | CA$162,810 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C8] | 2,422 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D8] | 17.7% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E8] | 26 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G8] |
-| $100-149 | 17 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B9] | CA$272,705 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C9] | 2,205 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D9] | 29.6% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E9] | 11 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G9] |
-| $150-249 | 17 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B10] | CA$145,021 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C10] | 723 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D10] | 15.8% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E10] | 8 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G10] |
+| $100-149 | 17 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B9] | CA$272,705 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C9] | 2,205 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D9] | 29.6% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E9] | 9 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G9] |
+| $150-249 | 17 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B10] | CA$145,021 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C10] | 723 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D10] | 15.8% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E10] | 7 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G10] |
 | $250+ | 29 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B11] | CA$248,154 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C11] | 554 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D11] | 27.0% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E11] | 4 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G11] |
-| Total | 147 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B12] | CA$920,664 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C12] | 8,675 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D12] | 100% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E12] | 58 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G12] |
+| Total | 147 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B12] | CA$920,664 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C12] | 8,675 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!D12] | 100% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E12] | 55 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G12] |
 
 **Leaders:**
 - BlueDriver (app shows graphs, not gauges): CA$168,641 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!C17], a 18.3% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!E17] share. Its top listing, B0GL9RL3XS, shows 1,055 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G49].
@@ -409,8 +409,8 @@ What the matrix shows (web facts only):
 - CarMD Connect is not on the Canadian iOS App Store [SRC: https://apps.apple.com/ca/app/id6738333261, accessed 2026-10-02], so the CarMD half has no Canadian iOS route today.
 
 **Map status.**
-- BlueDriver's row in `maps/ca_app_gauge_brands.csv` is now "N", because its Canadian App Store listing describes multi-PID graphs, not gauge dashboards (Section 6.1). The app-gauge-capable counts quoted above are from the draft built before that change, so they will be re-verified after the next rebuild.
-- `maps/ca_app_feature_matrix.csv` now holds the Section 6.1 matrix, one row per app with its source and access date. The workbook renders it on the App-Gauge Proxy sheet in place of the earlier all-GAP block.
+- BlueDriver's row in `maps/ca_app_gauge_brands.csv` is now "N", because its Canadian App Store listing describes multi-PID graphs, not gauge dashboards (Section 6.1). The app-gauge-capable counts quoted above already reflect that change.
+- `maps/ca_app_feature_matrix.csv` now holds the Section 6.1 matrix, one row per app with its source and access date. The workbook now shows it as the "App feature matrix" block on the App-Gauge Proxy (Model B) sheet, so Excel readers see the same comparison.
 
 ## 7 Decision criteria & verdicts
 
@@ -438,7 +438,7 @@ What the matrix shows (web facts only):
     - Option C, $500+ monitor/tuner (7 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!B13]): CONDITIONAL GO only if Lordco sell-through confirms demand for the monitor-type units.
   - What flips it: Lordco units per store per month for the five SKUs, and the SKU list.
 - **Model 2, phone as display (RS2): CONDITIONAL GO.**
-  - Evidence: 147 dongle listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B12], of which 58 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G12] are from app-gauge-capable brands, plus a live RS2 app in Canada.
+  - Evidence: 147 dongle listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!B12], of which 55 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!App-Gauge Proxy (Model B)!G12] are from app-gauge-capable brands, plus a live RS2 app in Canada.
   - Conditions: (a) an engineering estimate for a gauge/dashboard view in RS2; (b) a plan to reach existing Innova dongle owners (3215RS at Lordco and NAPA Canada).
   - What flips it to NO-GO: a build estimate out of proportion to Innova's dongle base, which is small on amazon.ca (3 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Innova!F9] for the 1000 V2).
 - **Model 2, CarMD half: INSUFFICIENT DATA.** CarMD Connect is not on the Canadian iOS App Store, and Android availability is unchecked (GAP).
