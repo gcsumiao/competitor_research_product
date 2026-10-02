@@ -360,6 +360,18 @@ def combined_header_problems(h: str, table_market: str | None) -> list[str]:
     return probs
 
 
+_DUAL_CCY_SUFFIX = re.compile(r" \((?:CAD|USD)(?: ?[|/] ?(?:CAD|USD))*\)$")
+# Brand-tab KPI labels with no single currency (Metric | CA | US): the label names the measure only. FLAGGED: the spec
+# freezes no brand-tab KPI labels; "Rev share within market" is the builder track's wording for the brand's revenue share.
+COMBINED_KPI_LABEL_ALIASES: dict[str, str] = {"Rev share within market": "Rev share"}
+
+
+def kpi_label_base(label: str) -> str:
+    """'Monthly Rev (CAD | USD)' -> 'Monthly Rev'; aliases of COMBINED_KPI_LABEL_ALIASES mapped; else the label itself."""
+    b = _DUAL_CCY_SUFFIX.sub("", label)
+    return COMBINED_KPI_LABEL_ALIASES.get(b, b)
+
+
 def gauge_tier(price: Any) -> str:
     """GAUGE_TIERS label of a price (half-open), '' for a missing price. Re-implemented here, never imported."""
     if price is None or (isinstance(price, float) and math.isnan(price)):
@@ -952,12 +964,16 @@ class Validator:
                     raise ValueError(f"{t.label}: ranked table without a dataset_filter rule ({t.filter!r})")
                 exp = self.expected_order(fr[0], by)
                 n_tables += 1
-                if w.kind == COMBINED_KIND and len(exp) == 0:
-                    # an empty market block: one text row (blank ASIN) or no data row, and nothing else
-                    blank = t.n_rows == 1 and _is_blank(t.cell(t.first, "ASIN").value)
-                    if t.n_rows > 1 or (t.n_rows == 1 and not blank):
-                        probs.append(f"{t.label}: {t.n_rows} listing rows shown but the {t.market} scope is empty")
-                    continue
+                if w.kind == COMBINED_KIND:
+                    blank_rows = [r for r in t.data_rows if _is_blank(t.cell(r, "ASIN").value)]
+                    if "placeholder_rows" in t.e and sorted(t.e["placeholder_rows"]) != blank_rows:
+                        probs.append(f"{t.label}: registry placeholder_rows {t.e['placeholder_rows']} != rows without an ASIN "
+                                     f"{blank_rows}")
+                    if len(exp) == 0:
+                        # an empty market block: one text row (blank ASIN) or no data row, and nothing else
+                        if t.n_rows > 1 or (t.n_rows == 1 and not blank_rows):
+                            probs.append(f"{t.label}: {t.n_rows} listing rows shown but the {t.market} scope is empty")
+                        continue
                 if t.n_rows > len(exp):
                     probs.append(f"{t.label}: {t.n_rows} rows shown but the dataset scope has {len(exp)}")
                 rev_h = next(h for h in t.columns if _base(h) in REV_BASES)
@@ -1209,6 +1225,10 @@ class Validator:
                 probs.append(f"{t.label}: {t.market_conflict}")
             rows = list(t.data_rows) + [r for r in (t.total_row, t.residual_row) if r]
             kpi_style = t.columns == ["Metric", "Value"]
+            cms = t.e.get("column_markets")
+            if cms is not None and len(cms) != len(t.columns):
+                probs.append(f"{t.label}: registry column_markets {cms} do not match the {len(t.columns)} columns")
+                cms = None
             for j, h in enumerate(t.columns):
                 col = t.first_col + j
                 covered.update((t.sheet, r, col) for r in rows)
@@ -1218,7 +1238,11 @@ class Validator:
                 probs += [f"{t.label}: {p}" for p in hp]
                 prefix, _ = split_market(h)
                 toks = header_currency_markets(h)
-                mk = (next(iter(toks)) if len(toks) == 1 else None) or prefix or t.market or t.home
+                link_mk = h[-2:] if h in ("Link CA", "Link US") else None      # V06's explicit-domain link columns
+                named = (next(iter(toks)) if len(toks) == 1 else None) or prefix or link_mk
+                mk = named or t.market or t.home
+                if cms is not None and cms[j] is not None and mk is not None and cms[j] != mk:
+                    probs.append(f"{t.label}: column {h!r} reads as {mk} but the registry column_markets say {cms[j]}")
                 cells = [t.ws.cell(r, col) for r in rows]
                 nums = [c for c in cells if _num(c.value) is not None]
                 money = [c for c in nums if "$" in (c.number_format or "")]
@@ -1576,6 +1600,9 @@ class Validator:
             src = frames if cls in C.GAUGE_DEVICE_CLASSES else adj
             subs = {mk: f[f["gauge_class"] == cls] for mk, f in src.items()}
             n += self.cmp_block(t, r, mc, subs, frames, probs, blank_shares=cls in C.GAUGE_ADJACENT_CLASSES)
+        adj_rows = sorted(r for lb, r in rows.items() if by_label.get(lb) in C.GAUGE_ADJACENT_CLASSES)
+        if "excluded_from_total_rows" in t.e and sorted(t.e["excluded_from_total_rows"]) != adj_rows:
+            probs.append(f"{t.label}: registry excluded_from_total_rows {t.e['excluded_from_total_rows']} != adjacent rows {adj_rows}")
         if t.total_row is None:
             probs.append(f"{t.label}: no Total row")
         else:
@@ -1628,7 +1655,8 @@ class Validator:
     def _c_fuel(self, t: Table) -> tuple[list[str], int]:
         """Fuel split per market block: every (fuel, sub-type) row, every fuel subtotal row and the Total. A row's fuel is
         the FEATURE_FUEL_SCOPE token in its label cells; its sub-type the label cell equal to a device sub-type label (none:
-        the fuel subtotal)."""
+        the fuel subtotal). Leaf rows name their fuel themselves or sit below their fuel's subtotal row (one label column
+        'Fuel / Sub-type': '<fuel> — subtotal', then that fuel's sub-type rows)."""
         probs: list[str] = []
         label_cols = [h for h in t.columns if split_market(h)[0] is None]
         mc = self.mcols(t, probs, label_cols=len(label_cols))
@@ -1643,15 +1671,23 @@ class Validator:
                 probs.append(f"{mk}: scope rows with fuel_scope outside FEATURE_FUEL_SCOPE: {bad}")
         by_label = {C.GAUGE_SUBTYPE_LABELS[c]: c for c in C.GAUGE_DEVICE_CLASSES}
         seen: dict[tuple[str, str | None], int] = {}
+        subtotal_rows: list[int] = []
+        group: str | None = None          # fuel of the last subtotal row: sub-type-only rows below it belong to it
         n = 0
         for r in t.data_rows:
             texts = [str(t.cell(r, h).value).strip() for h in label_cols if not _is_blank(t.cell(r, h).value)]
             fs = {f for f in fuels if any(re.search(rf"(?<![\w-]){re.escape(f)}(?![\w-])", x) for x in texts)}
             cs = {by_label[x] for x in texts if x in by_label}
-            if len(fs) != 1 or len(cs) > 1:
-                probs.append(f"{t.label} row {r}: labels {texts} name no single fuel (and at most one sub-type)")
+            if len(fs) > 1 or len(cs) > 1 or (not fs and not cs):
+                probs.append(f"{t.label} row {r}: labels {texts} name no single fuel / sub-type")
                 continue
-            key = (next(iter(fs)), next(iter(cs)) if cs else None)
+            if fs and not cs:
+                group = next(iter(fs))
+                subtotal_rows.append(r)
+            if not fs and group is None:
+                probs.append(f"{t.label} row {r}: sub-type row {texts} before any fuel subtotal row")
+                continue
+            key = (next(iter(fs)) if fs else group, next(iter(cs)) if cs else None)
             if key in seen:
                 probs.append(f"{t.label}: rows {seen[key]} and {r} both hold {key}")
             seen[key] = r
@@ -1669,6 +1705,8 @@ class Validator:
         missing = sorted(need - set(seen), key=str)
         if missing:
             probs.append(f"{t.label}: no row for {missing[:6]}")
+        if "subtotal_rows" in t.e and sorted(t.e["subtotal_rows"]) != subtotal_rows:
+            probs.append(f"{t.label}: registry subtotal_rows {t.e['subtotal_rows']} != fuel subtotal rows {subtotal_rows}")
         if t.total_row is None:
             probs.append(f"{t.label}: no Total row")
         else:
@@ -1693,7 +1731,7 @@ class Validator:
             sub, den = fr
             for r in t.data_rows:
                 label = str(t.ws.cell(r, t.first_col).value)
-                mtr = metric(label, sub, den)
+                mtr = metric(kpi_label_base(label), sub, den)
                 if mtr is None:
                     probs.append(f"{t.label} KPI {label!r}: no re-derivation rule")
                     continue
