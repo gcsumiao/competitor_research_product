@@ -1,8 +1,8 @@
 {
  "market": "CA",
  "month": "202609",
- "generated_at": "2026-10-02T12:54:10",
- "pipeline_version": "07dbdb0537f9-dirty",
+ "generated_at": "2026-10-02T13:08:25",
+ "pipeline_version": "e929a9fc47d1-dirty",
  "workbooks": {
   "CA_Code_Reader_Analysis_202609.xlsx": {
    "sheets": [
@@ -23,7 +23,7 @@
     "Metadata"
    ],
    "brand_sheet_map": {},
-   "generated_at": "2026-10-02T12:54:03"
+   "generated_at": "2026-10-02T13:08:19"
   },
   "CA_Code_Reader_Competitor_Report_202609.xlsx": {
    "sheets": [
@@ -56,7 +56,7 @@
     "thinkcar": "THINKCAR",
     "foxwell": "FOXWELL"
    },
-   "generated_at": "2026-10-02T12:54:03"
+   "generated_at": "2026-10-02T13:08:19"
   },
   "CA_OBD_Gauge_Competitor_Report_202609.xlsx": {
    "sheets": [
@@ -92,7 +92,7 @@
     "lufi": "Lufi",
     "byzfcm": "BYZFCM"
    },
-   "generated_at": "2026-10-02T12:54:10"
+   "generated_at": "2026-10-02T13:08:25"
   }
  },
  "tables": [

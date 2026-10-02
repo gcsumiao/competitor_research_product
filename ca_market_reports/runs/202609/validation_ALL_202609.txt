@@ -1,7 +1,7 @@
 PASS V01 summary revenue total: revenue == re-derived dataset (CA_Code_Reader_Competitor_Report 4,299,106.70; CA_OBD_Gauge_Competitor_Report 47,821.22; US_OBD_Gauge_Competitor_Report 618,070.99)
 PASS V02 summary units total: units == re-derived dataset (CA_Code_Reader_Competitor_Report 30,111.00; CA_OBD_Gauge_Competitor_Report 328.00; US_OBD_Gauge_Competitor_Report 4,256.00)
 PASS V03 summary listings: # of listings == re-derived dataset (CA_Code_Reader_Competitor_Report 1,828.00; CA_OBD_Gauge_Competitor_Report 44.00; US_OBD_Gauge_Competitor_Report 109.00)
-PASS V04 top 50 rank 1: rank 1 == dataset max revenue (CA_Code_Reader_Competitor_Report 128,721.33; CA_OBD_Gauge_Competitor_Report 27,389.80; US_OBD_Gauge_Competitor_Report 305,533.48)
+PASS V04 top 50 rankings: 96 ranked tables (1657 rows) match the independently sorted dataset (Ranking, ASIN, revenue, units); CA_Code_Reader_Competitor_Report rank 1 128,721.33; CA_OBD_Gauge_Competitor_Report rank 1 27,389.80; US_OBD_Gauge_Competitor_Report rank 1 305,533.48
 PASS V05 shares sum to 1: 51 share columns in 30 tables sum to 1 ± 1e-06 (displayed + residual)
 PASS V06 amazon links: 7635 HYPERLINKs and 7583 URL cells match ALLOWED_FORMULA_RES, row ASIN and market domain
 PASS V07 currency labels: 16694 money cells carry their table currency (CA$ / $), headers carry (CAD)/(USD)
@@ -16,8 +16,8 @@ PASS V15 metadata keys: 4 Metadata sheets carry all 11 required keys
 PASS V16 charts: 8 chart parts match the registry per sheet; every axis delete=0
 PASS V17 type review queue: type_review_CA_code_reader_202609.csv (125 rows) lists every default_other (118), low_confidence (4), gauge_type_conflict (3)
 PASS V18 per-asin reconciliation: CR All ASINs 1828 rows == dataset 1828, one leaf tier each; CA All Products 1864 rows == union 1864; US All Products 273 rows == union 273 (units, revenue, brand, type/class, tier)
-PASS V19 manifest hashes: cr: 2 outputs, 20 inputs (10 raw CSVs); gauge_CA: 1 outputs, 59 inputs (46 raw CSVs); gauge_US: 1 outputs, 42 inputs (31 raw CSVs); manifests never list themselves
-PASS V20 memo tags: 287 [WB:] tags equal their cells; 169 [SRC:] urls in sources_202609.csv; 0 [WB: TBD]
+PASS V19 manifest hashes: cr: 2 outputs, 25 inputs (10 raw CSVs); gauge_CA: 1 outputs, 65 inputs (46 raw CSVs); gauge_US: 1 outputs, 42 inputs (31 raw CSVs); manifests never list themselves
+PASS V20 memo tags: 299 [WB:] tags equal their cells; 169 [SRC:] urls in sources_202609.csv; 0 [WB: TBD]
 PASS V21 dataset sanity: CA code_reader 1828 rows (0 with revenue > 0 and units == 0); CA gauge 51 rows (0 with revenue > 0 and units == 0); US code_reader 5547 rows (0 with revenue > 0 and units == 0); US gauge 92 rows (0 with revenue > 0 and units == 0)
 PASS V22 classifier golden: 81 pure-rule golden titles and 5 map-only rows classify as expected
 PASS V23 benchmark joins: Same-ASIN 26 rows == CA∩US device-scope-in-either 26 (of 57 shared ASINs); Model B universe 147 == CR Type==Dongle rows
