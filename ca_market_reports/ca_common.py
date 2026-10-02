@@ -106,7 +106,7 @@ RUNBOOK_FILE = "RUNBOOK.md"
 # --------------------------------------------------------------------------------------
 TYPES: tuple[str, ...] = ("Tablet", "Handheld", "Dongle", "VCI", "Cable/Adapter", "Key", "OBD1", "Probe", "Other")
 OTHER_TOOLS_TYPES: tuple[str, ...] = ("Key", "Cable/Adapter", "Other", "Probe", "VCI", "OBD1")  # OBD1 included (US quirk not carried over)
-# type_source values; keyword hits are recorded as "keyword:<rule_name>"
+# type_source values (STRICT enum); the matching rule name goes to type_rule_id (e.g. "cable_adapter", "gauge_hud", "profile:<brand_key>")
 TYPE_SOURCES: tuple[str, ...] = ("override", "us_map", "prior_month", "keyword", "token_profile", "default_other")
 TYPE_REVIEW_CONFIDENCE = 0.70      # token_profile below this, and every default_other, goes to type_review_<m>.csv
 TYPE_LOUD_REVENUE = 1000.0         # any default_other row at/above this monthly revenue triggers a loud warning
@@ -257,7 +257,7 @@ BRAND_ALIASES_COLUMNS = ("raw_key", "canonical_key", "note")
 BRAND_DISPLAY_COLUMNS = ("canonical_key", "display")
 DEDUPE_AUDIT_COLUMNS = ("market", "source_set", "asin", "n_rows", "chosen_file", "chosen_row", "dropped", "values_identical",
                         "revenue_chosen", "revenue_dropped_max", "units_diff", "price_diff", "title_diff", "winning_rule", "discrepancy_flag")
-# dropped = ";"-joined "file:row"; winning_rule ∈ {"single","identical","revenue","bsr","export_date","path","row","cr_master"};
+# dropped = ";"-joined "file:row"; winning_rule ∈ {"single","identical","revenue","bsr","export_date","path","row","cr_master","bad_asin"};
 # discrepancy_flag = "Y" when cr_master precedence beat the numerical winner (finding 14)
 TYPE_DECISIONS_COLUMNS = ("month", "market", "asin", "type", "type_source", "type_rule_id", "type_confidence", "type_conflict", "run_id")
 TYPE_REVIEW_COLUMNS = ("asin", "title", "brand_display", "price", "revenue_month", "url", "proposed_type", "type_source", "type_rule_id", "type_confidence", "review_reason", "reviewed_type")
@@ -444,7 +444,7 @@ class CaDataset:
 #   ca_brands.canonical_brand_key(raw: str, aliases: dict[str, str]) -> str
 #   ca_brands.display_brand(key: str, display: dict[str, str]) -> str
 #   ca_brands.recover_generic_brands(df, vocabulary: set[str], frozen: DataFrame | None) -> tuple[DataFrame, DataFrame]  # (df, audit rows)
-#   ca_types.assign_types(df, *, us_map: dict[str, str], overrides: dict[str, str], prior: dict[str, str]) -> DataFrame
+#   ca_types.assign_types(df, *, us_map: dict[str, str], overrides: dict[str, str], prior: dict[str, tuple[str, str, float]]) -> DataFrame   # prior value = (type, type_source, confidence)
 #   ca_tiers.assign_cr_tiers(df) -> DataFrame        # adds price_tier using CR_TIERS (by type)
 #   ca_tiers.tier_label(price: float, tiers: tuple[tuple[str, float, float], ...]) -> str
 #   ca_gauge_classification.GAUGE_SCAN_RE: re.Pattern   # candidate pre-filter (used on the US code-reader export)
