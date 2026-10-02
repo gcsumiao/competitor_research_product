@@ -341,6 +341,57 @@ class ValidatorFixtureTest(unittest.TestCase):
             self.assertIn(f"{gname}!{label}", ev)
         self.assertIn(f"{aname}!Trend Proxy/trend_proxy Total '# Listings with YoY > 0'", ev)
 
+    def test_v04_checks_every_ranked_table_row(self):
+        st, ev = statuses(self.lines_ok)["V04"]
+        self.assertEqual(st, "PASS", ev)
+        reg = _registry("CA")
+        n_ranked = sum(1 for t in reg["tables"] if t["role"] in V.RANK_BY_REVENUE_ROLES + V.RANK_BY_UNITS_ROLES
+                       or (t["role"] == "innova" and t["workbook"].startswith("CA_Code_Reader")))
+        n_ranked += sum(1 for t in _registry("US")["tables"] if t["role"] in V.RANK_BY_REVENUE_ROLES + V.RANK_BY_UNITS_ROLES)
+        self.assertIn(f"{n_ranked} ranked tables", ev)
+
+    def test_swapped_top50_rows_fail_v04(self):
+        d = ROOT / "tamper_swap"
+        shutil.copytree(BUILD / "cr", d)
+        t = next(t for t in _registry("CA")["tables"] if t["workbook"] == CR_REPORT and t["role"] == "top_by_units")
+        wb = load_workbook(d / CR_REPORT)
+        ws = wb[t["sheet"]]
+        r1, r2 = t["first_data_row"], t["first_data_row"] + 1
+        for c in range(t["first_col"], t["first_col"] + len(t["columns"])):
+            if t["columns"][c - t["first_col"]] == "Ranking":
+                continue
+            a, b = ws.cell(r1, c), ws.cell(r2, c)
+            a.value, b.value = b.value, a.value
+        wb.save(d / CR_REPORT)
+        rc, lines = run_validator(cr=d, memo=write_memo("memo_ok7.md", fixed=True))
+        st, ev = statuses(lines)["V04"]
+        self.assertEqual(rc, 1)
+        self.assertEqual(st, "FAIL", ev)
+        self.assertIn(f"{CR_REPORT}!Top 50/top_by_units (by units): 2 rows out of order", ev)
+
+    def test_v19_raw_inputs_follow_the_loader_discovery(self):
+        raw = ROOT / "raw_discovery"
+        (raw / "extra").mkdir(parents=True)
+        src = (C.FIXTURES_DIR / "cr_page1.csv").read_bytes()
+        top = raw / "CA_AMAZON_blackBoxProducts_1_2026-10-02.csv"
+        sub = raw / "extra" / "CA_AMAZON_blackBoxProducts_bullydog_2026-10-02.csv"
+        top.write_bytes(src)
+        sub.write_bytes(src)
+        (raw / "extra" / "._CA_AMAZON_blackBoxProducts_bullydog_2026-10-02.csv").write_bytes(b"appledouble")
+        self.assertEqual(V.expected_raw_inputs([raw]), {str(top.resolve()), str(sub.resolve())})
+        only_top = {str(top.resolve()): "x"}
+        self.assertEqual(V.missing_raw_inputs(only_top, [raw]), [str(sub.resolve())])
+        self.assertEqual(V.missing_raw_inputs({**only_top, str(sub.resolve()): "y"}, [raw]), [])
+
+    def test_json_under_new_product_dir_is_refused(self):
+        bad = C.NEW_PRODUCT_DIR / "CA-OBD-GAUGE" / "outputs" / "validation.json"
+        err = io.StringIO()
+        with self.assertRaises(SystemExit) as cm, contextlib.redirect_stderr(err):
+            V.main(["--month", MONTH, "--json", str(bad)])
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("--json must not write under", err.getvalue())
+        self.assertFalse(bad.exists())
+
     def test_skip_needs_a_documented_reason(self):
         rc, lines = run_validator(memo=write_memo("memo_bad2.md", fixed=False), extra=["--skip", "V20"])
         st = statuses(lines)

@@ -47,7 +47,7 @@ from openpyxl import load_workbook
 from ca_market_reports import ca_common as C
 
 SHORT_NAMES: dict[str, str] = {
-    "V01": "summary revenue total", "V02": "summary units total", "V03": "summary listings", "V04": "top 50 rank 1",
+    "V01": "summary revenue total", "V02": "summary units total", "V03": "summary listings", "V04": "top 50 rankings",
     "V05": "shares sum to 1", "V06": "amazon links", "V07": "currency labels", "V08": "innova tabs", "V09": "total rows",
     "V10": "lock files", "V11": "error tokens", "V12": "gauge scope totals", "V13": "excluded tab", "V14": "duplicate asins",
     "V15": "metadata keys", "V16": "charts", "V17": "type review queue", "V18": "per-asin reconciliation",
@@ -244,6 +244,9 @@ BENCH_SHARE_LABELS: dict[str, tuple[str, str]] = {
     "(b) All core gauge devices (CR ∪ gauge export): share of units": ("b", "s_u")}
 FUEL_TABLE_TITLE = "Fuel split (core devices)"
 KPI_BLOCK_TITLE = "Key figures"
+# Ranked listing tables (V04): every displayed row is compared with the independently sorted dataset
+RANK_BY_REVENUE_ROLES: tuple[str, ...] = ("top_by_revenue", "brand_tab_revenue", "tier_tab", "modelb_top")
+RANK_BY_UNITS_ROLES: tuple[str, ...] = ("top_by_units", "brand_tab_units")
 
 
 def _base(h: str) -> str:
@@ -617,27 +620,56 @@ class Validator:
     def v03(self):
         return self._v_summary("# of Listings", EXACT_TOL, "# of listings", lambda f: float(f["asin"].nunique()))
 
+    def _ranking_tables(self, w: WB) -> list[tuple[Table, str]]:
+        """Every registered ranked listing table with its sort key ('revenue' | 'units')."""
+        out = []
+        for t in self.tables(w):
+            if t.role in RANK_BY_REVENUE_ROLES or (t.role == "innova" and w.kind == "cr"):
+                out.append((t, "revenue"))
+            elif t.role in RANK_BY_UNITS_ROLES:
+                out.append((t, "units"))
+        return out
+
+    @staticmethod
+    def expected_order(sub: pd.DataFrame, by: str) -> pd.DataFrame:
+        """Builder order (ca_xlsx_style.rank_listings): revenue DESC, units DESC, asin ASC for by-revenue tables;
+        units DESC, revenue DESC, asin ASC for by-units tables. Re-implemented here, never imported."""
+        keys = ["revenue_month", "units_month", "asin"] if by == "revenue" else ["units_month", "revenue_month", "asin"]
+        return sub.sort_values(keys, ascending=[False, False, True], kind="mergesort").reset_index(drop=True)
+
     def v04(self):
-        probs, ev = [], []
-        names = [C.cr_report_name("CA", self.m), C.gauge_report_name("CA", self.m), C.gauge_report_name("US", self.m)]
-        for name in names:
-            w = self.wb(name)
-            t = self.one(w, "top_by_revenue", "Top 50")
-            sub, _ = self.frame_for(t)
-            rev_h = next(h for h in t.columns if _base(h) in REV_BASES)
-            if len(sub) == 0:
-                if t.n_rows:
-                    probs.append(f"{name}: Top 50 has rows but the dataset scope is empty")
-                ev.append(f"{name.split('_202')[0]} empty scope")
-                continue
-            exp = float(sub["revenue_month"].max())
-            got = _num(t.cell(t.first, rev_h).value)
-            rank = t.cell(t.first, "Ranking").value
-            if rank != 1 or got is None or not _close(got, exp, MONEY_TOL):
-                probs.append(f"{name}: rank {rank} revenue {got} != dataset max {exp:,.2f}")
-            else:
-                ev.append(f"{name.split('_202')[0]} {got:,.2f}")
-        return _outcome(probs, "rank 1 == dataset max revenue (" + "; ".join(ev) + ")")
+        books, probs = self.present_books()
+        ev, n_tables, n_rows = [], 0, 0
+        for w in books:
+            for t, by in self._ranking_tables(w):
+                fr = self.frame_for(t)
+                if fr is None:
+                    raise ValueError(f"{t.label}: ranked table without a dataset_filter rule ({t.filter!r})")
+                exp = self.expected_order(fr[0], by)
+                n_tables += 1
+                if t.n_rows > len(exp):
+                    probs.append(f"{t.label}: {t.n_rows} rows shown but the dataset scope has {len(exp)}")
+                rev_h = next(h for h in t.columns if _base(h) in REV_BASES)
+                units_h = next(h for h in t.columns if _base(h) in UNIT_BASES)
+                bad = []
+                for i, r in enumerate(t.data_rows):
+                    if i >= len(exp):
+                        break
+                    e = exp.iloc[i]
+                    asin = t.cell(r, "ASIN").value
+                    rank = t.cell(r, "Ranking").value if t.has("Ranking") else i + 1
+                    got_rev, got_u = _num(t.cell(r, rev_h).value), _num(t.cell(r, units_h).value)
+                    if (rank != i + 1 or asin != e["asin"] or got_rev is None or not _close(got_rev, float(e["revenue_month"]), 0.005)
+                            or got_u is None or not _close(got_u, float(e["units_month"]), EXACT_TOL)):
+                        bad.append(f"row {r}: rank {rank} {asin} rev {got_rev} units {got_u} != rank {i + 1} {e['asin']} "
+                                   f"rev {float(e['revenue_month']):.2f} units {float(e['units_month']):g}")
+                    n_rows += 1
+                if bad:
+                    probs.append(f"{t.label} (by {by}): {len(bad)} rows out of order/mismatched: {bad[0]}")
+                if t.role == "top_by_revenue" and t.sheet == "Top 50" and len(exp):
+                    ev.append(f"{w.name.split('_202')[0]} rank 1 {float(exp['revenue_month'].iloc[0]):,.2f}")
+        return _outcome(probs, f"{n_tables} ranked tables ({n_rows} rows) match the independently sorted dataset "
+                               f"(Ranking, ASIN, revenue, units); " + "; ".join(ev))
 
     def v05(self):
         books, probs = self.present_books()
@@ -1394,8 +1426,8 @@ class Validator:
             if stale:
                 probs.append(f"{mp.name} ({key}): maps changed since the build (rebuild): {stale}")
             if real:
-                need = {str(p.resolve()) for rd in raw_sets[key] for p in Path(rd).glob("*.csv")}
-                miss = sorted(need - set(ins))
+                need = expected_raw_inputs(raw_sets[key])
+                miss = missing_raw_inputs(ins, raw_sets[key])
                 if miss:
                     probs.append(f"{mp.name} ({key}): {len(miss)} raw CSVs not hashed (e.g. {miss[:2]})")
                 ev.append(f"{key}: {len(outs)} outputs, {len(ins)} inputs ({len(need)} raw CSVs)")
@@ -1593,6 +1625,17 @@ class Validator:
         return results
 
 
+def expected_raw_inputs(raw_dirs: list[Path]) -> set[str]:
+    """Resolved paths of every raw CSV the loader reads (ca_load.discover_raw_files: recursive, AppleDouble skipped)."""
+    from ca_market_reports.ca_load import discover_raw_files
+    return {str(p.resolve()) for rd in raw_dirs for p in discover_raw_files(Path(rd))}
+
+
+def missing_raw_inputs(manifest_inputs: dict[str, str], raw_dirs: list[Path]) -> list[str]:
+    """Raw CSVs the loader reads that the manifest does not hash."""
+    return sorted(expected_raw_inputs(raw_dirs) - set(manifest_inputs))
+
+
 def final_line(results: list[Result]) -> str:
     failed = [r.id for r in results if r.status == "FAIL"]
     passed = sum(r.status == "PASS" for r in results)
@@ -1634,6 +1677,10 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     if bad:
         p.error(f"--skip {bad}: only {sorted(SKIPPABLE)} may be skipped ({'; '.join(f'{k}: {v}' for k, v in SKIPPABLE.items())})")
     a.skip_set = skip
+    if a.json is not None:
+        j, npd = Path(a.json).resolve(), C.NEW_PRODUCT_DIR.resolve()
+        if j == npd or npd in j.parents:
+            p.error(f"--json must not write under {C.NEW_PRODUCT_DIR} (the validator never writes there): {a.json}")
     return a
 
 
