@@ -12,6 +12,7 @@ import shutil
 import unittest
 from pathlib import Path
 
+import pandas as pd
 from openpyxl import load_workbook
 
 from ca_market_reports import build_ca_code_reader_report as CR
@@ -101,6 +102,50 @@ def run_validator(*, cr: Path = BUILD / "cr", gauge_ca: Path = BUILD / "gauge_ca
     with contextlib.redirect_stdout(buf):
         rc = V.main(argv)
     return rc, buf.getvalue().splitlines()
+
+
+def _core(df):
+    """Core devices of a normalized fixture: device class and not borderline (columns derived when absent)."""
+    dev = df["gauge_class"].isin(C.GAUGE_DEVICE_CLASSES)
+    border = df["borderline"].astype(bool) if "borderline" in df.columns else pd.Series(False, index=df.index)
+    return df[dev & ~border]
+
+
+def _registry(mk: str) -> dict:
+    return json.loads(C.run_file(RUNS, MONTH, "table_registry", mk, "json").read_text(encoding="utf-8"))
+
+
+def _special_cells() -> dict:
+    """Values of the tables covered by the new V09 rules, read from the fixture workbooks via the registry."""
+    reg = _registry("CA")
+    gname, aname = C.gauge_report_name("CA", MONTH), C.cr_analysis_name("CA", MONTH)
+    wb = load_workbook(BUILD / "gauge_ca" / gname)
+    out: dict = {}
+
+    def rows(t, ws):
+        return {ws.cell(r, t["first_col"]).value: {h: ws.cell(r, t["first_col"] + j).value for j, h in enumerate(t["columns"])}
+                for r in range(t["first_data_row"], t["last_data_row"] + 1)}
+
+    for t in reg["tables"]:
+        if t["workbook"] != gname:
+            continue
+        ws = wb[t["sheet"]]
+        if t["title"] == V.SHARE_TABLE_TITLE:
+            out["share"] = rows(t, ws)
+        elif t["title"] == V.BENCH_SHARE_TABLE_TITLE:
+            out["bench"] = rows(t, ws)
+        elif t["title"] == V.FUEL_TABLE_TITLE:
+            out["fuel_total"] = {h: ws.cell(t["total_row"], t["first_col"] + j).value for j, h in enumerate(t["columns"])}
+        elif t["role"] == "kpi" and t["sheet"] == "Innova":
+            out["innova_b3"] = ws.cell(t["first_data_row"], t["first_col"]).value
+        elif t["role"] == "kpi" and t["sheet"] == "US vs CA Same-ASIN":
+            out["same_asin_b3"] = ws.cell(t["first_data_row"], t["first_col"] + 1).value
+        elif t["role"] == "modelb_app_matrix":
+            out["apps"] = [ws.cell(r, t["first_col"]).value for r in range(t["first_data_row"], t["last_data_row"] + 1)]
+    trend = next(t for t in reg["tables"] if t["workbook"] == aname and t["role"] == "trend_proxy")
+    ws = load_workbook(BUILD / "cr" / aname)["Trend Proxy"]
+    out["trend_total"] = {h: ws.cell(trend["total_row"], trend["first_col"] + j).value for j, h in enumerate(trend["columns"])}
+    return out
 
 
 def statuses(lines: list[str]) -> dict[str, tuple[str, str]]:
@@ -202,6 +247,99 @@ class ValidatorFixtureTest(unittest.TestCase):
         self.assertEqual(st["V19"][0], "FAIL", st["V19"])
         self.assertIn(name, st["V19"][1])
         self.assertEqual(rc, 1)
+
+    def test_v09_covers_share_fuel_count_and_app_matrix_tables(self):
+        st, ev = statuses(self.lines_ok)["V09"]
+        self.assertEqual(st, "PASS", ev)
+        # CA: share table, fuel split, Innova!B3, app matrix, US Benchmark share, Same-ASIN!B3; US: share, fuel, Innova!B3
+        self.assertIn("+ 9 share/fuel/count/app-matrix tables", ev)
+
+    def test_new_rule_fixture_values(self):
+        """The cells the new V09 rules check hold the values computed here straight from the fixture CSVs."""
+        ca = X.read_normalized_csv(CA_FIXTURE)
+        us = X.read_normalized_csv(US_FIXTURE)
+        cr = ca[ca["source_set"].isin(["code_reader", "both"])]
+        core = _core(ca)
+        a = core[core["source_set"].isin(["code_reader", "both"])]
+        g = core[core["source_set"] == "gauge"]
+        self.assertEqual((len(cr), round(cr["revenue_month"].sum(), 2), cr["units_month"].sum()), (13, 59706.13, 382))
+        self.assertEqual((len(a), round(a["revenue_month"].sum(), 2), len(core), len(cr) + len(g)), (4, 10562.71, 9, 18))
+        cells = _special_cells()
+        self.assertEqual(cells["share"]["(a) Gauge devices inside the code-reader export"]["# ASINs"], 4)
+        self.assertAlmostEqual(cells["share"]["(a) Gauge devices inside the code-reader export"]["Share of revenue"],
+                               a["revenue_month"].sum() / cr["revenue_month"].sum(), places=12)
+        den_rev = cr["revenue_month"].sum() + g["revenue_month"].sum()
+        self.assertAlmostEqual(cells["share"]["(b) All core gauge devices (CR ∪ gauge export)"]["Share of revenue"],
+                               core["revenue_month"].sum() / den_rev, places=12)
+        self.assertEqual(cells["share"]["(b) denominator: CR total + gauge-only rows"]["# ASINs"], 18)
+        # CA fixture has no fuel_scope column: every core device is 'unspecified'
+        self.assertEqual(cells["fuel_total"]["unspecified: # ASINs"], 9)
+        self.assertEqual(cells["fuel_total"]["gas: # ASINs"], 0)
+        us_core = _core(us)
+        us_cr = us[us["source_set"].isin(["code_reader", "both"])]
+        us_a = us_core[us_core["source_set"].isin(["code_reader", "both"])]
+        self.assertAlmostEqual(cells["bench"]["(a) Gauge devices inside the code-reader export: share of units"]["US share"],
+                               us_a["units_month"].sum() / us_cr["units_month"].sum(), places=12)
+        self.assertEqual(cells["innova_b3"], 0)
+        self.assertEqual(cells["same_asin_b3"], 1)
+        self.assertEqual(cells["apps"], list(C.APP_FEATURE_MATRIX_APPS))
+        yoy = cr["yoy_units_pct"]
+        self.assertEqual(cells["trend_total"]["# Listings with Helium 10 YoY data"], int(yoy.notna().sum()))
+        self.assertEqual(cells["trend_total"]["# Listings with YoY > 0"], int((yoy > 0).sum()))
+        self.assertEqual(cells["trend_total"]["# Listings with YoY < 0"], int((yoy < 0).sum()))
+        self.assertEqual(cells["trend_total"]["Last Year Sales (Helium 10 field; semantics unverified)"],
+                         cr["last_year_units"].dropna().sum())
+
+    def test_tampered_special_tables_fail_v09(self):
+        d_g, d_cr = ROOT / "tamper_special_gauge", ROOT / "tamper_special_cr"
+        shutil.copytree(BUILD / "gauge_ca", d_g)
+        shutil.copytree(BUILD / "cr", d_cr)
+        reg = _registry("CA")
+        gname = C.gauge_report_name("CA", MONTH)
+        wb = load_workbook(d_g / gname)
+        edits = []
+        for t in reg["tables"]:
+            if t["workbook"] != gname:
+                continue
+            ws = wb[t["sheet"]]
+            if t["title"] == V.SHARE_TABLE_TITLE:
+                c = ws.cell(t["first_data_row"] + 1, t["first_col"] + t["columns"].index("Share of revenue"))
+                c.value = c.value + 0.01
+                edits.append("Summary/kpi")
+            elif t["title"] == V.FUEL_TABLE_TITLE:
+                c = ws.cell(t["total_row"], t["first_col"] + t["columns"].index("unspecified: # ASINs"))
+                c.value = c.value + 1
+                edits.append("Summary/subtype_mix")
+            elif t["title"] == V.BENCH_SHARE_TABLE_TITLE:
+                c = ws.cell(t["first_data_row"], t["first_col"] + t["columns"].index("US share"))
+                c.value = c.value + 0.02
+                edits.append("US Benchmark/kpi")
+            elif t["role"] == "kpi" and t["sheet"] == "Innova":
+                ws.cell(t["first_data_row"], t["first_col"]).value = 5
+                edits.append("Innova/kpi")
+            elif t["role"] == "kpi" and t["sheet"] == "US vs CA Same-ASIN":
+                ws.cell(t["first_data_row"], t["first_col"] + 1).value = 7
+                edits.append("US vs CA Same-ASIN/kpi")
+            elif t["role"] == "modelb_app_matrix":
+                src = t["first_col"] + t["columns"].index("Source")
+                ws.cell(t["first_data_row"], src).value = 3.5
+                edits.append("App-Gauge Proxy (Model B)/modelb_app_matrix")
+        self.assertEqual(len(edits), 6, edits)
+        wb.save(d_g / gname)
+        aname = C.cr_analysis_name("CA", MONTH)
+        trend = next(t for t in reg["tables"] if t["workbook"] == aname and t["role"] == "trend_proxy")
+        wb = load_workbook(d_cr / aname)
+        c = wb["Trend Proxy"].cell(trend["total_row"], trend["first_col"] + trend["columns"].index("# Listings with YoY > 0"))
+        c.value = c.value + 1
+        wb.save(d_cr / aname)
+        rc, lines = run_validator(cr=d_cr, gauge_ca=d_g, memo=write_memo("memo_ok6.md", fixed=True))
+        st, ev = statuses(lines)["V09"]
+        self.assertEqual(rc, 1)
+        self.assertEqual(st, "FAIL", ev)
+        self.assertIn("7 problem(s)", ev)
+        for label in edits:
+            self.assertIn(f"{gname}!{label}", ev)
+        self.assertIn(f"{aname}!Trend Proxy/trend_proxy Total '# Listings with YoY > 0'", ev)
 
     def test_skip_needs_a_documented_reason(self):
         rc, lines = run_validator(memo=write_memo("memo_bad2.md", fixed=False), extra=["--skip", "V20"])

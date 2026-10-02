@@ -107,8 +107,10 @@ run with one skip reads `VALIDATION: PASS (22/23)`). Useful options:
 202609 status when this runbook was written: V07 FAILs (the `Dedupe & Classification Audit` sheet shows
 `revenue_chosen` / `revenue_dropped_max` with a money format but no `(CAD)`/`(USD)` in the header), V17 FAILs (3
 gauge-device rows typed Tablet/Handheld/Dongle, `B01BI2PQNY`, `B01MZ3ZURG`, `B0BFBQZZMC`, are flagged as type conflicts
-in the gauge union but are not in the type review CSV) and V20 FAILs until the memo's `[WB: TBD]` placeholders are
-filled. These are open pipeline items, not operator errors.
+in the gauge union but are not in the type review CSV). With the filled memo the validator on the final 202609 outputs
+gave `VALIDATION: FAIL (21/23; failed: V07, V17)`; both are open builder/loader items (being fixed), not operator errors.
+V19 matches the hashed `maps/*.csv` by file name and current content, so a build made from another checkout of this
+repository still validates; editing a map after the build makes V19 FAIL (`maps changed since the build`).
 
 ### Step 6: review the Types
 

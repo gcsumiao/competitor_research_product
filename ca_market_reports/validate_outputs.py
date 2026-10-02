@@ -228,6 +228,22 @@ RATING_BASES = {"Avg Rating", "Avg. Rating", "Tool Rating", "Rating", "Avg ratin
 PRICE_BASES = {"Price Per Unit", "Avg price", "Avg Price"}
 REV_SHARE_BASES = {"Monthly Rev Market Share %", "Rev share", "Revenue share", "Revenue by %"}
 SHARE_HEADERS = REV_SHARE_BASES | {"Qty by %", "% of Listings"}
+# Trend Proxy (Helium 10 fields as reported): Last Year Sales = plain sum over listings carrying it; YoY only counted by sign
+TREND_HEADERS: tuple[str, ...] = ("Last Year Sales (Helium 10 field; semantics unverified)", "# Listings with Helium 10 YoY data",
+                                  "# Listings with YoY > 0", "# Listings with YoY < 0", "Revenue share of listings with YoY > 0",
+                                  "Revenue share of listings with YoY data")
+# Gauge share of the code-reader market (Summary kpi table, one per gauge workbook) and its CA vs US view (US Benchmark)
+SHARE_TABLE_TITLE = "Gauge share of the code-reader market"
+BENCH_SHARE_TABLE_TITLE = "Gauge share of the code-reader market — CA vs US"
+SHARE_LABELS: tuple[str, ...] = ("Code-reader export total", "(a) Gauge devices inside the code-reader export",
+                                 "(b) All core gauge devices (CR ∪ gauge export)", "(b) denominator: CR total + gauge-only rows")
+BENCH_SHARE_LABELS: dict[str, tuple[str, str]] = {
+    "(a) Gauge devices inside the code-reader export: share of revenue": ("a", "s_rev"),
+    "(a) Gauge devices inside the code-reader export: share of units": ("a", "s_u"),
+    "(b) All core gauge devices (CR ∪ gauge export): share of revenue": ("b", "s_rev"),
+    "(b) All core gauge devices (CR ∪ gauge export): share of units": ("b", "s_u")}
+FUEL_TABLE_TITLE = "Fuel split (core devices)"
+KPI_BLOCK_TITLE = "Key figures"
 
 
 def _base(h: str) -> str:
@@ -272,14 +288,15 @@ def metric(header: str, sub: pd.DataFrame, den: pd.DataFrame) -> tuple[float, fl
         return float((sub["units_month"] > 0).sum()), EXACT_TOL
     if b == "# app-gauge-capable ASINs":
         return float((sub["_app_capable"] == "Y").sum()), EXACT_TOL
-    if b in ("Monthly Units (paired cohort)", "Last Year Units (paired cohort)", "Units YoY % (paired sums)",
-             "Cohort coverage % (revenue)", "# Listings with YoY data"):
-        paired = sub[sub["last_year_units"].notna() & sub["units_month"].notna()]
-        cur, ly = float(paired["units_month"].sum()), float(paired["last_year_units"].sum())
-        return {"Monthly Units (paired cohort)": (cur, EXACT_TOL), "Last Year Units (paired cohort)": (ly, EXACT_TOL),
-                "Units YoY % (paired sums)": ((cur / ly - 1.0) if ly > 0 else float("nan"), SHARE_TOL),
-                "Cohort coverage % (revenue)": (_div(float(paired["revenue_month"].sum()), rev), SHARE_TOL),
-                "# Listings with YoY data": (float(len(paired)), EXACT_TOL)}[b]
+    if b in TREND_HEADERS:
+        ly = sub["last_year_units"].astype(float).dropna()
+        yoy = sub["yoy_units_pct"].astype(float)
+        return {TREND_HEADERS[0]: (float(ly.sum()) if len(ly) else float("nan"), EXACT_TOL),
+                TREND_HEADERS[1]: (float(yoy.notna().sum()), EXACT_TOL),
+                TREND_HEADERS[2]: (float((yoy > 0).sum()), EXACT_TOL),
+                TREND_HEADERS[3]: (float((yoy < 0).sum()), EXACT_TOL),
+                TREND_HEADERS[4]: (_div(float(sub.loc[yoy > 0, "revenue_month"].sum()), rev), SHARE_TOL),
+                TREND_HEADERS[5]: (_div(float(sub.loc[yoy.notna(), "revenue_month"].sum()), rev), SHARE_TOL)}[b]
     return None
 
 
@@ -295,6 +312,8 @@ class Data:
     us_u: pd.DataFrame | None           # US gauge union (classified + enriched)
     frames: dict[str, pd.DataFrame] = field(default_factory=dict)   # V21: every input frame
     notes: list[str] = field(default_factory=list)
+    cr_full: dict[str, pd.DataFrame] = field(default_factory=dict)  # FULL code-reader export per market (US: before the candidate filter)
+    fuel_absent: dict[str, bool] = field(default_factory=dict)      # dev frames without fuel_scope: core devices count as 'unspecified'
 
 
 def _overlay_frozen_types(cr: pd.DataFrame, runs_dir: Path, month: str, type_map: Path, notes: list[str]) -> pd.DataFrame:
@@ -355,8 +374,12 @@ def derive_data(a: argparse.Namespace) -> Data:
     if a.from_normalized:
         ca = X.dataset_from_normalized(X.read_normalized_csv(a.from_normalized), "CA", a.month)
         us = X.dataset_from_normalized(X.read_normalized_csv(a.us_from_normalized), "US", a.month) if a.us_from_normalized else None
-        ca_u, _ = GB.gauge_union(ca, preclassified=True, gauge_map_path=gauge_map, runs_dir=a.runs_dir, rederive=False)
-        us_u = GB.gauge_union(us, preclassified=True, gauge_map_path=gauge_map, runs_dir=a.runs_dir, rederive=False)[0] if us else None
+        ca_u, _, fa_ca = GB.gauge_union(ca, preclassified=True, gauge_map_path=gauge_map, runs_dir=a.runs_dir, rederive=False)
+        fuel_absent = {"CA": fa_ca}
+        us_u = None
+        if us is not None:
+            us_u, _, fuel_absent["US"] = GB.gauge_union(us, preclassified=True, gauge_map_path=gauge_map, runs_dir=a.runs_dir,
+                                                        rederive=False)
         cr = CRB.prepare_cr_frame(ca.code_reader)
         frames = {"CA normalized": X.read_normalized_csv(a.from_normalized)}
         if a.us_from_normalized:
@@ -384,6 +407,7 @@ def derive_data(a: argparse.Namespace) -> Data:
             ca_union = _classified_union(ca, gauge_map, Path(a.runs_dir))
             ca_u = GB.enrich_union(ca_union, C.MARKETS["CA"], [])
             us_u = GB.enrich_union(_classified_union(us, gauge_map, Path(a.runs_dir)), C.MARKETS["US"], []) if us else None
+            fuel_absent = {"CA": False, "US": False}   # classify_gauges always sets fuel_scope
         finally:
             LOG.setLevel(prev)
             logging.getLogger("ca_market_reports.gauge").setLevel(logging.NOTSET)
@@ -396,7 +420,11 @@ def derive_data(a: argparse.Namespace) -> Data:
     if ca_u["asin"].duplicated().any() or (us_u is not None and us_u["asin"].duplicated().any()):
         raise ValueError("duplicate ASINs in a re-derived union")
     frames = {k: v for k, v in frames.items() if v is not None}
-    return Data(source=source, cr=cr, ca_u=ca_u, modelb=modelb, us_u=us_u, frames=frames, notes=notes)
+    cr_full = {"CA": ca.code_reader}
+    if us is not None:
+        cr_full["US"] = us.code_reader      # the full US code-reader export (the candidate filter only narrows a copy)
+    return Data(source=source, cr=cr, ca_u=ca_u, modelb=modelb, us_u=us_u, frames=frames, notes=notes, cr_full=cr_full,
+                fuel_absent=fuel_absent)
 
 
 # --------------------------------------------------------------------------------------
@@ -466,6 +494,21 @@ class Validator:
         ts = self.tables(w, role, sheet)
         if len(ts) != 1:
             raise ValueError(f"{w.name}: expected one {role!r} table{' on ' + sheet if sheet else ''}, found {len(ts)}")
+        return ts[0]
+
+    def same_asin_set(self) -> set[str]:
+        """CA ∩ US union ASINs that are device scope in EITHER market."""
+        d = self.data.get()
+        if d.us_u is None:
+            raise ValueError("no US dataset for the Same-ASIN join")
+        ca, us = d.ca_u.set_index("asin"), d.us_u.set_index("asin")
+        both = set(ca.index) & set(us.index)
+        return {a for a in both if bool(ca.at[a, "gauge_device_scope"]) or bool(us.at[a, "gauge_device_scope"])}
+
+    def titled(self, w: WB, role: str, sheet: str, title: str) -> Table:
+        ts = [t for t in self.tables(w, role, sheet) if t.e.get("title") == title]
+        if len(ts) != 1:
+            raise ValueError(f"{w.name}: expected one {role!r} table titled {title!r} on {sheet}, found {len(ts)}")
         return ts[0]
 
     @property
@@ -680,10 +723,11 @@ class Validator:
         n = 0
         for w in books:
             for t in self.tables(w):
-                if t.header_row is None and t.role != "kpi":
+                kpi_style = t.columns == ["Metric", "Value"]
+                if t.header_row is None and not kpi_style:
                     continue
                 rows = list(t.data_rows) + [r for r in (t.total_row, t.residual_row) if r]
-                if t.role == "kpi":
+                if kpi_style:
                     for r in t.data_rows:
                         label, vc = t.ws.cell(r, t.first_col).value, t.ws.cell(r, t.first_col + 1)
                         if _num(vc.value) is None or "$" not in (vc.number_format or ""):
@@ -809,10 +853,19 @@ class Validator:
 
     def v09(self):
         books, probs = self.present_books()
-        n_tot = n_cells = 0
+        n_tot = n_cells = n_special = 0
         for w in books:
             for t in self.tables(w):
-                if t.role == "kpi" and t.filter not in ("see metric labels", ""):
+                special = self._special_rules(t)
+                if special is not None:
+                    sp, n = special
+                    probs += sp
+                    n_special += 1
+                    n_cells += n
+                    continue
+                if t.role == "kpi":
+                    if t.filter == "see metric labels":
+                        continue          # the gauge Summary "Key figures" block: every row is re-derived by V12
                     probs += self._brand_kpi(t)
                     continue
                 if t.total_row is None:
@@ -850,7 +903,169 @@ class Validator:
                 full = self._entities(t)
                 if full is not None and full > t.n_rows and t.residual_row is None:
                     probs.append(f"{t.label}: {t.n_rows} rows shown of {full} but no residual row")
-        return _outcome(probs, f"{n_tot} Total rows ({n_cells} cells) == full filtered dataset; rows + residual add up")
+        return _outcome(probs, f"{n_tot} Total rows + {n_special} share/fuel/count/app-matrix tables ({n_cells} cells) == "
+                               f"full filtered dataset; rows + residual add up")
+
+    # ---------------------------------------------------------------- V09 special tables
+    def _special_rules(self, t: Table) -> tuple[list[str], int] | None:
+        title = t.e.get("title", "")
+        if t.role == "kpi" and title == SHARE_TABLE_TITLE:
+            return self._check_share_table(t)
+        if t.role == "kpi" and title == BENCH_SHARE_TABLE_TITLE:
+            return self._check_bench_share(t)
+        if t.role == "subtype_mix" and title == FUEL_TABLE_TITLE:
+            return self._check_fuel(t)
+        if t.role == "kpi" and t.wb.kind == "gauge" and t.sheet == "Innova":
+            u = self.union(t.wb)
+            exp = int(((u["brand_key"] == "innova") & u["gauge_device_scope"]).sum())
+            return self._check_number(t, t.ws.cell(t.first, t.first_col), exp), 1
+        if t.role == "kpi" and t.sheet == "US vs CA Same-ASIN":
+            return self._check_number(t, t.ws.cell(t.first, t.first_col + 1), len(self.same_asin_set())), 1
+        if t.role == "modelb_app_matrix":
+            return self._check_app_matrix(t)
+        return None
+
+    @staticmethod
+    def _check_number(t: Table, cell, exp: float) -> list[str]:
+        got = _num(cell.value)
+        if got is None or not _close(got, float(exp), EXACT_TOL):
+            return [f"{t.label} {cell.coordinate} {cell.value!r} != re-derived {exp}"]
+        return []
+
+    def share_rows(self, mk: str) -> tuple[dict[str, dict[str, float]], list[str]]:
+        """Gauge share of the code-reader market for one market, re-derived from the FULL code-reader export."""
+        d = self.data.get()
+        if mk not in d.cr_full:
+            raise ValueError(f"no full {mk} code-reader export (US raw dirs absent and no --us-from-normalized)")
+        cr = d.cr_full[mk]
+        u = d.ca_u if mk == "CA" else d.us_u
+        core = u[u["_core"]]
+        a = core[core["source_set"].isin(["code_reader", "both"])]
+        g = core[core["source_set"] == "gauge"]
+        cr_asins = set(cr["asin"])
+        probs = []
+        if set(a["asin"]) - cr_asins:
+            probs.append(f"{mk}: code_reader/both core rows missing from the code-reader export {sorted(set(a['asin']) - cr_asins)[:5]}")
+        if set(g["asin"]) & cr_asins:
+            probs.append(f"{mk}: gauge-only core rows found in the code-reader export {sorted(set(g['asin']) & cr_asins)[:5]}")
+        cr_n = float(cr["asin"].nunique())
+        cr_rev = float(pd.to_numeric(cr["revenue_month"]).astype(float).sum())
+        cr_u = float(pd.to_numeric(cr["units_month"]).astype(float).sum())
+        den_n, den_rev = cr_n + g["asin"].nunique(), cr_rev + float(g["revenue_month"].sum())
+        den_u = cr_u + float(g["units_month"].sum())
+        a_rev, a_u = float(a["revenue_month"].sum()), float(a["units_month"].sum())
+        b_rev, b_u = float(core["revenue_month"].sum()), float(core["units_month"].sum())
+
+        def row(n, rev, units, s_rev, s_u):
+            return {"# ASINs": float(n), "Monthly Rev": rev, "Monthly Units": units, "Share of revenue": s_rev, "Share of units": s_u}
+
+        L = SHARE_LABELS
+        return {L[0]: row(cr_n, cr_rev, cr_u, _div(cr_rev, cr_rev), _div(cr_u, cr_u)),
+                L[1]: row(a["asin"].nunique(), a_rev, a_u, _div(a_rev, cr_rev), _div(a_u, cr_u)),
+                L[2]: row(core["asin"].nunique(), b_rev, b_u, _div(b_rev, den_rev), _div(b_u, den_u)),
+                L[3]: row(den_n, den_rev, den_u, _div(den_rev, den_rev), _div(den_u, den_u))}, probs
+
+    _SHARE_TOL = {"# ASINs": EXACT_TOL, "Monthly Rev": MONEY_TOL, "Monthly Units": EXACT_TOL, "Share of revenue": SHARE_TOL,
+                  "Share of units": SHARE_TOL}
+
+    def _cmp(self, t: Table, r: int, h: str, exp: float, tol: float, probs: list[str]) -> None:
+        got = _num(t.cell(r, h).value)
+        if got is None:
+            if not math.isnan(exp):
+                probs.append(f"{t.label} row {r} {h!r} blank != {exp:,.6f}")
+        elif not _close(got, exp, tol):
+            probs.append(f"{t.label} row {r} {h!r} {got:,.6f} != re-derived {exp:,.6f}")
+
+    def _check_share_table(self, t: Table) -> tuple[list[str], int]:
+        exp, probs = self.share_rows(t.wb.market)
+        labels = [str(v) for v in t.values("Measure")]
+        if sorted(labels) != sorted(SHARE_LABELS) or len(labels) != len(set(labels)):
+            probs.append(f"{t.label}: rows {labels} != {list(SHARE_LABELS)}")
+        n = 0
+        for r, label in zip(t.data_rows, labels):
+            if label not in exp:
+                continue
+            for h in t.columns[1:]:
+                b = _base(h)
+                if b not in exp[label]:
+                    probs.append(f"{t.label}: column {h!r} has no re-derivation rule")
+                    continue
+                self._cmp(t, r, h, exp[label][b], self._SHARE_TOL[b], probs)
+                n += 1
+        return probs, n
+
+    def _check_bench_share(self, t: Table) -> tuple[list[str], int]:
+        ca, p1 = self.share_rows("CA")
+        us, p2 = self.share_rows("US")
+        probs = p1 + p2
+        labels = [str(v) for v in t.values("Measure")]
+        if sorted(labels) != sorted(BENCH_SHARE_LABELS):
+            probs.append(f"{t.label}: rows {labels} != {list(BENCH_SHARE_LABELS)}")
+        n = 0
+        for r, label in zip(t.data_rows, labels):
+            if label not in BENCH_SHARE_LABELS:
+                continue
+            which, key = BENCH_SHARE_LABELS[label]
+            src = SHARE_LABELS[1] if which == "a" else SHARE_LABELS[2]
+            col = "Share of revenue" if key == "s_rev" else "Share of units"
+            for h, rows in (("CA share", ca), ("US share", us)):
+                self._cmp(t, r, h, rows[src][col], SHARE_TOL, probs)
+                n += 1
+        return probs, n
+
+    def _check_fuel(self, t: Table) -> tuple[list[str], int]:
+        d = self.data.get()
+        mk = t.wb.market
+        u = self.union(t.wb)
+        core = u[u["_core"]]
+        fuels = tuple(C.FEATURE_FUEL_SCOPE)
+        fuel = pd.Series("unspecified", index=core.index) if d.fuel_absent.get(mk) else core["fuel_scope"].astype(str)
+        probs = []
+        bad = sorted(set(fuel) - set(fuels))
+        if bad:
+            probs.append(f"{mk}: core devices with fuel_scope outside FEATURE_FUEL_SCOPE: {bad}")
+        heads = t.columns[1:]
+        want = [h for f in fuels for h in (f"{f}: # ASINs", f"{f}: Monthly Rev ({C.MARKETS[mk].currency})", f"{f}: Monthly Units")]
+        if heads != want:
+            probs.append(f"{t.label}: fuel columns {heads} != {want}")
+        by_label = {C.GAUGE_SUBTYPE_LABELS[c]: c for c in C.GAUGE_DEVICE_CLASSES}
+        labels = [str(v) for v in t.values("Sub-type")]
+        if labels != [C.GAUGE_SUBTYPE_LABELS[c] for c in C.GAUGE_DEVICE_CLASSES]:
+            probs.append(f"{t.label}: rows {labels} != the device sub-types")
+        if t.total_row is None:
+            probs.append(f"{t.label}: no Total row")
+        targets = [(r, core[core["gauge_class"] == by_label[lb]]) for r, lb in zip(t.data_rows, labels) if lb in by_label]
+        if t.total_row is not None:
+            targets.append((t.total_row, core))
+        n = 0
+        for r, sub in targets:
+            f_sub = fuel.loc[sub.index]
+            for h in heads:
+                f, _, what = h.partition(": ")
+                part = sub[f_sub == f]
+                if what == "# ASINs":
+                    e, tol = float(part["asin"].nunique()), EXACT_TOL
+                elif what.startswith("Monthly Rev"):
+                    e, tol = float(part["revenue_month"].sum()), MONEY_TOL
+                elif what == "Monthly Units":
+                    e, tol = float(part["units_month"].sum()), EXACT_TOL
+                else:
+                    probs.append(f"{t.label}: column {h!r} has no re-derivation rule")
+                    continue
+                self._cmp(t, r, h, e, tol, probs)
+                n += 1
+        return probs, n
+
+    def _check_app_matrix(self, t: Table) -> tuple[list[str], int]:
+        probs = []
+        apps = [v for v in t.values("App")]
+        if apps != list(C.APP_FEATURE_MATRIX_APPS):
+            probs.append(f"{t.label}: {len(apps)} rows {apps} != APP_FEATURE_MATRIX_APPS {list(C.APP_FEATURE_MATRIX_APPS)}")
+        src = t.values("Source")
+        bad = [f"{a}: {v!r}" for a, v in zip(apps, src) if not isinstance(v, str)]
+        if bad:
+            probs.append(f"{t.label}: Source cells that are not strings: {bad[:5]}")
+        return probs, len(apps) + len(src)
 
     def _entities(self, t: Table) -> int | None:
         if t.role.startswith("benchmark_brands"):
@@ -871,7 +1086,7 @@ class Validator:
     def _brand_kpi(self, t: Table) -> list[str]:
         fr = self.frame_for(t)
         if fr is None:
-            return []
+            return [f"{t.label}: kpi table (filter {t.filter!r}) has no re-derivation rule"]
         sub, den = fr
         probs = []
         for r in t.data_rows:
@@ -921,7 +1136,7 @@ class Validator:
                                       ("units", units, core["units_month"].sum(), EXACT_TOL), ("listings", n, len(core), EXACT_TOL)):
                 if got is None or not _close(got, float(e), tol):
                     probs.append(f"{mk} Summary core {what} {got} != {float(e):,.2f}")
-            kpi = self.one(w, "kpi", "Summary")
+            kpi = self.titled(w, "kpi", "Summary", KPI_BLOCK_TITLE)
             ccy = C.MARKETS[mk].currency
             adj = u[u["gauge_class"].isin(C.GAUGE_ADJACENT_CLASSES)]
             acc = u[u["gauge_class"].isin(C.GAUGE_ACCESSORY_CLASSES)]
@@ -1137,14 +1352,14 @@ class Validator:
     def v19(self):
         probs, ev = [], []
         real = self.real
+        from ca_market_reports.ca_xlsx_style import sha256_file
         raw_sets = {"cr": [self.a.raw_dir], "gauge_CA": [self.a.raw_dir, self.a.gauge_raw_dir],
                     "gauge_US": [self.a.us_cr_raw_dir, self.a.us_gauge_raw_dir]}
         if real and self.data.get().us_u is not None:
             gw = self.books.get()[C.gauge_report_name("CA", self.m)]
             if not gw.missing and "US Benchmark" in gw.book.sheetnames:
                 raw_sets["gauge_CA"] += [self.a.us_cr_raw_dir, self.a.us_gauge_raw_dir]
-        maps = {str(p.resolve()) for p in C.MAPS_DIR.glob("*.csv")}
-        from ca_market_reports.ca_xlsx_style import sha256_file
+        maps = {p.name: sha256_file(p) for p in C.MAPS_DIR.glob("*.csv")}
         for key, d in self.out_dirs.items():
             mp = d / C.manifest_name(self.m)
             if not mp.exists():
@@ -1171,9 +1386,13 @@ class Validator:
                     probs.append(f"{mp.name} ({key}): input missing {path}")
                 elif sha256_file(p) != sha:
                     probs.append(f"{mp.name} ({key}): sha256 mismatch for input {path}")
-            miss_maps = sorted(maps - set(ins))
+            hashed_maps = {Path(k).name: v for k, v in ins.items() if Path(k).parent.name == "maps"}
+            miss_maps = sorted(n for n in maps if n not in hashed_maps)
             if miss_maps:
-                probs.append(f"{mp.name} ({key}): maps not hashed {miss_maps[:3]}")
+                probs.append(f"{mp.name} ({key}): maps not hashed {miss_maps}")
+            stale = sorted(n for n in maps if n in hashed_maps and hashed_maps[n] != maps[n])
+            if stale:
+                probs.append(f"{mp.name} ({key}): maps changed since the build (rebuild): {stale}")
             if real:
                 need = {str(p.resolve()) for rd in raw_sets[key] for p in Path(rd).glob("*.csv")}
                 miss = sorted(need - set(ins))
@@ -1337,9 +1556,8 @@ class Validator:
         if d.us_u is None:
             raise ValueError("no US dataset for the Same-ASIN join")
         t = self.one(w, "same_asin", "US vs CA Same-ASIN")
-        ca, us = d.ca_u.set_index("asin"), d.us_u.set_index("asin")
-        both = set(ca.index) & set(us.index)
-        exp = {a for a in both if bool(ca.at[a, "gauge_device_scope"]) or bool(us.at[a, "gauge_device_scope"])}
+        both = set(d.ca_u["asin"]) & set(d.us_u["asin"])
+        exp = self.same_asin_set()
         got = t.values("ASIN")
         if len(got) != len(exp) or set(got) != exp:
             probs.append(f"Same-ASIN rows {len(got)} != re-derived {len(exp)} (diff {sorted(set(got) ^ exp)[:5]})")
