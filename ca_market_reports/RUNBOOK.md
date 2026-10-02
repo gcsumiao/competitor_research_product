@@ -78,6 +78,31 @@ ca_market_reports/run.sh ca_market_reports/build_gauge_report.py --market CA --m
 Run it after Step 3. The CA build reloads the US data for the benchmark sheets and replays the US gauge decisions
 frozen in Step 3 (202609 log: `gauge_decisions US 202609: unfrozen_candidates=0`).
 
+### Step 4b: write the month's memo
+
+The memo is `ca_market_reports/memo/CA_OBD_Gauge_Market_Memo_<M>.md` with its sources in
+`ca_market_reports/memo/sources_<M>.csv` (columns `url,accessed,publisher,claim,quote,used_in_section`). For a new month,
+start from the previous month's files as the skeleton:
+
+```bash
+cp ca_market_reports/memo/CA_OBD_Gauge_Market_Memo_202609.md ca_market_reports/memo/CA_OBD_Gauge_Market_Memo_202610.md
+cp ca_market_reports/memo/sources_202609.csv ca_market_reports/memo/sources_202610.csv
+```
+
+Then rewrite the month-specific text and tag every number:
+
+- Amazon (Helium 10) numbers: `[WB: <file>!<sheet>!<cell>]` right after the number, e.g.
+  `CA$47,821 [WB: CA_OBD_Gauge_Competitor_Report_202610.xlsx!Summary!C30]`. V20 compares the LAST number before the tag
+  on the same line with the cell: exact for counts, ±1 for money shown without cents, ±0.001 for shares (`45.2%`).
+  The workbook file names carry the month, so every tag copied from the previous memo must be re-pointed at the new
+  month's workbooks and cells; a tag naming a workbook that is not in the output folders FAILs. Use `[WB: TBD]` while a
+  number is not filled yet: any `[WB: TBD]` left makes V20 FAIL.
+- Web sources: `[SRC: <url>, accessed YYYY-MM-DD]`; the url must be a row of `sources_<M>.csv`.
+- Tags inside backticks (`` `[WB: …]` ``) are treated as literal mentions and are not checked.
+
+Run Step 5 to check the tags (V20 runs with the other checks). `--skip V20` (documented reason "memo not filled yet")
+is allowed only while the memo is still being written; the month is not finished until V20 PASSes without it.
+
 ### Step 5: validate
 
 ```bash
@@ -91,8 +116,8 @@ workbooks, the table registry, the manifests, the decision files and the memo, a
 ```
 PASS V01 summary revenue total: revenue == re-derived dataset (…)
 …
-FAIL V20 memo tags: 1 problem(s): 25 [WB: TBD] placeholder(s) left
-VALIDATION: FAIL (20/23; failed: V07, V17, V20)
+PASS V23 benchmark joins: Same-ASIN 26 rows == CA∩US device-scope-in-either 26 (of 57 shared ASINs); …
+VALIDATION: PASS (23/23)
 ```
 
 Exit code 0 only when no check FAILs. The final line counts PASS checks out of 23 (a SKIP is not a PASS, so a clean
@@ -104,17 +129,21 @@ run with one skip reads `VALIDATION: PASS (22/23)`). Useful options:
 - `--skip V20` or `--skip V23` only. `V20` (memo) may be skipped before the memo is written; `V23` only when the CA
   gauge workbook was built without `--benchmark-market US`. Any other ID is refused with an argument error.
 
-202609 status when this runbook was written: V07 FAILs (the `Dedupe & Classification Audit` sheet shows
-`revenue_chosen` / `revenue_dropped_max` with a money format but no `(CAD)`/`(USD)` in the header), V17 FAILs (3
-gauge-device rows typed Tablet/Handheld/Dongle, `B01BI2PQNY`, `B01MZ3ZURG`, `B0BFBQZZMC`, are flagged as type conflicts
-in the gauge union but are not in the type review CSV). With the filled memo the validator on the final 202609 outputs
-gave `VALIDATION: FAIL (21/23; failed: V07, V17)`; both are open builder/loader items (being fixed), not operator errors.
-V19 matches the hashed `maps/*.csv` by file name and current content, so a build made from another checkout of this
-repository still validates; editing a map after the build makes V19 FAIL (`maps changed since the build`).
+202609 status: the committed result (`ca_market_reports/runs/202609/validation_ALL_202609.txt`) is
+`VALIDATION: PASS (23/23)` on the final outputs with the filled memo. Notes on two checks:
+
+- V04 compares every row of every ranked table (Top 50 by revenue and by units, brand tabs, tier tabs, Model B top
+  lists) with the dataset sorted independently: revenue DESC, units DESC, ASIN ASC for "by revenue" tables; units DESC,
+  revenue DESC, ASIN ASC for "by units" tables (the builders' order).
+- V19 requires every raw CSV the loader reads to be hashed in the manifest. The loader reads raw folders recursively
+  (subfolders included, AppleDouble `._*` files skipped), so a CSV in a subfolder must be hashed too. Hashed
+  `maps/*.csv` are matched by file name and current content, so a build made from another checkout still validates;
+  editing a map after the build makes V19 FAIL (`maps changed since the build`).
+- `--json` must point outside `NewProductCategory/` (the validator refuses with exit 2 otherwise).
 
 ### Step 6: review the Types
 
-Open `ca_market_reports/runs/202609/type_review_CA_code_reader_202609.csv` (122 rows for 202609). Each row is a
+Open `ca_market_reports/runs/202609/type_review_CA_code_reader_202609.csv` (125 rows for 202609). Each row is a
 `default_other`, a low-confidence `token_profile` (< 0.70) or a gauge type conflict. Write the correct Type (one of
 `Tablet, Handheld, Dongle, VCI, Cable/Adapter, Key, OBD1, Probe, Other`) into `reviewed_type`; leave it blank to skip
 the row. Then append the decisions to the human override map:
