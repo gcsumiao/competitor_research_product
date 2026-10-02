@@ -76,7 +76,7 @@ Basis for every figure in this section:
 | Tuner with gauge display | 6 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B38] | CA$1,918 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!C38] | 3 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D38] |
 | Total | 44 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B43] | CA$47,821 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!C43] | 328 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!D43] |
 
-Units sit mostly in the HUD classes, while revenue sits in the single truck-monitor listing.
+Units sit mostly in the HUD classes. Revenue sits in the truck-monitor class, which has 1 listing [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!B39].
 
 ### 2.3 Price clusters (Price Ladder (Model A))
 
@@ -115,7 +115,7 @@ Empty price ranges from the Gap rows, using each boundary listing's Helium 10 pr
 - **wiiyii.** The P6 OBD+GPS HUD (B0957S3F3H) is the top unit seller, with 119 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K5] and CA$6,500 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!J5].
 - **ScanGauge.** ScanGauge 3 SG3 (B0BFBQZZMC) shows 7 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K6] at a Helium 10 price of CA$388.77 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!I6].
 - **Keenso.** The OBD HUD B0CJMM4RLM shows 54 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!K7] at CA$47.84 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!I7].
-- **Bully Dog.** Three gas tuners are in the exports, all from the dedicated Bully Dog export file (All Products sheet, Source File column):
+- **Bully Dog.** The exports hold 3 Bully Dog listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!B5]. All are gas tuners and all come from the dedicated Bully Dog export file (All Products sheet, Source File column):
   - 40410 Triple Dog GT Gas (B001P20QDS): CA$1,172 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!E9] on 2 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!F9]
   - 40417 Triple Dog Platinum GT Gas (B06XWVYJGV): CA$746 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!E10] on 1 unit [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!F10]
   - 40430 Hemi Plus (B00AJLY628): 0 units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!F11]
@@ -135,14 +135,14 @@ Empty price ranges from the Gap rows, using each boundary listing's Helium 10 pr
 - **Definition (b):** all core gauge devices, divided by the code-reader export plus gauge-only rows.
   - That denominator is 1,860 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B86].
   - Gauges take 1.11% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E85] of revenue and 1.08% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!F85] of units.
-- **Reading:** on amazon.ca, OBD gauges are about one percent of what shoppers spend on code readers and scan tools.
+- **Reading:** on amazon.ca, OBD gauges are a small slice of what shoppers spend on code readers and scan tools: 1.11% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E85] on definition (b).
 
 **Fuel split (core devices)** (Summary sheet). Fuel scope comes from model numbers for tuners and monitors, and from title tokens otherwise.
 - **Gas:** 4 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!B97] with CA$1,918 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!C97]. These are the three Bully Dog gas tuners plus the Edge 85450 CTS2 gas unit.
 - **Diesel-capable:** 2 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E97] with sales of CA$0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!F97]. These are the Edge Evolution CTS3 85400-100 and 85401-201.
 - **Universal (gas and diesel):** 1 listing [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!H97] with CA$27,390 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!I97]. This is the Edge Insight CTS3.
 - **Unspecified:** everything else, 37 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!K97] with CA$18,513 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!L97]. These are generic OBD-II HUDs and gauge displays whose titles name no fuel.
-- **Reading:** no diesel-specific device has sales in the supplied exports. The only diesel-capable revenue comes through the universal Insight CTS3, and the Bully Dog diesel listings are missing from the exports (Section 8.3).
+- **Reading:** the diesel-capable listings have CA$0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!F97] of sales in the supplied exports. All diesel-capable revenue comes through the universal Insight CTS3, and the Bully Dog diesel listings are missing from the exports (Section 8.3).
 
 ## 3 US benchmark, same month
 
@@ -170,7 +170,7 @@ Sources: the US Benchmark and US vs CA Same-ASIN sheets of `CA_OBD_Gauge_Competi
 | Lufi | 3.7% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E9] | 2.7% [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E7] |
 | Bully Dog | 4.0% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E8] | listings in US exports: 0 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US Benchmark!E11] |
 
-Edge leads both markets. The visible difference is ScanGauge, which holds a much larger share of the US market.
+Edge leads both markets. The visible difference is ScanGauge: 28.8% [WB: US_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E5] of US revenue against 5.7% [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E6] in CA.
 
 ### 3.3 Units by sub-type
 
@@ -196,7 +196,7 @@ The CA and US exports share 26 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!U
 | Keenso OBD HUD (B0CJMM4RLM) | 54 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E11] | 5 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H11] |
 | BYZFCM OBD+GPS HUD (B0GZC9VPRS) | 24 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E13] | 1 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H13] |
 
-Keenso, BYZFCM and MIOLLYBO sell more units in CA than in the US. All three are low-priced HUDs; no premium device does the same.
+Keenso, BYZFCM and MIOLLYBO sell more units in CA than in the US. MIOLLYBO (B0FFB2VX7B) shows 22 CA units [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!E16] against 1 US unit [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!US vs CA Same-ASIN!H16]. All of these are low-priced HUDs; no premium device does the same.
 
 ### 3.5 Sells in the US, not observed in the CA exports
 
@@ -312,12 +312,12 @@ Sources: the Price Ladder (Model A) and Feature Matrix (Model A) sheets. The fea
 - **Required capabilities, from the Feature Matrix columns:**
   - Data source: OBD+GPS dual mode, which is common in the cluster.
   - Screen type: windshield projector or dash-top LCD.
-  - Alarms: overspeed, temperature and fatigue alarms are claimed by many titles.
+  - Alarms: overspeed, temperature and fatigue alarms appear in HUD titles (Feature Matrix (Model A), Alarms column).
   - km/h–mph switching: needed for Canada.
-  - Gesture control: claimed by only two listings (BYZFCM B0GZC9VPRS, wiiyii B0H715WB5W).
-  - Fuel scope: "unspecified" on every HUD.
+  - Gesture control: claimed in the BYZFCM (B0GZC9VPRS) and wiiyii (B0H715WB5W) titles (Feature Matrix (Model A), Gesture Control column).
+  - Fuel scope: "unspecified" covers 37 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!K97], including every HUD.
 - **Channel:** Princess Auto already sells an OBD+GPS head-up gauge at CA$49.99 [SRC: https://www.princessauto.com/en/product/obd-plus-gps-smart-gauge/PA0009465543/9465543, accessed 2026-10-02].
-- **Read:** low prices, many small sellers, and no listing tied to a known brand. An Innova unit here would compete on price unless RS2 integration sets it apart.
+- **Read:** low prices, many small sellers (19 listings [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Price Ladder (Model A)!B7] in the $50-99 tier alone), and no listing tied to a known brand. An Innova unit here would compete on price unless RS2 integration sets it apart.
 
 ### 5.2 Option B: mid-price compact dash display (100 to 249 dollars)
 
@@ -337,12 +337,12 @@ Sources: the Price Ladder (Model A) and Feature Matrix (Model A) sheets. The fea
   - Bully Dog gas tuners: 3 units in total [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Bully Dog!B4].
 - **Required capabilities:**
   - Screen type: tuner touchscreen (Bully Dog, Edge Evolution) or dash-top LCD (Insight).
-  - Fuel scope: "gas" for the Bully Dog titles and the Edge 85450, "diesel-capable" for the two Edge Evolution CTS3 units, and "universal" for the Insight (Section 2.5).
+  - Fuel scope: "gas" for the Bully Dog titles and the Edge 85450, "diesel-capable" for the 2 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Summary!E97] Edge Evolution CTS3 units, and "universal" for the Insight (Section 2.5).
   - All of these units are flagged Lordco-type.
   - Alarms: the title-derived alarm flag is N for the Insight, but Edge's own page says it gives audible and visual alerts [SRC: https://www.edgeproducts.com/products/in-cabin_monitors/insight/, accessed 2026-10-02]. Title flags understate this class.
 - **Diesel:** no diesel-specific device is in the exports, because of the Bully Dog diesel export gap (Section 2.4).
 - **Channel:** Lordco lists the Edge Insight CTS3 at CA$769.99 [SRC: https://lordco.com/Product/Insight-CTS3-Digital-Gauge-Monitor-PTQ84130-3, accessed 2026-10-02] and the Bully Dog GT diesel at CA$554.46 [SRC: https://lordco.com/Product/GT-diesel-vehicle-tuner-and-multi-gauge-vehicle-monitor-BDT40420, accessed 2026-10-02]. Canadian Tire, NAPA Canada and PartSource showed no such units online (Section 4.1).
-- **Read:** most of the revenue is here, but one incumbent listing holds it, and the channel that matters is Lordco. A monitor-only unit (no tuning) would avoid the emissions-certification questions raised by tuners ("CA Edition" = CARB, Section 4.3).
+- **Read:** most of the revenue is here, but the Edge Insight CTS3 alone holds CA$27,390 [WB: CA_OBD_Gauge_Competitor_Report_202609.xlsx!Top 50!J4] of it, and the channel that matters is Lordco. A monitor-only unit (no tuning) would avoid the emissions-certification questions raised by tuners ("CA Edition" = CARB, Section 4.3).
 
 ### 5.4 What Lordco sell-through data would change
 
