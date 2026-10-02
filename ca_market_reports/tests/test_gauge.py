@@ -285,6 +285,12 @@ class FeatureTest(unittest.TestCase):
         ("B06XWVYJGV", None, "tuner_with_gauge_display", "gas"),
         ("B00AJLY628", None, "tuner_with_gauge_display", "gas"),
         ("B0SYNTH042", "Bully Dog 40420 GT Diesel Gauge Tuner", "tuner_with_gauge_display", "diesel-capable"),
+        ("B0SYNTH851", "Edge Evolution CTS3 85400", "tuner_with_gauge_display", "diesel-capable"),          # bare number
+        ("B0SYNTH852", "Edge Evolution CTS3 85401", "tuner_with_gauge_display", "diesel-capable"),
+        ("B0SYNTH853", "Edge Evolution CTS3 85401-201", "tuner_with_gauge_display", "diesel-capable"),      # suffixed
+        ("B0SYNTH854", "Edge Evolution CTS2 85450", "tuner_with_gauge_display", "gas"),                     # bare gas
+        ("B0SYNTH855", "Edge Evolution CTS2 85452-100", "tuner_with_gauge_display", "gas"),                 # suffixed gas
+        ("B0SYNTH856", "Edge Evolution CTS3 854001", "tuner_with_gauge_display", "unspecified"),            # not a model number
         ("B0957S3F3H", WIIYII_P6, "obd_gps_hud", "unspecified"),
         ("B0BFBQZZMC", None, "gauge_display", "unspecified"),     # ScanGauge is never 'universal' (no model rule)
     )
