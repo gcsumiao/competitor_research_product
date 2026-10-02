@@ -503,6 +503,81 @@ class TestBuildOutputs(unittest.TestCase):
         with self.assertRaises(KeyError):
             G.read_app_feature_matrix(d / "bad_cols.csv")
 
+    def test_dedupe_audit_money_headers_carry_currency(self):
+        for p in (_Built.ca_gauge, _Built.us_gauge):
+            ccy = C.MARKETS[_market_of(p)].currency
+            ts = [t for t in _tables(_market_of(p), p.name) if t["sheet"] == "Dedupe & Classification Audit"]
+            self.assertEqual(len(ts), 2, p.name)
+            audit = [t for t in ts if t["title"].startswith("Dedupe audit")][0]
+            self.assertIn(f"Revenue chosen ({ccy})", audit["columns"])
+            self.assertIn(f"Revenue dropped max ({ccy})", audit["columns"])
+            self.assertNotIn("revenue_chosen", audit["columns"])
+            self.assertNotIn("revenue_dropped_max", audit["columns"])
+            # every other audit header stays the raw DEDUPE_AUDIT_COLUMNS name, in order
+            raw = [h for h in C.DEDUPE_AUDIT_COLUMNS if h not in ("revenue_chosen", "revenue_dropped_max")]
+            self.assertEqual([h for h in audit["columns"] if "Revenue" not in h], raw)
+            self.assertEqual(len(audit["columns"]), len(C.DEDUPE_AUDIT_COLUMNS))
+            ws = openpyxl.load_workbook(p)["Dedupe & Classification Audit"]
+            got = [ws.cell(audit["header_row"], audit["first_col"] + i).value for i in range(len(audit["columns"]))]
+            self.assertEqual(got, audit["columns"])
+            # no money column anywhere on the sheet lacks the currency token in its header
+            for t in ts:
+                for h in t["columns"]:
+                    if re.search(r"\b(Rev|Price|Revenue)\b", h, re.I):
+                        self.assertIn(f"({ccy})", h, (p.name, t["title"], h))
+        # engine level: a populated audit frame writes money cells under the relabelled headers
+        audit = pd.DataFrame([{"market": "CA", "source_set": "code_reader", "asin": "B0TESTAUT1", "n_rows": 2, "chosen_file": "a.csv",
+                               "chosen_row": 3, "dropped": "b.csv:4", "values_identical": "N", "revenue_chosen": 100.0,
+                               "revenue_dropped_max": 90.0, "units_diff": 1, "price_diff": 0.0, "title_diff": "N",
+                               "winning_rule": "revenue", "discrepancy_flag": ""}])
+        cols = G.dedupe_audit_columns("CAD")
+        self.assertEqual([c.header for c in cols if c.kind == "money"], ["Revenue chosen (CAD)", "Revenue dropped max (CAD)"])
+        self.assertEqual([c.field for c in cols], list(C.DEDUPE_AUDIT_COLUMNS))
+        self.assertTrue(set(c.field for c in cols) <= set(audit.columns))
+
+    def test_gauge_type_conflicts_land_in_ca_type_review(self):
+        p = C.run_file(RUNS, MONTH, "type_review", "CA_code_reader")
+        self.assertTrue(p.exists(), p)
+        review = pd.read_csv(p, dtype=str, keep_default_na=False)
+        self.assertEqual(tuple(review.columns), C.TYPE_REVIEW_COLUMNS)
+        # CA fixture: ScanGauge 3 is a gauge_display typed Tablet -> gauge_type_conflict
+        conflicts = review[review["review_reason"] == "gauge_type_conflict"]
+        self.assertIn("B0TESTSCG1", set(conflicts["asin"]))
+        ca = _Built.ca_rows
+        expect = set(ca.loc[ca["gauge_class"].isin(C.GAUGE_DEVICE_CLASSES) & ca["type"].isin(["Tablet", "Handheld", "Dongle"]), "asin"])
+        self.assertEqual(set(conflicts["asin"]), expect)
+        self.assertEqual(conflicts.loc[conflicts["asin"] == "B0TESTSCG1", "proposed_type"].iloc[0], "Tablet")
+        # the All Products tab shows the flag
+        wb = openpyxl.load_workbook(_Built.ca_gauge)
+        t = [t for t in _tables("CA", _Built.ca_gauge.name) if t["role"] == "all_rows"][0]
+        ws = wb["All Products"]
+        a_c, f_c = t["first_col"] + t["columns"].index("ASIN"), t["first_col"] + t["columns"].index("Type Conflict")
+        flags = {ws.cell(r, a_c).value: ws.cell(r, f_c).value for r in range(t["first_data_row"], t["last_data_row"] + 1)}
+        self.assertEqual({a for a, v in flags.items() if v == "Y"}, expect)
+        # the US build never writes a review file (CA or US) and never adds its ASINs
+        self.assertFalse(C.run_file(RUNS, MONTH, "type_review", "US_code_reader").exists())
+        self.assertFalse(set(review["asin"]) & set(_Built.us_rows["asin"]) - set(ca["asin"]))
+        # merge keeps a human reviewed_type
+        d = C.SCRATCH_DIR / "test_out_review"
+        if d.exists():
+            shutil.rmtree(d)
+        rp = C.run_file(d / "runs", MONTH, "type_review", "CA_code_reader")
+        rp.parent.mkdir(parents=True)
+        seed = conflicts[conflicts["asin"] == "B0TESTSCG1"].copy()
+        seed["reviewed_type"] = "Other"
+        keep = seed.copy()
+        keep["asin"], keep["review_reason"], keep["reviewed_type"] = "B0TESTKEEP", "default_other", "Key"
+        pd.concat([seed, keep]).to_csv(rp, index=False)
+        ca_ds = X.dataset_from_normalized(X.read_normalized_csv(CA_FIXTURE), "CA", MONTH)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            G.build_gauge_workbook(ca_ds, d, benchmark=None, overwrite=True, dated_copy=False, runs_dir=d / "runs",
+                                   preclassified=True, input_paths=[CA_FIXTURE])
+        self.assertIn(f"type_review: {len(expect)} gauge_type_conflict rows merged into {rp}", buf.getvalue())
+        merged = pd.read_csv(rp, dtype=str, keep_default_na=False)
+        self.assertEqual(merged.loc[merged["asin"] == "B0TESTSCG1", "reviewed_type"].iloc[0], "Other")
+        self.assertEqual(merged.loc[merged["asin"] == "B0TESTKEEP", "reviewed_type"].iloc[0], "Key")
+
     def test_numeric_count_cells(self):
         for p, rows in ((_Built.ca_gauge, _Built.ca_rows), (_Built.us_gauge, _Built.us_rows)):
             wb = openpyxl.load_workbook(p)
@@ -843,6 +918,18 @@ class TestSourceHygiene(unittest.TestCase):
                 CR.main(["--month", "202613", "--from-normalized", str(CA_FIXTURE), "--out-dir", str(out)])
         with self.assertRaises(ValueError):   # dev runs never write under NewProductCategory
             CR.main(["--month", MONTH, "--from-normalized", str(CA_FIXTURE), "--out-dir", str(C.NEW_PRODUCT_DIR / "x")])
+
+    def test_gauge_union_public_contract_is_a_pair(self):
+        """validate_outputs.derive_data unpacks `u, notes = gauge_union(...)`; the flags live in gauge_union_with_flags."""
+        ds = X.dataset_from_normalized(X.read_normalized_csv(CA_FIXTURE), "CA", MONTH)
+        out = G.gauge_union(ds, preclassified=True, gauge_map_path=G.GAUGE_MAP_DEFAULT, runs_dir=RUNS, rederive=False)
+        self.assertEqual(len(out), 2)
+        u, notes = out
+        self.assertIsInstance(u, pd.DataFrame)
+        self.assertIsInstance(notes, list)
+        self.assertIn("B0TESTSCG1", set(u.loc[u["type_conflict"], "asin"]))
+        self.assertEqual(len(G.gauge_union_with_flags(ds, preclassified=True, gauge_map_path=G.GAUGE_MAP_DEFAULT, runs_dir=RUNS,
+                                                      rederive=False)), 3)
 
     def test_missing_column_fails_loudly(self):
         df = X.read_normalized_csv(CA_FIXTURE).drop(columns=["revenue_month"])
