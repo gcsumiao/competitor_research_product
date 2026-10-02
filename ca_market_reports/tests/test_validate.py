@@ -34,6 +34,20 @@ CHECK_LINE_RE = re.compile(r"^(PASS|FAIL|SKIP) (V\d{2}) ([^:]+): (.*)$")
 SRC_URL = "https://example.org/gauge-source"
 
 
+def build_set(build: Path, runs: Path, ca_csv: Path, us_csv: Path) -> None:
+    """CR workbooks, US gauge and CA gauge (with the US benchmark) built through the builders' normalized (dev) path."""
+    for d in ("cr", "gauge_ca", "gauge_us"):
+        (build / d).mkdir(parents=True)
+    ca = X.dataset_from_normalized(X.read_normalized_csv(ca_csv), "CA", MONTH)
+    us = X.dataset_from_normalized(X.read_normalized_csv(us_csv), "US", MONTH)
+    with contextlib.redirect_stdout(io.StringIO()):
+        CR.build_code_reader_workbooks(ca, build / "cr", overwrite=True, dated_copy=False, runs_dir=runs, input_paths=[ca_csv])
+        G.build_gauge_workbook(us, build / "gauge_us", benchmark=None, overwrite=True, dated_copy=False, runs_dir=runs,
+                               preclassified=True, input_paths=[us_csv])
+        G.build_gauge_workbook(ca, build / "gauge_ca", benchmark=us, overwrite=True, dated_copy=False, runs_dir=runs,
+                               preclassified=True, input_paths=[ca_csv, us_csv])
+
+
 class _Built:
     done = False
 
@@ -43,17 +57,7 @@ class _Built:
             return
         if ROOT.exists():
             shutil.rmtree(ROOT)
-        for d in ("cr", "gauge_ca", "gauge_us"):
-            (BUILD / d).mkdir(parents=True)
-        ca = X.dataset_from_normalized(X.read_normalized_csv(CA_FIXTURE), "CA", MONTH)
-        us = X.dataset_from_normalized(X.read_normalized_csv(US_FIXTURE), "US", MONTH)
-        with contextlib.redirect_stdout(io.StringIO()):
-            CR.build_code_reader_workbooks(ca, BUILD / "cr", overwrite=True, dated_copy=False, runs_dir=RUNS,
-                                           input_paths=[CA_FIXTURE])
-            G.build_gauge_workbook(us, BUILD / "gauge_us", benchmark=None, overwrite=True, dated_copy=False, runs_dir=RUNS,
-                                   preclassified=True, input_paths=[US_FIXTURE])
-            G.build_gauge_workbook(ca, BUILD / "gauge_ca", benchmark=us, overwrite=True, dated_copy=False, runs_dir=RUNS,
-                                   preclassified=True, input_paths=[CA_FIXTURE, US_FIXTURE])
+        build_set(BUILD, RUNS, CA_FIXTURE, US_FIXTURE)
         reg = json.loads(C.run_file(RUNS, MONTH, "table_registry", "CA", "json").read_text(encoding="utf-8"))
         summ = next(t for t in reg["tables"] if t["workbook"] == CR_REPORT and t["role"] == "summary_brands")
         cls.summary = summ
@@ -92,11 +96,11 @@ def write_memo(name: str, *, fixed: bool) -> Path:
 
 def run_validator(*, cr: Path = BUILD / "cr", gauge_ca: Path = BUILD / "gauge_ca", gauge_us: Path = BUILD / "gauge_us",
                   memo: Path, extra: list[str] | None = None, json_path: Path | None = None,
-                  runs: Path = RUNS) -> tuple[int, list[str]]:
+                  runs: Path = RUNS, us_csv: Path = US_FIXTURE) -> tuple[int, list[str]]:
     argv = ["--month", MONTH, "--cr-out-dir", str(cr), "--gauge-out-dir", str(gauge_ca), "--us-gauge-out-dir", str(gauge_us),
             "--runs-dir", str(runs), "--raw-dir", str(ABSENT / "ca_cr"), "--gauge-raw-dir", str(ABSENT / "ca_gauge"),
             "--us-gauge-raw-dir", str(ABSENT / "us_gauge"), "--us-cr-raw-dir", str(ABSENT / "us_cr"),
-            "--from-normalized", str(CA_FIXTURE), "--us-from-normalized", str(US_FIXTURE),
+            "--from-normalized", str(CA_FIXTURE), "--us-from-normalized", str(us_csv),
             "--memo", str(memo), "--sources", str(_Built.sources)] + (extra or [])
     if json_path is not None:
         argv += ["--json", str(json_path)]
@@ -425,16 +429,31 @@ class ValidatorFixtureTest(unittest.TestCase):
 COMBINED = C.combined_gauge_report_name(MONTH)
 CMB_SHORT = COMBINED.split("_202")[0]
 CMB_ROOT = ROOT / "combined"
+CMB_BUILD = CMB_ROOT / "build"          # cr / gauge_ca / gauge_us built from CA_FIXTURE + CMB_US_CSV
+CMB_RUNS = CMB_BUILD / "runs"
 CMB_OUT = CMB_ROOT / "gauge_ca"          # CA gauge out dir copy + the combined workbook + the merged manifest
+CMB_US_CSV = CMB_ROOT / "normalized_rows_us_plus.csv"   # US fixture + one US-only core brand (no CA listings -> '-')
+US_ONLY_ASIN, US_ONLY_KEY, US_ONLY_DISPLAY = "B0TESTUSX1", "autool", "Autool"
 FUELS = tuple(C.FEATURE_FUEL_SCOPE)
 KEY_FIGURE_LABELS = C.COMBINED_KEY_FIGURE_LABELS
 TIER_LABELS = [t for t, _, _ in C.GAUGE_TIERS] + ["All tiers"]
 
 
+def write_us_plus(path: Path) -> None:
+    """US_FIXTURE plus one US-only core gauge display (revenue >= GAUGE_BRAND_TAB_MIN_REVENUE -> a brand tab)."""
+    df = pd.read_csv(US_FIXTURE, dtype=str, keep_default_na=False)
+    row = df[df["asin"] == "B0TESTUS09"].iloc[0].copy()
+    for k, v in {"asin": US_ONLY_ASIN, "title": "Autool X50 Plus OBD2 gauge display", "brand_raw": "AUTOOL", "brand_key": US_ONLY_KEY,
+                 "brand_display": US_ONLY_DISPLAY, "units_month": "30", "revenue_month": "1799.70", "price": "59.99",
+                 "url": f"https://amazon.com/dp/{US_ONLY_ASIN}", "image_url": ""}.items():
+        row[k] = v
+    pd.concat([df, row.to_frame().T], ignore_index=True).to_csv(path, index=False)
+
+
 def _fixture_ctx(ds, bench=None):
     """GCtx exactly as build_gauge_workbook assembles it on the normalized (dev) path."""
     market = C.MARKETS[ds.market]
-    u, notes, fa = G.gauge_union_with_flags(ds, preclassified=True, gauge_map_path=G.GAUGE_MAP_DEFAULT, runs_dir=RUNS,
+    u, notes, fa = G.gauge_union_with_flags(ds, preclassified=True, gauge_map_path=G.GAUGE_MAP_DEFAULT, runs_dir=CMB_RUNS,
                                             rederive=False)
     c = G.GCtx(ds=ds, market=market, u=u, notes=notes, month=MONTH, mon=X.month_label(MONTH),
                sub=X.subtitle_text(market, ds.export_dates, MONTH), ccy=market.currency,
@@ -447,13 +466,13 @@ def _fixture_ctx(ds, bench=None):
     return c
 
 
-def build_combined_fixture(out_dir: Path, runs_dir: Path) -> Path:
+def build_combined_fixture(out_dir: Path, runs_dir: Path, us_csv: Path) -> Path:
     """A minimal combined workbook written with the engine (write_table / Book) to the frozen spec, plus its CAUS registry
     and the merged manifest entry. Stands in for build_combined_gauge_report.py (parallel track) in these tests."""
     CA, US = C.MARKETS["CA"], C.MARKETS["US"]
     Col = X.ColumnSpec
     ca_ds = X.dataset_from_normalized(X.read_normalized_csv(CA_FIXTURE), "CA", MONTH)
-    us_ds = X.dataset_from_normalized(X.read_normalized_csv(US_FIXTURE), "US", MONTH)
+    us_ds = X.dataset_from_normalized(X.read_normalized_csv(us_csv), "US", MONTH)
     uc = _fixture_ctx(us_ds)
     cc = _fixture_ctx(ca_ds, bench=uc)
     ctx = {"CA": cc, "US": uc}
@@ -512,11 +531,14 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path) -> Path:
     maxrev = {k: max(float(core[mk].loc[core[mk]["brand_key"] == k, "revenue_month"].sum()) for mk in core) for k in disp}
     keys = sorted(disp, key=lambda k: (-maxrev[k], disp[k]))
     shown, rest = keys[:C.SUMMARY_TOP_BRANDS], keys[C.SUMMARY_TOP_BRANDS:]
-    rows = []
-    for k in shown:
+    rows, brand_dash = [], []           # a market with no listings of the brand shows DASH in its five cells
+    for i, k in enumerate(shown):
         d = {"brand": disp[k], "brand_key": k}
         for mk in core:
-            d.update(agg(mk, core[mk][core[mk]["brand_key"] == k]))
+            sub = core[mk][core[mk]["brand_key"] == k]
+            d.update(agg(mk, sub) if len(sub) else {f"{mk}_{f}": "-" for f in ("n", "rev", "units", "share", "rating")})
+            if not len(sub):
+                brand_dash.append((i, mk))
         rows.append(d)
     total = {"brand": C.TOTAL_ROW_LABEL}
     for mk in core:
@@ -603,7 +625,8 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path) -> Path:
                         flt="core devices, both markets; fuel_scope in FEATURE_FUEL_SCOPE"), X.table_end(tr) + 3)
     extras = {id(tr_f): {"subtotal_rows": [tr_f.first_data_row + i for i in sub_idx]},
               id(tr_sub): {"excluded_from_total_rows": [tr_sub.last_data_row]},
-              id(tr_b): {"column_markets": [None] + [cbm for mk in ("CA", "US") for cbm in [mk] * 5]}}
+              id(tr_b): {"column_markets": [None] + [cbm for mk in ("CA", "US") for cbm in [mk] * 5],
+                         "dash_rows": [[tr_b.first_data_row + i, mk] for i, mk in brand_dash]}}
     # Top 50 CA / Top 50 US
     for mk in ("CA", "US"):
         ws = book.sheet(f"Top 50 {mk}")
@@ -644,21 +667,31 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path) -> Path:
                 rows_ = core[mk][core[mk]["brand_key"] == key]
                 rev = float(rows_["revenue_month"].sum())
                 c = ws.cell(3 + i, 2 + j)
+                if not len(rows_):
+                    X.set_text(c, "-")
+                    continue
                 c.value = [rev, float(rows_["units_month"].sum()), int(rows_["asin"].nunique()), X.safe_div(rev, tot_rev[mk])][i]
                 c.number_format = C.MARKETS[mk].money_fmt if kind == "money" else X.FMT_PCT if kind == "pct" else X.FMT_INT
-        book.tables.append(X.TableRange(sheet=name, role="kpi", header_row=None, first_data_row=3, last_data_row=6, total_row=None,
-                                        residual_row=None, first_col=1, last_col=3, columns=["Metric", "CA", "US"], charts=[],
-                                        title="", dataset_filter=flt, allowed_markets=("CA", "US")))
+        kpi_tr = X.TableRange(sheet=name, role="kpi", header_row=None, first_data_row=3, last_data_row=6, total_row=None,
+                              residual_row=None, first_col=1, last_col=3, columns=["Metric", "CA", "US"], charts=[],
+                              title="", dataset_filter=flt, allowed_markets=("CA", "US"))
+        book.tables.append(kpi_tr)
+        extras[id(kpi_tr)] = {"dash_rows": [[r_, mk] for mk in ("CA", "US")
+                                            if not len(core[mk][core[mk]["brand_key"] == key]) for r_ in range(3, 7)]}
         r = C.BRAND_TAB_RESERVED_ROWS + 1
         titles = iter(C.COMBINED_BRAND_TABLE_TITLES)
         for mk in ("CA", "US"):
             cols = X.brand_tab_columns(C.MARKETS[mk].currency, type_header="Sub-type", type_field="_subtype")
             rows_ = core[mk][core[mk]["brand_key"] == key]
             total_ = X.fit(X.listing_totals(rows_, "title", C.TOTAL_ROW_LABEL), cols)
+            if not len(rows_):
+                total_.update({"revenue_month": "-", "units_month": "-"})       # absent market: '-' on the Total row
             for role, by in (("brand_tab_revenue", "revenue"), ("brand_tab_units", "units")):
                 data = X.rank_listings(rows_, by) if len(rows_) else pd.DataFrame(
                     [{**{c.field: None for c in cols}, "title": f"No {mk} core gauge devices for this brand"}])
                 tr = put(ws, spec(name, role, next(titles), cols, data, total_, allowed=(mk,), flt=flt), r, market=C.MARKETS[mk])
+                extras[id(tr)] = {"dash_rows": [] if len(rows_) else [[tr.total_row, mk]],
+                                  "placeholder_rows": [] if len(rows_) else [tr.first_data_row]}
                 r = X.table_end(tr) + 4
         book.brand_sheet_map[key] = name
     # CA analyses, unchanged (Model A/B), and the Same-ASIN sheet
@@ -717,7 +750,7 @@ def build_combined_fixture(out_dir: Path, runs_dir: Path) -> Path:
     rp.parent.mkdir(parents=True, exist_ok=True)
     rp.write_text(json.dumps(reg, indent=1, ensure_ascii=False), encoding="utf-8")
     with contextlib.redirect_stdout(io.StringIO()):
-        X.write_manifest(out_dir, MONTH, [path], X.input_hashes([CA_FIXTURE, US_FIXTURE]))
+        X.write_manifest(out_dir, MONTH, [path], X.input_hashes([CA_FIXTURE, us_csv]))
     return path
 
 
@@ -731,9 +764,12 @@ class _Combined:
             return
         if CMB_ROOT.exists():
             shutil.rmtree(CMB_ROOT)
-        shutil.copytree(BUILD / "gauge_ca", CMB_OUT)
-        cls.path = build_combined_fixture(CMB_OUT, RUNS)
-        cls.reg = json.loads(C.run_file(RUNS, MONTH, "table_registry", "CAUS", "json").read_text(encoding="utf-8"))
+        CMB_ROOT.mkdir(parents=True)
+        write_us_plus(CMB_US_CSV)
+        build_set(CMB_BUILD, CMB_RUNS, CA_FIXTURE, CMB_US_CSV)
+        shutil.copytree(CMB_BUILD / "gauge_ca", CMB_OUT)
+        cls.path = build_combined_fixture(CMB_OUT, CMB_RUNS, CMB_US_CSV)
+        cls.reg = json.loads(C.run_file(CMB_RUNS, MONTH, "table_registry", "CAUS", "json").read_text(encoding="utf-8"))
         cls.done = True
 
     @classmethod
@@ -752,16 +788,24 @@ def tampered_copy(name: str) -> Path:
     return d
 
 
+def run_combined(**kw) -> tuple[int, list[str]]:
+    """run_validator over the combined test set (CMB_BUILD workbooks, CMB_RUNS, the US-plus fixture)."""
+    kw.setdefault("cr", CMB_BUILD / "cr")
+    kw.setdefault("gauge_us", CMB_BUILD / "gauge_us")
+    kw.setdefault("runs", CMB_RUNS)
+    return run_validator(us_csv=CMB_US_CSV, **kw)
+
+
 class CombinedWorkbookTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         _Combined.ensure()
         cls.memo = write_memo("memo_combined.md", fixed=True)
-        cls.rc, cls.lines = run_validator(gauge_ca=CMB_OUT, memo=cls.memo)
+        cls.rc, cls.lines = run_combined(gauge_ca=CMB_OUT, memo=cls.memo)
         cls.st = statuses(cls.lines)
 
     def _run(self, gauge_ca: Path, **kw) -> tuple[int, dict]:
-        rc, lines = run_validator(gauge_ca=gauge_ca, memo=self.memo, **kw)
+        rc, lines = run_combined(gauge_ca=gauge_ca, memo=self.memo, **kw)
         self.assertEqual(len(lines), 24, "\n".join(lines))
         return rc, statuses(lines)
 
@@ -777,14 +821,14 @@ class CombinedWorkbookTest(unittest.TestCase):
         self.assertIn("Top 50 US", self.st["V04"][1])
 
     def test_absent_combined_workbook_is_not_a_failure(self):
-        rc, st = self._run(BUILD / "gauge_ca")
+        rc, st = self._run(CMB_BUILD / "gauge_ca")
         self.assertEqual(rc, 0, st)
         self.assertEqual(st["V15"][0], "PASS")
         self.assertIn("combined: absent", st["V15"][1])
         self.assertNotIn(CMB_SHORT, st["V09"][1])
 
     def test_required_but_absent_combined_workbook_fails(self):
-        rc, st = self._run(BUILD / "gauge_ca", extra=["--combined", "require"])
+        rc, st = self._run(CMB_BUILD / "gauge_ca", extra=["--combined", "require"])
         self.assertEqual(rc, 1)
         self.assertEqual(st["V15"][0], "FAIL", st["V15"])
         self.assertIn(COMBINED, st["V15"][1])
@@ -856,7 +900,7 @@ class CombinedWorkbookTest(unittest.TestCase):
         runs = CMB_ROOT / "tamper_ccy_runs"
         if runs.exists():
             shutil.rmtree(runs)
-        shutil.copytree(RUNS, runs)
+        shutil.copytree(CMB_RUNS, runs)
         title = C.COMBINED_SUMMARY_TITLES["brands"][0]
         t = _Combined.table(title=title)
         old, new = "US Monthly Rev (USD)", "US Monthly Rev (CAD)"
@@ -933,7 +977,7 @@ class CombinedWorkbookTest(unittest.TestCase):
         runs = CMB_ROOT / "tamper_fuel_leaf_runs"
         if runs.exists():
             shutil.rmtree(runs)
-        shutil.copytree(RUNS, runs)
+        shutil.copytree(CMB_RUNS, runs)
         T = C.COMBINED_SUMMARY_TITLES
         fuel = _Combined.table(title=T["fuel"][0])
         wb = load_workbook(d / COMBINED)
@@ -961,6 +1005,50 @@ class CombinedWorkbookTest(unittest.TestCase):
         self.assertIn(f"{COMBINED}!Summary/subtype_mix[{T['fuel'][0]}] row {leaf_r} 'US # ASINs'", ev9)
         self.assertIn("registry subtotal_rows", ev9)
         self.assertIn("registry excluded_from_total_rows []", ev9)
+
+    def test_dash_cells_only_where_the_market_has_no_listings(self):
+        """'-' marks a brand with no listings in a market. A legitimate '-' replaced by 0, a '-' on a brand with
+        listings (brand summary and a brand-tab Total) and a drifted dash_rows extra each FAIL V09; V05 / V07 skip '-'."""
+        d = tampered_copy("tamper_dash")
+        runs = CMB_ROOT / "tamper_dash_runs"
+        if runs.exists():
+            shutil.rmtree(runs)
+        shutil.copytree(CMB_RUNS, runs)
+        btitle = C.COMBINED_SUMMARY_TITLES["brands"][0]
+        bt = _Combined.table(title=btitle)
+        wb = load_workbook(d / COMBINED)
+        ws = wb["Summary"]
+        brow = {ws.cell(r, bt["first_col"]).value: r for r in range(bt["first_data_row"], bt["last_data_row"] + 1)}
+        a_cell = ws.cell(brow[US_ONLY_DISPLAY], bt["first_col"] + bt["columns"].index("CA # of Listings"))
+        self.assertEqual(a_cell.value, "-")                      # the fixture shows '-' for the US-only brand's CA block
+        a_cell.value = 0
+        s_cell = ws.cell(brow["ScanGauge"], bt["first_col"] + bt["columns"].index("US Monthly Units"))
+        s_cell.value = "-"
+        sheet = _Combined.reg["workbooks"][COMBINED]["brand_sheet_map"]["scangauge"]
+        rt = _Combined.table(sheet=sheet, title="CA — Rank by Revenue")
+        t_cell = wb[sheet].cell(rt["total_row"], rt["first_col"] + rt["columns"].index("Monthly Rev (CAD)"))
+        t_cell.value = "-"
+        wb.save(d / COMBINED)
+        rp = C.run_file(runs, MONTH, "table_registry", "CAUS", "json")
+        reg = json.loads(rp.read_text(encoding="utf-8"))
+        a_sheet = reg["workbooks"][COMBINED]["brand_sheet_map"][US_ONLY_KEY]
+        for e in reg["tables"]:
+            if e["sheet"] == a_sheet and e["role"] == "kpi":
+                e["dash_rows"] = e["dash_rows"][:-1]
+        rp.write_text(json.dumps(reg, indent=1, ensure_ascii=False), encoding="utf-8")
+        rc, st = self._run(d, runs=runs)
+        self.assertEqual(rc, 1)
+        st9, ev9 = st["V09"]
+        self.assertEqual(st9, "FAIL", ev9)
+        self.assertIn("4 problem(s)", ev9)
+        self.assertIn(f"{COMBINED}!Summary/summary_brands[{btitle}] {a_cell.coordinate} 'CA # of Listings': 0 where '-' expected", ev9)
+        self.assertIn(f"{COMBINED}!Summary/summary_brands[{btitle}] {s_cell.coordinate} 'US Monthly Units': '-' where listings exist",
+                      ev9)
+        self.assertIn(f"{COMBINED}!{sheet}/brand_tab_revenue[CA — Rank by Revenue] Total 'Monthly Rev (CAD)': '-' where listings exist",
+                      ev9)
+        self.assertIn(f"{COMBINED}!{a_sheet}/kpi[]: registry dash_rows", ev9)
+        self.assertEqual(st["V05"][0], "PASS", st["V05"])
+        self.assertEqual(st["V07"][0], "PASS", st["V07"])
 
     def test_combined_header_rules(self):
         probs = V.combined_header_problems

@@ -156,6 +156,9 @@ tables (V06), every money column labelled with one block currency and no cross-c
 figures rows (incl. the full code-reader market totals and the bold "0.00%" gauge-share rows, definition (b)), tier ×
 sub-type revenue and units, fuel subtotals, sub-type mix and every Total (V09), the core / borderline / accessory /
 adjacent Key figures rows and Innova B3/B4 (V12), Excluded — CA / — US (V13), All Products — CA / — US per ASIN (V18), and the shared manifest (V19).
+A brand with no listings in a market shows `-` in that market's cells (Brand summary, brand-tab KPI block, that market's
+ranking Totals); V09 accepts `-` only where the re-derived market block has no listings for the brand, requires it in the
+Brand summary, and cross-checks the registry's `dash_rows`.
 
 202609 status: the committed result (`ca_market_reports/runs/202609/validation_ALL_202609.txt`) is
 `VALIDATION: PASS (23/23)` on the final outputs with the filled memo. Notes on two checks:

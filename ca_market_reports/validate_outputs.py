@@ -380,6 +380,13 @@ def kpi_label_base(label: str) -> str:
     return COMBINED_KPI_LABEL_ALIASES.get(b, b)
 
 
+DASH = "-"      # combined workbook: a brand with no listings in a market shows this text in that market's cells
+
+
+def is_dash(v: Any) -> bool:
+    return isinstance(v, str) and v.strip() == DASH
+
+
 def gauge_tier(price: Any) -> str:
     """GAUGE_TIERS label of a price (half-open), '' for a missing price. Re-implemented here, never imported."""
     if price is None or (isinstance(price, float) and math.isnan(price)):
@@ -850,14 +857,30 @@ class Validator:
             out[(mk, b)] = h
         return out
 
-    def _ccmp(self, t: Table, r: int, h: str, exp: float, tol: float, empty: bool, probs: list[str]) -> None:
-        """_cmp, except that a blank cell is accepted for a market block with no dataset rows (no listings there)."""
-        if empty and _is_blank(t.cell(r, h).value):
+    def _ccmp(self, t: Table, r: int, h: str, exp: float, tol: float, empty: bool, probs: list[str], *,
+              dash: str = "never") -> None:
+        """_cmp for a market block cell; empty = the block has no dataset rows (no listings there).
+
+        dash: 'require' -> an empty block MUST show the text DASH (Brand summary rows); 'accept' -> an empty block may show
+        DASH, a blank, or the correct numbers (brand-tab KPI block, absent-market ranking Total); 'never' -> DASH is refused.
+        A DASH where listings exist always FAILs; a blank in an empty block is accepted unless dash == 'require'."""
+        c = t.cell(r, h)
+        if is_dash(c.value):
+            if empty and dash in ("accept", "require"):
+                return
+            what = "'-' where listings exist" if not empty else "'-' in a table that never shows '-'"
+            probs.append(f"{t.label} {c.coordinate} {h!r}: {what}")
+            return
+        if empty and dash == "require":
+            probs.append(f"{t.label} {c.coordinate} {h!r}: {'blank' if _is_blank(c.value) else c.value!r} where '-' expected "
+                         f"(no listings in this market)")
+            return
+        if empty and _is_blank(c.value):
             return
         self._cmp(t, r, h, exp, tol, probs)
 
     def cmp_block(self, t: Table, r: int, mc: dict[tuple[str, str], str], subs: dict[str, pd.DataFrame],
-                  dens: dict[str, pd.DataFrame], probs: list[str], *, blank_shares: bool = False) -> int:
+                  dens: dict[str, pd.DataFrame], probs: list[str], *, blank_shares: bool = False, dash: str = "never") -> int:
         n = 0
         for (mk, b), h in mc.items():
             sub = subs[mk]
@@ -865,9 +888,22 @@ class Validator:
                 e, tol = float("nan"), SHARE_TOL
             else:
                 e, tol = metric(b, sub, dens[mk])
-            self._ccmp(t, r, h, e, tol, len(sub) == 0, probs)
+            self._ccmp(t, r, h, e, tol, len(sub) == 0, probs, dash=dash)
             n += 1
         return n
+
+    @staticmethod
+    def check_dash_rows(t: Table, expected: set[tuple[int, str]], probs: list[str]) -> None:
+        """Registry extra dash_rows ([row, market] pairs) == the re-derived (row, absent market) set, when recorded."""
+        if "dash_rows" not in t.e:
+            return
+        try:
+            got = {(int(r), str(m)) for r, m in t.e["dash_rows"]}
+        except (TypeError, ValueError):
+            probs.append(f"{t.label}: registry dash_rows {t.e['dash_rows']!r} are not [row, market] pairs")
+            return
+        if got != expected:
+            probs.append(f"{t.label}: registry dash_rows {sorted(got)} != re-derived absent (row, market) {sorted(expected)}")
 
     def scope_frame(self, t: Table, mk: str) -> pd.DataFrame:
         """Core / device-scope rows of market mk, chosen by the table's registry dataset_filter."""
@@ -1449,12 +1485,22 @@ class Validator:
         if exp is None:
             raise ValueError(f"{t.label}: Total row but dataset_filter {t.filter!r} covers no rows")
         known = {h for h, _, _ in exp}
+        # combined brand tab: the ranking tables of a market without the brand's listings may show '-' on the Total row
+        dash_ok = False
+        if t.wb.kind == COMBINED_KIND and t.role in COMBINED_BRAND_ROLES:
+            dash_ok = len(self.frame_for(t)[0]) == 0
+            self.check_dash_rows(t, {(int(t.total_row), t.market)} if dash_ok else set(), probs)
         for h in t.columns:
             v = t.cell(t.total_row, h).value
             if h not in known and _num(v) is not None:
                 probs.append(f"{t.label}: Total cell {h!r}={v} has no re-derivation rule")
         for h, e, tol in exp:
-            got = _num(t.cell(t.total_row, h).value)
+            v = t.cell(t.total_row, h).value
+            if is_dash(v):
+                if not dash_ok:
+                    probs.append(f"{t.label} Total {h!r}: '-' where listings exist")
+                continue
+            got = _num(v)
             n_cells += 1
             if got is None:
                 if not math.isnan(e):
@@ -1483,7 +1529,12 @@ class Validator:
     def _v09_combined(self, w: WB) -> tuple[list[str], int, int]:
         probs = self._combined_structure(w)
         n_tables = n_cells = 0
+        brands_title = C.COMBINED_SUMMARY_TITLES["brands"][0]
         for t in self.tables(w):
+            dash_table = (t.e.get("title") == brands_title or t.role in COMBINED_BRAND_ROLES
+                          or (t.role == "kpi" and t.market is None and t.sheet in self.combined_brand_sheets(w)))
+            if not dash_table and t.e.get("dash_rows"):
+                probs.append(f"{t.label}: registry dash_rows {t.e['dash_rows']} on a table that never shows '-'")
             rule = self._combined_rule(t)
             if rule == "skip":
                 continue
@@ -1548,18 +1599,22 @@ class Validator:
 
     def _c_brands(self, t: Table) -> tuple[list[str], int]:
         """Brand rows per market block, residual = brands not shown, Total = the full core set; shares within the market;
-        shown brands = the top SUMMARY_TOP_BRANDS by max(CA revenue, US revenue)."""
+        shown brands = the top SUMMARY_TOP_BRANDS by max(CA revenue, US revenue). A brand with no listings in a market
+        shows '-' in all of that market's cells (required); residual and Total rows stay numeric."""
         probs: list[str] = []
         mc = self.mcols(t, probs)
         frames = {mk: self.scope_frame(t, mk) for mk in C.COMBINED_MARKETS}
         n = 0
         shown = self.label_rows(t, probs)
+        absent: set[tuple[int, str]] = set()
         for label, r in shown.items():
             subs = {mk: f[f["brand_display"] == label] for mk, f in frames.items()}
             if all(len(s) == 0 for s in subs.values()):
                 probs.append(f"{t.label} row {r}: brand {label!r} has no rows in either market scope")
                 continue
-            n += self.cmp_block(t, r, mc, subs, frames, probs)
+            absent |= {(r, mk) for mk, s in subs.items() if len(s) == 0}
+            n += self.cmp_block(t, r, mc, subs, frames, probs, dash="require")
+        self.check_dash_rows(t, absent, probs)
         brands = set().union(*(set(f["brand_display"]) for f in frames.values()))
         rest = brands - set(shown)
         if rest:
@@ -1731,6 +1786,7 @@ class Validator:
         if bad or not cols:
             probs.append(f"{t.label}: KPI columns {t.columns[1:]} must each name a CA/US block")
         n = 0
+        absent: set[tuple[int, str]] = set()
         for h, mk in cols:
             if mk is None:
                 continue
@@ -1739,14 +1795,17 @@ class Validator:
                 probs.append(f"{t.label}: kpi table (filter {t.filter!r}) has no re-derivation rule")
                 break
             sub, den = fr
+            if len(sub) == 0:
+                absent |= {(r, mk) for r in t.data_rows}
             for r in t.data_rows:
                 label = str(t.ws.cell(r, t.first_col).value)
                 mtr = metric(kpi_label_base(label), sub, den)
                 if mtr is None:
                     probs.append(f"{t.label} KPI {label!r}: no re-derivation rule")
                     continue
-                self._ccmp(t, r, h, mtr[0], mtr[1], len(sub) == 0, probs)
+                self._ccmp(t, r, h, mtr[0], mtr[1], len(sub) == 0, probs, dash="accept")
                 n += 1
+        self.check_dash_rows(t, absent, probs)
         return probs, n
 
     def _c_innova(self, w: WB) -> tuple[list[str], int]:
