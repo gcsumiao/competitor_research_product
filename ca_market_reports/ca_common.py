@@ -435,7 +435,7 @@ class CaDataset:
 #
 #   ca_load.load_month(...) MUST raise ValueError when market == "US" and assign_types is True (US Type assignment is out of scope; type
 #   columns stay empty for US). Token profiles (CA only) are built deterministically from the US map + already-typed CA rows; score =
-#   |profile tokens ∩ title tokens| / |profile tokens| over tokens of length >= 3 with re.ASCII; ties -> lexically smallest type; confidence = score.
+#   |profile tokens ∩ title tokens| / |title tokens| (US semantics) over tokens of length >= 3 with re.ASCII; ties -> lexically smallest type; confidence = score.
 #   ca_load.load_month(market: str, month: str, *, cr_raw_dir: Path | None = None, gauge_raw_dir: Path | None = None,
 #                      us_type_map: Path | None = US_TYPE_MAP_DEFAULT, type_map: Path = MAPS_DIR/"ca_type_overrides.csv",
 #                      gauge_map: Path = MAPS_DIR/"ca_gauge_map.csv", runs_dir: Path = RUNS_DIR, assign_types: bool = True,

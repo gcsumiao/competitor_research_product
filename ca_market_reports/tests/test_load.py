@@ -213,7 +213,10 @@ class LoadFixtureTest(unittest.TestCase):
         self.assertEqual((cr.loc["B0TESTTAB1", "type"], cr.loc["B0TESTTAB1", "type_rule_id"]), ("Tablet", "price_tablet_hint"))
         self.assertEqual(cr.loc["B0TESTCBL2", "type"], "Cable/Adapter")
         self.assertEqual(cr.loc["B0TESTHUD1", "type_rule_id"], "gauge_hud")
-        self.assertEqual(cr.loc["B0TESTGEN2", "type_source"], "default_other")
+        self.assertEqual(cr.loc["B0TESTBRK1", "type_source"], "default_other")
+        # 'Case for Innova 5610 Scanner' at CA$19.99: the scanner_lt380 keyword rule (last rule) types it Handheld
+        self.assertEqual((cr.loc["B0TESTGEN2", "type"], cr.loc["B0TESTGEN2", "type_rule_id"], cr.loc["B0TESTGEN2", "type_confidence"]),
+                         ("Handheld", "scanner_lt380", 0.8))
         self.assertEqual(cr.loc["B0TESTEX40", "price_tier"], "Tablet $400-$800")
         self.assertEqual(cr.loc["B0TESTTAB1", "price_tier"], "Tablet $800+")
         self.assertEqual(cr.loc["B0TESTINN1", "price_tier"], "Handheld $75+")
@@ -430,11 +433,11 @@ class FreezeReplayTest(unittest.TestCase):
         self.st.load()
         p = self._dec_path()
         dec = pd.read_csv(p, dtype=str, keep_default_na=False)
-        dec.loc[dec.asin == "B0TESTGEN2", ["type", "type_source"]] = ["Probe", "keyword"]
+        dec.loc[dec.asin == "B0TESTBRK1", ["type", "type_source"]] = ["Probe", "keyword"]
         dec.to_csv(p, index=False)
         ds = self.st.load(rederive=True)
-        self.assertEqual(ds.code_reader.set_index("asin").loc["B0TESTGEN2", "type_source"], "default_other")
-        self.assertEqual(pd.read_csv(p, dtype=str, keep_default_na=False).set_index("asin").loc["B0TESTGEN2", "type"], "Other")
+        self.assertEqual(ds.code_reader.set_index("asin").loc["B0TESTBRK1", "type_source"], "default_other")
+        self.assertEqual(pd.read_csv(p, dtype=str, keep_default_na=False).set_index("asin").loc["B0TESTBRK1", "type"], "Other")
 
     def test_corrupt_decision_file_raises(self):
         self.st.load()
@@ -461,11 +464,11 @@ class FreezeReplayTest(unittest.TestCase):
         self.st.load()
         p = run_file(self.st.runs, "202609", "type_review", "CA_code_reader")
         rv = pd.read_csv(p, dtype=str, keep_default_na=False)
-        rv.loc[rv.asin == "B0TESTGEN2", "reviewed_type"] = "Other"
+        rv.loc[rv.asin == "B0TESTBRK1", "reviewed_type"] = "Other"
         rv.to_csv(p, index=False)
         ds = self.st.load()
-        self.assertEqual(pd.read_csv(p, dtype=str, keep_default_na=False).set_index("asin").loc["B0TESTGEN2", "reviewed_type"], "Other")
-        self.assertEqual(ds.audits["type_review"].set_index("asin").loc["B0TESTGEN2", "reviewed_type"], "Other")
+        self.assertEqual(pd.read_csv(p, dtype=str, keep_default_na=False).set_index("asin").loc["B0TESTBRK1", "reviewed_type"], "Other")
+        self.assertEqual(ds.audits["type_review"].set_index("asin").loc["B0TESTBRK1", "reviewed_type"], "Other")
 
 
 class UnionTest(unittest.TestCase):

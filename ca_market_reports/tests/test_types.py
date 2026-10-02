@@ -173,8 +173,39 @@ class AssignTypesTest(unittest.TestCase):
         self.assertEqual(out.loc[0, "type_source"], "default_other")
 
     def test_price_hint_needs_380(self):
-        out = ca_types.assign_types(_frame([("B0KW000001", "Pro scanner", "x", 379.99)]), us_map={}, overrides={}, prior={})
-        self.assertEqual(out.loc[0, "type_source"], "default_other")
+        out = ca_types.assign_types(_frame([("B0KW000001", "Pro scanner", "x", 379.99), ("B0KW000002", "Pro scanner", "x", 380.0)]),
+                                    us_map={}, overrides={}, prior={})
+        self.assertEqual((out.loc[0, "type"], out.loc[0, "type_rule_id"]), ("Handheld", "scanner_lt380"), "below 380 -> scanner_lt380")
+        self.assertEqual((out.loc[1, "type"], out.loc[1, "type_rule_id"]), ("Tablet", "price_tablet_hint"), "380 exactly -> tablet hint")
+
+    def test_scanner_lt380_rule(self):
+        cases = [  # (title, price, type, rule)
+            ("THINKCAR OBD2 Scanner, THINKSCAN 662", 310.47, "Handheld", "scanner_lt380"),
+            ("ANCEL VD700 Pro All System OBD2 Reader", 144.31, "Handheld", "scanner_lt380"),
+            ("Mini OBD Reader for trucks", 20.0, "Handheld", "scanner_lt380"),
+            ("THINKSCAN Bi-Directional Tool with 12 Service", 300.0, "Handheld", "scanner_lt380"),
+            ("Bidirectional tool for Ford", 300.0, "Handheld", "scanner_lt380"),
+            ("Bluetooth OBD2 Scanner for iPhone", 40.0, "Dongle", "dongle"),            # dongle rule runs first
+            ("Android tablet scanner", 200.0, "Tablet", "tablet"),                       # tablet rule runs first
+            ("Key programmer scanner", 100.0, "Key", "key"),                             # key rule runs first
+            ("OBD2 extension cable for scanner", 10.0, "Cable/Adapter", "cable_adapter"),
+            ("Car HUD scanner display", 50.0, "Other", "gauge_hud"),
+            ("Bi-directional tool", 380.0, None, None),                                  # price must be < 380
+            ("Scanners pack of two", 50.0, None, None),                                  # whole word only
+            ("Mystery scanner", float("nan"), None, None),                              # no realized price -> no hit
+        ]
+        rows = [(f"B0SL{i:06d}", t, "x", p) for i, (t, p, _, _) in enumerate(cases)]
+        out = ca_types.assign_types(_frame(rows), us_map={}, overrides={}, prior={})
+        for (title, _, typ, rule), (_, r) in zip(cases, out.iterrows()):
+            if typ is None:
+                self.assertEqual(r["type_source"], "default_other", title)
+                continue
+            self.assertEqual((r["type"], r["type_source"], r["type_rule_id"]), (typ, "keyword", rule), title)
+            self.assertEqual(r["type_confidence"], 0.8 if rule == "scanner_lt380" else 0.9, title)
+
+    def test_scanner_lt380_is_the_last_keyword_rule(self):
+        self.assertEqual(ca_types.KEYWORD_RULE_NAMES[-2:], ("price_tablet_hint", "scanner_lt380"))
+        self.assertEqual(ca_types.KEYWORD_RULE_NAMES.index("gauge_hud"), ca_types.KEYWORD_RULE_NAMES.index("vci") + 1)
 
     def test_keyword_ignores_url_asin(self):
         # ASIN 'B08IN...' lowercased contains '8in' (a tablet keyword); only the title is matched
@@ -192,7 +223,7 @@ class AssignTypesTest(unittest.TestCase):
         out = ca_types.assign_types(df, us_map={"B0PRO00001": "Probe", "B0PRO00002": "Probe"}, overrides={}, prior={})
         o = out.set_index("asin")
         self.assertEqual((o.loc["B0PRO00003", "type"], o.loc["B0PRO00003", "type_source"]), ("Probe", "token_profile"))
-        self.assertAlmostEqual(o.loc["B0PRO00003", "type_confidence"], 1.0)
+        self.assertAlmostEqual(o.loc["B0PRO00003", "type_confidence"], 5 / 6, msg="5 shared of the row's 6 title tokens")
         self.assertEqual(o.loc["B0PRO00003", "type_rule_id"], "profile:zentex")
         self.assertEqual(o.loc["B0PRO00004", "type_source"], "default_other")
         self.assertEqual(o.loc["B0PRO00005", "type_source"], "default_other")
@@ -203,13 +234,33 @@ class AssignTypesTest(unittest.TestCase):
             ("B0PRO00002", "Qorvo alpha beta gamma delta epsilon", "qorvo", 1.0),
             ("B0PRO00003", "Qorvo alpha beta gamma delta epsilon", "qorvo", 1.0),
             ("B0PRO00004", "Qorvo alpha beta gamma delta epsilon", "qorvo", 1.0),
-            ("B0PRO00005", "Qorvo alpha beta gamma zzz", "qorvo", 1.0),         # 4/6 = 0.667 for both profiles -> tie
+            ("B0PRO00005", "Qorvo alpha beta gamma zzz", "qorvo", 1.0),         # 4/5 = 0.8 for both profiles -> tie
         ])
         out = ca_types.assign_types(df, us_map={"B0PRO00001": "VCI", "B0PRO00002": "VCI", "B0PRO00003": "Key",
                                                 "B0PRO00004": "Key"}, overrides={}, prior={})
         r = out.set_index("asin").loc["B0PRO00005"]
         self.assertEqual((r["type"], r["type_source"]), ("Key", "token_profile"), "tie -> lexically smallest type")
-        self.assertAlmostEqual(r["type_confidence"], 4 / 6)
+        self.assertAlmostEqual(r["type_confidence"], 4 / 5)
+
+    def test_token_profile_denominator_is_row_tokens(self):
+        big = "Vexmo alpha beta gamma delta epsilon zeta theta iota kappa"           # profile of 10 tokens
+        df = _frame([
+            ("B0DEN00001", big, "vexmo", 1.0),
+            ("B0DEN00002", big, "vexmo", 1.0),
+            ("B0DEN00003", "Vexmo alpha beta", "vexmo", 1.0),                       # 3/3 = 1.0 (old |profile| rule: 0.3 -> miss)
+            ("B0DEN00004", "Vexmo alpha beta qq1 qq2 qq3 qq4", "vexmo", 1.0),        # 3/7 = 0.43 < 0.5 -> miss
+            ("B0DEN00005", "Vexmo alpha beta gamma qq1 qq2", "vexmo", 1.0),          # 4/6 = 0.667 -> hit, low confidence
+            ("B0DEN00006", "", "vexmo", 1.0),                                         # no tokens -> no division, no hit
+        ])
+        out = ca_types.assign_types(df, us_map={"B0DEN00001": "VCI", "B0DEN00002": "VCI"}, overrides={}, prior={}).set_index("asin")
+        self.assertEqual((out.loc["B0DEN00003", "type"], out.loc["B0DEN00003", "type_source"]), ("VCI", "token_profile"))
+        self.assertAlmostEqual(out.loc["B0DEN00003", "type_confidence"], 1.0)
+        self.assertEqual(out.loc["B0DEN00003", "type_rule_id"], "profile:vexmo")
+        self.assertEqual(out.loc["B0DEN00004", "type_source"], "default_other")
+        self.assertEqual(out.loc["B0DEN00005", "type_source"], "token_profile")
+        self.assertAlmostEqual(out.loc["B0DEN00005", "type_confidence"], 4 / 6)
+        self.assertEqual(ca_types.review_reason(out.loc["B0DEN00005"]), "low_confidence")
+        self.assertEqual(out.loc["B0DEN00006", "type_source"], "default_other")
 
     def test_invalid_map_value_raises(self):
         with self.assertRaises(ValueError):

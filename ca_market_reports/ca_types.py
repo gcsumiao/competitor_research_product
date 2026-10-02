@@ -3,18 +3,23 @@
 Precedence (first hit wins): override > us_map > prior_month > keyword > token_profile > default_other.
   type_source     strict TYPE_SOURCES value (keyword hits are "keyword"; the rule name goes to type_rule_id)
   type_rule_id    keyword rule name / "profile:<brand_key>" for profile hits; "" otherwise
-  type_confidence 1.0 override/us_map/prior_month, 0.9 keyword, score for token_profile, 0.0 default_other
+  type_confidence 1.0 override/us_map/prior_month, 0.9 keyword (0.8 for scanner_lt380), score for token_profile,
+                  0.0 default_other
 
 Keyword rules are a port of Amazon_Monthly_Competitor_Report copy/script/auto_categorize_extra.py:_keyword_rule
-(same order, same substring semantics) with the CA rule `gauge_hud` inserted after `vci` and before `tablet`.
+(same order, same substring semantics) with two CA rules: `gauge_hud` inserted after `vci` and before `tablet`, and
+`scanner_lt380` appended as the LAST rule (after `price_tablet_hint`): title matches
+r"\bscanner\b|\bscan tool\b|\bobd2? reader\b|bi-?directional tool" and realized price < 380 -> Handheld (0.8). Because
+it runs last, the dongle/tablet/key/cable rules still win for Bluetooth dongles, tablets, key tools and cables.
 CA deltas: rules match the TITLE only (the CA url is rebuilt as amazon.ca/dp/<ASIN> and carries nothing but the
-ASIN, whose letters could hit '8in' etc.), and the price hint uses the row's realized `price`.
+ASIN, whose letters could hit '8in' etc.), and both price-gated rules use the row's realized `price` (NaN never hits).
 
 Token profiles: per (brand_key, type) over the rows already typed by override/us_map/prior_month in this frame
 (load_us_type_map only exposes ASIN -> Type, so US-map titles reach profiles through the CA rows they type). A
 profile = tokens present in >= 2 of that brand/type's titles (US rule), tokens = re.ASCII [a-z0-9]{3,} of the
-casefolded title minus the US STOPWORDS. score = |profile ∩ title| / |profile|; a hit needs score >= 0.5 and
->= 3 overlapping tokens; ties -> lexically smallest type; confidence = score.
+casefolded title minus the US STOPWORDS. score = |profile ∩ title tokens| / |title tokens| (US semantics: the share
+of the ROW's title tokens explained by the profile); a hit needs score >= 0.5 and >= 3 overlapping tokens; ties ->
+lexically smallest type; confidence = score; rule id "profile:<brand_key>".
 """
 from __future__ import annotations
 
@@ -48,7 +53,9 @@ _TOKEN_RE = re.compile(r"[a-z0-9]{3,}", re.ASCII)
 GAUGE_HUD_RE = re.compile(
     r"\bgauge\b|\bgague\b|\bhud\b|heads?[- ]?up|scangauge|insight ct|\bcts[23]\b|idash|trip computer|on[- ]?board computer")
 
-# (rule name, type, keywords) in US order; gauge_hud is a regex rule, price_tablet_hint is price-gated
+SCANNER_LT380_RE = re.compile(r"\bscanner\b|\bscan tool\b|\bobd2? reader\b|bi-?directional tool")
+
+# (rule name, type, keywords) in US order; gauge_hud is a regex rule. The two price-gated rules follow (keyword_rule).
 _KEYWORD_RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("obd1", "OBD1", ("obd1",)),
     ("vci", "VCI", ("vci",)),
@@ -61,6 +68,8 @@ _KEYWORD_RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("handheld", "Handheld", ("scan tool", "diagnostic tool", "code reader", "check engine")),
 )
 PRICE_TABLET_HINT = 380.0
+SCANNER_LT380_CONFIDENCE = 0.8
+KEYWORD_RULE_NAMES: tuple[str, ...] = tuple(r[0] for r in _KEYWORD_RULES) + ("price_tablet_hint", "scanner_lt380")
 
 
 def _is_blank(v) -> bool:
@@ -201,18 +210,20 @@ def load_prior_month(runs_dir: Path, month: str, market: str) -> dict[str, tuple
 # --------------------------------------------------------------------------------------------------------------------
 # Assignment
 # --------------------------------------------------------------------------------------------------------------------
-def keyword_rule(title, price) -> tuple[str, str] | None:
-    """(type, rule name) of the first matching keyword rule on the title, else None."""
+def keyword_rule(title, price) -> tuple[str, str, float] | None:
+    """(type, rule name, confidence) of the first matching keyword rule on the title, else None (order: KEYWORD_RULE_NAMES)."""
     text = "" if _is_blank(title) else str(title).strip().lower()
     for name, typ, words in _KEYWORD_RULES:
         if name == "gauge_hud":
             if GAUGE_HUD_RE.search(text):
-                return typ, name
+                return typ, name, KEYWORD_CONFIDENCE
         elif any(w in text for w in words):
-            return typ, name
+            return typ, name, KEYWORD_CONFIDENCE
     p = float(price) if not _is_blank(price) else float("nan")
     if p >= PRICE_TABLET_HINT and "scanner" in text:
-        return "Tablet", "price_tablet_hint"
+        return "Tablet", "price_tablet_hint", KEYWORD_CONFIDENCE
+    if p < PRICE_TABLET_HINT and SCANNER_LT380_RE.search(text):     # NaN compares False: no realized price, no hit
+        return "Handheld", "scanner_lt380", SCANNER_LT380_CONFIDENCE
     return None
 
 
@@ -238,10 +249,12 @@ def profile_match(brand_key: str, title, profiles_by_brand: dict[str, list[tuple
     if not brand_key or brand_key not in profiles_by_brand:
         return None
     toks = title_tokens(title)
+    if not toks:
+        return None
     best: tuple[float, str] | None = None
     for typ, prof in profiles_by_brand[brand_key]:
         overlap = len(prof & toks)
-        score = overlap / len(prof)
+        score = overlap / len(toks)
         if overlap < PROFILE_MIN_OVERLAP or score < PROFILE_MIN_SCORE:
             continue
         if best is None or score > best[0] or (score == best[0] and typ < best[1]):
@@ -294,7 +307,7 @@ def assign_types(df: pd.DataFrame, *, us_map: dict[str, str], overrides: dict[st
             continue
         kw = keyword_rule(titles[i], prices[i])
         if kw is not None:
-            typ[i], src[i], rule[i], conf[i] = kw[0], "keyword", kw[1], KEYWORD_CONFIDENCE
+            typ[i], src[i], rule[i], conf[i] = kw[0], "keyword", kw[1], kw[2]
             continue
         pm = profile_match(brands[i], titles[i], profiles_by_brand)
         if pm is not None:
