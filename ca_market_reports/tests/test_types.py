@@ -11,7 +11,7 @@ from pathlib import Path
 import pandas as pd
 
 from ca_market_reports.ca_common import (FIXTURES_DIR, TYPE_DECISIONS_COLUMNS, TYPE_OVERRIDES_COLUMNS, TYPE_REVIEW_COLUMNS,
-                                         TYPE_SOURCES, TYPES, run_file)
+                                         TYPE_SOURCES, run_file)
 from ca_market_reports import apply_type_review, ca_types
 
 
