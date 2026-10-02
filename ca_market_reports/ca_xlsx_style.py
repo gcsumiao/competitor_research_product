@@ -925,9 +925,24 @@ def write_manifest(out_dir: Path, month: str, outputs: list[Path], inputs: dict[
         if p.name == path.name:
             continue
         outs[p.name] = {"sha256": sha256_file(p), "bytes": p.stat().st_size, "generated_at": now}
-    # inputs are those of THIS run only (a stale entry from an earlier run would make V19 fail on files that other
-    # builders legitimately append to, e.g. the type review queue); outputs stay merged across builders sharing a dir
-    ins = dict(inputs)
+    # merge inputs across the builder's write steps, but DROP a previous entry that this run did not declare and whose
+    # file has changed on disk since (stale by definition, e.g. the type review queue another build appended to);
+    # undeclared entries that still match are kept, declared ones are refreshed. Outputs stay merged.
+    ins: dict[str, str] = {}
+    for key, digest in (prev.get("inputs", {}) if prev else {}).items():
+        if key in inputs:
+            continue
+        prev_path = Path(key) if Path(key).is_absolute() else None   # never reuse `path` (the manifest path) here
+        if prev_path is None or not prev_path.exists():
+            ins[key] = digest
+            continue
+        h = hashlib.sha256()
+        with open(prev_path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                h.update(chunk)
+        if h.hexdigest() == digest:
+            ins[key] = digest
+    ins.update(inputs)
     manifest = {"month": month, "generated_at": now, "pipeline_git_sha": pipeline_version(),
                 "outputs": dict(sorted(outs.items())), "inputs": dict(sorted(ins.items()))}
     tmp = path.with_suffix(".json.tmp")
