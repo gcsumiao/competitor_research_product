@@ -1,8 +1,8 @@
 {
  "market": "CAUS",
  "month": "202609",
- "generated_at": "2026-10-02T14:11:49",
- "pipeline_version": "a722785d902c-dirty",
+ "generated_at": "2026-10-02T14:20:08",
+ "pipeline_version": "c90355942c4b",
  "workbooks": {
   "CA_US_OBD_Gauge_Competitor_Report_202609.xlsx": {
    "sheets": [
@@ -72,7 +72,7 @@
     "kaolali": "KAOLALI",
     "autometer": "AutoMeter"
    },
-   "generated_at": "2026-10-02T14:11:49"
+   "generated_at": "2026-10-02T14:20:08"
   }
  },
  "tables": [
@@ -198,7 +198,7 @@
    "title": "Key figures",
    "header_row": 4,
    "first_data_row": 5,
-   "last_data_row": 11,
+   "last_data_row": 15,
    "total_row": null,
    "residual_row": null,
    "first_col": 1,
@@ -256,89 +256,13 @@
   {
    "workbook": "CA_US_OBD_Gauge_Competitor_Report_202609.xlsx",
    "sheet": "Summary",
-   "role": "kpi",
-   "title": "Gauge share of the code-reader market",
-   "header_row": 15,
-   "first_data_row": 16,
-   "last_data_row": 16,
-   "total_row": null,
-   "residual_row": null,
-   "first_col": 1,
-   "last_col": 11,
-   "columns": [
-    "Measure",
-    "CA # ASINs",
-    "CA Monthly Rev (CAD)",
-    "CA Monthly Units",
-    "CA Share of revenue",
-    "CA Share of units",
-    "US # ASINs",
-    "US Monthly Rev (USD)",
-    "US Monthly Units",
-    "US Share of revenue",
-    "US Share of units"
-   ],
-   "dataset_filter": "core devices vs the full code-reader export, per market",
-   "allowed_markets": [
-    "CA",
-    "US"
-   ],
-   "charts": [],
-   "brand_sheet_map": {
-    "innova": "Innova",
-    "edge products": "Edge Products",
-    "wiiyii": "wiiyii",
-    "scangauge": "ScanGauge",
-    "keenso": "Keenso",
-    "bully dog": "Bully Dog",
-    "lufi": "Lufi",
-    "byzfcm": "BYZFCM",
-    "azijyv": "AZIJYV",
-    "maimeimi": "MAIMEIMI",
-    "mh": "MH",
-    "konnwei": "KONNWEI",
-    "shadow": "Shadow",
-    "aem": "AEM",
-    "jafowsey": "JAFOWSEY",
-    "abliseoum": "Abliseoum",
-    "dyno racing": "Dyno Racing",
-    "vatocarcle": "Vatocarcle",
-    "pocreation": "POCREATION",
-    "qiilu": "Qiilu",
-    "artilaura": "ARTILAURA",
-    "ofeace": "Ofeace",
-    "kuoweihud": "KUOWEIHUD",
-    "kaolali": "KAOLALI",
-    "autometer": "AutoMeter"
-   },
-   "market": "CA",
-   "column_markets": [
-    null,
-    "CA",
-    "CA",
-    "CA",
-    "CA",
-    "CA",
-    "US",
-    "US",
-    "US",
-    "US",
-    "US"
-   ],
-   "subtotal_rows": [],
-   "excluded_from_total_rows": [],
-   "placeholder_rows": []
-  },
-  {
-   "workbook": "CA_US_OBD_Gauge_Competitor_Report_202609.xlsx",
-   "sheet": "Summary",
    "role": "summary_brands",
    "title": "Brand summary — CA vs US",
-   "header_row": 21,
-   "first_data_row": 22,
-   "last_data_row": 46,
-   "total_row": 48,
-   "residual_row": 47,
+   "header_row": 20,
+   "first_data_row": 21,
+   "last_data_row": 45,
+   "total_row": 47,
+   "residual_row": 46,
    "first_col": 1,
    "last_col": 11,
    "columns": [
@@ -362,12 +286,12 @@
    "charts": [
     {
      "type": "bar",
-     "anchor": "M21",
+     "anchor": "M20",
      "has_axes": true
     },
     {
      "type": "bar",
-     "anchor": "Y21",
+     "anchor": "Y20",
      "has_axes": true
     }
    ],
@@ -421,10 +345,10 @@
    "sheet": "Summary",
    "role": "subtype_mix",
    "title": "Sub-type mix — CA vs US",
-   "header_row": 53,
-   "first_data_row": 54,
-   "last_data_row": 59,
-   "total_row": 60,
+   "header_row": 52,
+   "first_data_row": 53,
+   "last_data_row": 58,
+   "total_row": 59,
    "residual_row": null,
    "first_col": 1,
    "last_col": 9,
@@ -486,7 +410,7 @@
    ],
    "subtotal_rows": [],
    "excluded_from_total_rows": [
-    59
+    58
    ],
    "placeholder_rows": []
   },
@@ -495,10 +419,10 @@
    "sheet": "Summary",
    "role": "tier_matrix",
    "title": "Price tier × sub-type — CA (CAD)",
-   "header_row": 65,
-   "first_data_row": 66,
-   "last_data_row": 70,
-   "total_row": 71,
+   "header_row": 64,
+   "first_data_row": 65,
+   "last_data_row": 69,
+   "total_row": 70,
    "residual_row": null,
    "first_col": 1,
    "last_col": 13,
@@ -574,10 +498,10 @@
    "sheet": "Summary",
    "role": "tier_matrix",
    "title": "Price tier × sub-type — US (USD)",
-   "header_row": 76,
-   "first_data_row": 77,
-   "last_data_row": 81,
-   "total_row": 82,
+   "header_row": 75,
+   "first_data_row": 76,
+   "last_data_row": 80,
+   "total_row": 81,
    "residual_row": null,
    "first_col": 1,
    "last_col": 13,
@@ -653,10 +577,10 @@
    "sheet": "Summary",
    "role": "subtype_mix",
    "title": "Fuel split — CA vs US",
-   "header_row": 87,
-   "first_data_row": 88,
-   "last_data_row": 99,
-   "total_row": 100,
+   "header_row": 86,
+   "first_data_row": 87,
+   "last_data_row": 98,
+   "total_row": 99,
    "residual_row": null,
    "first_col": 1,
    "last_col": 7,
@@ -713,10 +637,10 @@
     "US"
    ],
    "subtotal_rows": [
-    88,
-    92,
-    94,
-    96
+    87,
+    91,
+    93,
+    95
    ],
    "excluded_from_total_rows": [],
    "placeholder_rows": []
