@@ -1,0 +1,12 @@
+brand_key,app_name,app_gauge_capable,source_url,accessed,note
+obdlink,OBDLink app,Y,,,"seed from plan; source to be filled by memo research (T5b)"
+bluedriver,BlueDriver app,Y,,,"seed from plan; live data gauges"
+fixd,FIXD app,Y,,,"seed from plan; verify gauge/dashboard feature"
+carista,Carista app,Y,,,"seed from plan; live data"
+vgate,"Car Scanner ELM OBD2 / Torque (third-party)",Y,,,"generic ELM-compatible dongle; third-party apps provide gauges"
+veepeak,"Car Scanner ELM OBD2 / Torque (third-party)",Y,,,"generic ELM-compatible dongle"
+obdeleven,OBDeleven app,Y,,,"VAG/BMW focus; live data"
+topdon,TopScan / TOPDON app,Y,,,"TopScan dongle app; verify gauges"
+thinkcar,ThinkDiag app,Y,,,"verify live data gauges"
+innova,RepairSolutions2 (RS2) / CarMD,Y,,,"Innova 1000 V2 and 3215RS dongles; target of Model B"
+ancel,ANCEL app (BD-series),Y,,,"BD310/BD330 dongles with HUD mode"
