@@ -11,6 +11,7 @@ Run: ca_market_reports/run.sh -m unittest ca_market_reports.tests.test_xlsx -v
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import hashlib
 import io
 import json
@@ -943,6 +944,96 @@ class TestSourceHygiene(unittest.TestCase):
         ca.market = "US"
         with self.assertRaises(ValueError):
             CR.build_code_reader_workbooks(ca, C.SCRATCH_DIR / "never", overwrite=True, dated_copy=False, runs_dir=RUNS)
+
+
+class TestManifestRawInputsRecursive(unittest.TestCase):
+    """The loader reads raw dirs recursively (ca_load.discover_raw_files); the manifest must hash exactly those files,
+    including CSVs in subfolders, plus the type maps, maps/*.csv and frozen decision files (never the review queue)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.root = C.SCRATCH_DIR / "test_out_rawsub"
+        if cls.root.exists():
+            shutil.rmtree(cls.root)
+        fx = C.FIXTURES_DIR
+        cls.cr = cls.root / "cr_raw"
+        cls.gauge_root = cls.root / "gauge_market"                 # default gauge dir = <gauge_folder>/raw_data/<m>
+        cls.gauge = cls.gauge_root / "raw_data" / MONTH
+        d = "2026-10-02"     # Helium 10 style dated names (the loader parses the export date from the file name)
+        cls.raw = [cls.cr / f"CA_AMAZON_blackBoxProducts_1_{d}.csv", cls.cr / "page2" / f"CA_AMAZON_blackBoxProducts_1_{d} (1).csv",
+                   cls.gauge / f"CA_AMAZON_blackBoxProducts_1_{d}.csv",
+                   cls.gauge / "bully dog" / "nested" / f"CA_AMAZON_blackBoxProducts_bullydog_{d}.csv"]
+        for src, dst in zip(("cr_page1.csv", "cr_page2.csv", "gauge_page1.csv", "gauge_bullydog.csv"), cls.raw):
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(fx / src, dst)
+        cls.sub_files = [cls.raw[1], cls.raw[3]]
+
+    @staticmethod
+    def _inputs(out_dir: Path) -> dict:
+        return json.loads((out_dir / C.manifest_name(MONTH)).read_text())["inputs"]
+
+    def _assert_raw_inputs(self, inputs: dict, files: list[Path]):
+        for f in files:
+            key = str(f.resolve())
+            self.assertIn(key, inputs, f)
+            self.assertEqual(inputs[key], _sha(f))
+        self.assertFalse([k for k in inputs if Path(k).name.startswith("type_review_")], inputs)
+        for m in sorted(C.MAPS_DIR.glob("*.csv")):
+            self.assertIn(str(m.resolve()), inputs)
+
+    def test_code_reader_cli_hashes_subfolder_csvs(self):
+        out, runs = self.root / "cr_out", self.root / "cr_runs"
+        orig = C.MARKETS["CA"]
+        C.MARKETS["CA"] = dataclasses.replace(orig, gauge_folder=str(self.gauge_root))   # hermetic default gauge dir
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+                rc = CR.main(["--month", MONTH, "--raw-dir", str(self.cr), "--us-type-map", str(C.FIXTURES_DIR / "us_type_map_mini.csv"),
+                              "--out-dir", str(out), "--runs-dir", str(runs), "--overwrite"])
+        finally:
+            C.MARKETS["CA"] = orig
+        self.assertEqual(rc, 0)
+        inputs = self._inputs(out)
+        raw = self.raw
+        self._assert_raw_inputs(inputs, raw)
+        self.assertIn(str((C.FIXTURES_DIR / "us_type_map_mini.csv").resolve()), inputs)
+        decisions = [k for k in inputs if Path(k).parent == (runs / MONTH).resolve()]
+        self.assertTrue(decisions and all("_CA_code_reader_" in Path(k).name for k in decisions), decisions)
+        # the build read the subfolder file: B0TESTHUD1 / B0TESTLUF1 exist only in page2/cr_page2.csv
+        wb = openpyxl.load_workbook(out / C.cr_report_name("CA", MONTH))
+        asins = {r[0] for r in wb["All ASINs"].iter_rows(min_row=4, values_only=True)}
+        self.assertTrue({"B0TESTHUD1", "B0TESTLUF1"} <= asins, asins)
+        meta = {r[0]: r[1] for r in wb["Metadata"].iter_rows(values_only=True) if r and r[0]}
+        self.assertIn(self.raw[1].name, meta["Raw files"])
+        self.assertIn(self.raw[3].name, meta["Raw files"])
+
+    def test_gauge_cli_hashes_subfolder_csvs(self):
+        out, runs = self.root / "g_out", self.root / "g_runs"
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            rc = G.main(["--market", "US", "--month", MONTH, "--cr-raw-dir", str(self.cr), "--gauge-raw-dir", str(self.gauge),
+                         "--out-dir", str(out), "--runs-dir", str(runs), "--overwrite"])
+        self.assertEqual(rc, 0)
+        inputs = self._inputs(out)
+        raw = self.raw
+        self._assert_raw_inputs(inputs, raw)
+        decisions = [Path(k).name for k in inputs if Path(k).parent == (runs / MONTH).resolve()]
+        self.assertIn(f"gauge_decisions_US_gauge_{MONTH}.csv", decisions)
+        self.assertTrue(all("_US_" in d for d in decisions), decisions)
+        wb = openpyxl.load_workbook(out / C.gauge_report_name("US", MONTH))
+        asins = {r[0] for r in wb["All Products"].iter_rows(min_row=4, values_only=True)}
+        self.assertTrue({"B0TESTBDG1", "B0TESTBDG2"} <= asins, asins)              # only in the nested Bully Dog file
+
+    def test_raw_input_files_cross_checks_the_loader(self):
+        from ca_market_reports import ca_load
+        dirs = X.loader_raw_dirs("US", MONTH, self.cr, self.gauge)
+        self.assertEqual(dirs, [self.cr, self.gauge])
+        ds = ca_load.load_month("US", MONTH, cr_raw_dir=self.cr, gauge_raw_dir=self.gauge, runs_dir=self.root / "x_runs",
+                                assign_types=False, freeze=False)
+        files = X.raw_input_files(ds, dirs)
+        self.assertEqual([p.name for p in files], [n for n, _ in ds.raw_files])
+        self.assertTrue(set(self.sub_files) <= set(files))
+        with self.assertRaises(ValueError):                                     # a dir the loader did not read
+            X.raw_input_files(ds, [self.cr])
 
 
 class TestPreview(unittest.TestCase):

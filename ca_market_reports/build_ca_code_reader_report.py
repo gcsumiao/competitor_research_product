@@ -466,7 +466,8 @@ def main(argv: list[str] | None = None) -> int:
         runs_dir = a.runs_dir or C.RUNS_DIR
         ds = load_month("CA", a.month, cr_raw_dir=raw_dir, us_type_map=a.us_type_map, type_map=a.type_map, runs_dir=runs_dir,
                         assign_types=True, rederive=a.rederive)
-        inputs = sorted(Path(raw_dir).glob("*.csv")) + [a.us_type_map, a.type_map]
+        # every CSV the loader read, recursively (its own listing), incl. the default gauge dir when load_month read it
+        inputs = X.raw_input_files(ds, X.loader_raw_dirs("CA", a.month, raw_dir, None)) + [a.us_type_map, a.type_map]
         # frozen decision files are replay inputs; the review queue is an OUTPUT (and the gauge build appends to it), so it is not hashed
         inputs += sorted(p for p in (Path(runs_dir) / a.month).glob("*_CA_code_reader_*.csv") if not p.name.startswith("type_review_"))
         out_dir = a.out_dir or MARKET.cr_out_dir()
