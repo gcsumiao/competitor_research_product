@@ -14,6 +14,22 @@ Precedence inside classify_gauges:
     4. ambiguous                                                                                                     rule "AMB", 0.0
 
 Rules read the TITLE only (a bare brand never classifies); the brand only widens the candidate scan.
+
+fuel_scope (FEATURE_FUEL_SCOPE: gas | diesel-capable | universal | unspecified), device rows only:
+    * tuner_with_gauge_display / truck_gauge_monitor rows: MODEL-NUMBER evidence first (_MODEL_FUEL_RULES, memo research):
+        Bully Dog  4041x | 40430 | hemi plus | gt gas | gas gauge tuner   -> gas
+        Bully Dog  4042x | gt diesel                                     -> diesel-capable
+        Edge Evolution 85400-* | 85401-*                                 -> diesel-capable
+        Edge Evolution 8545x | cts2 gas | gas evolution                  -> gas
+        Edge Insight cts3 | insight cs2 | insight+ | 84130 | 84140       -> universal (gas and diesel by design)
+        Banks idash | datamonster | data pro                             -> universal
+      then the title tokens (diesel|dpf|egt|def|regen -> diesel-capable; gas|gasoline|petrol|hemi -> gas) as a cross-check:
+        no model hit                    -> title tokens decide (as for every other class)
+        model == title token / no token -> model value
+        model universal + one token     -> universal (a universal unit fitted to a diesel/gas vehicle is not a conflict)
+        any other disagreement          -> unspecified + WARNING gauge_fuel_conflict (review)
+    * every other device class: title tokens only; gas+diesel tokens together -> unspecified + WARNING gauge_fuel_conflict.
+    'boost'/'turbo' are never diesel evidence; generic OBD-II HUDs / ScanGauge are never 'universal' (no model rule).
 """
 from __future__ import annotations
 
@@ -217,6 +233,15 @@ def classify_title(title: str, brand: str = "") -> tuple[str, str]:
 # --------------------------------------------------------------------------------------
 _DIESEL_RE = re.compile(r"\bdiesel\b|\bdpf\b|\begt\b|\bdef\b|\bregen", re.I)
 _GAS_RE = re.compile(r"\bgas\b|gasoline|petrol|\bhemi\b", re.I)          # HEMI = gasoline V8 (Bully Dog 40430 Hemi Plus)
+_MODEL_FUEL_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\b4041\d\b|\b40430\b|hemi plus|gt gas|gas gauge tuner", re.I), "gas"),            # Bully Dog gas
+    (re.compile(r"\b4042\d\b|gt diesel", re.I), "diesel-capable"),                                 # Bully Dog diesel
+    (re.compile(r"\b85400-|\b85401-", re.I), "diesel-capable"),                                     # Edge Evolution CTS3 diesel
+    (re.compile(r"\b8545\d\b|cts2 gas|gas evolution", re.I), "gas"),                                # Edge Evolution gas
+    (re.compile(r"insight cts3|insight cs2|insight\+|\b84130|\b84140", re.I), "universal"),        # Edge Insight monitors
+    (re.compile(r"idash|datamonster|data pro", re.I), "universal"),                                  # Banks iDash
+)
+_MODEL_FUEL_CLASSES = ("tuner_with_gauge_display", "truck_gauge_monitor")
 _PROJECTOR_RE = re.compile(r"projector|windshield|reflect(?:ive|ion|or)", re.I)
 _ROUND_RE = re.compile(r"52mm|x-series|in-dash|\bround\b", re.I)
 _LCD_RE = re.compile(r"\blcd\b|\btft\b|screen|\bkw206\b|digital meter", re.I)
@@ -224,6 +249,36 @@ _ALARM_RE = re.compile(r"alarm|warning|reminder|fatigue", re.I)
 _MULTI_RE = re.compile(r"multi|all[- ]in[- ]one|\d+\s?(?:gauges|parameters|functions)", re.I)
 _GESTURE_RE = re.compile(r"gesture", re.I)
 _KMH_RE = re.compile(r"km/?h|mph", re.I)
+
+
+def _title_fuel(t: str) -> str | None:
+    """'gas' | 'diesel-capable' | 'conflict' | None from title tokens."""
+    diesel, gas = _DIESEL_RE.search(t) is not None, _GAS_RE.search(t) is not None
+    if diesel and gas:
+        return "conflict"
+    return "diesel-capable" if diesel else "gas" if gas else None
+
+
+def _fuel_scope(asin: str, t: str, gauge_class: str) -> str:
+    title_fuel = _title_fuel(t)
+    model = None
+    if gauge_class in _MODEL_FUEL_CLASSES:
+        hits = {value for rx, value in _MODEL_FUEL_RULES if rx.search(t)}
+        if len(hits) > 1:
+            log.warning("gauge_fuel_conflict asin=%s model rules disagree %s -> unspecified (review): %s", asin, sorted(hits), t)
+            return "unspecified"
+        model = hits.pop() if hits else None
+    if model is None:
+        if title_fuel == "conflict":
+            log.warning("gauge_fuel_conflict asin=%s gas+diesel evidence -> unspecified (review): %s", asin, t)
+            return "unspecified"
+        return title_fuel or "unspecified"
+    if title_fuel is None or title_fuel == model:
+        return model
+    if model == "universal" and title_fuel in ("gas", "diesel-capable"):
+        return "universal"
+    log.warning("gauge_fuel_conflict asin=%s model=%s title=%s -> unspecified (review): %s", asin, model, title_fuel, t)
+    return "unspecified"
 
 
 def _features(asin: str, title: str, gauge_class: str) -> dict:
@@ -249,16 +304,7 @@ def _features(asin: str, title: str, gauge_class: str) -> dict:
         screen = "windshield projector"   # a HUD claim without an LCD/screen claim reads as a projection HUD
     else:
         screen = "dash-top LCD"
-    diesel, gas = _DIESEL_RE.search(t) is not None, _GAS_RE.search(t) is not None
-    if diesel and gas:
-        fuel = "unspecified"
-        log.warning("gauge_fuel_conflict asin=%s gas+diesel evidence -> unspecified (review): %s", asin, t)
-    elif diesel:
-        fuel = "diesel-capable"
-    elif gas:
-        fuel = "gas"
-    else:
-        fuel = "unspecified"
+    fuel = _fuel_scope(asin, t, gauge_class)
     out = {"data_source": data_source, "screen_type": screen, "fuel_scope": fuel,
            "alarms": _ALARM_RE.search(t) is not None, "multi_gauge": _MULTI_RE.search(t) is not None,
            "gesture_control": _GESTURE_RE.search(t) is not None, "kmh_mph": _KMH_RE.search(t) is not None,

@@ -253,7 +253,7 @@ class FeatureTest(unittest.TestCase):
         r = self.classify_one(EDGE_CTS3, "EDGE")
         self.assertEqual((r.gauge_class, r.data_source, r.screen_type), ("truck_gauge_monitor", "OBD", "dash-top LCD"))
         self.assertTrue(r.lordco_type_unit)
-        self.assertEqual(r.fuel_scope, "unspecified")
+        self.assertEqual(r.fuel_scope, "universal")       # Edge Insight model rule
 
     def test_boost_turbo_is_not_diesel_evidence(self):
         r = self.classify_one("DPofirs Car HUD Display, OBD2 GPS Smart Gauge Speedometer RPM Turbo Alarm Boost Gauge for Cars")
@@ -261,12 +261,55 @@ class FeatureTest(unittest.TestCase):
         self.assertTrue(r.alarms)
 
     def test_diesel_and_conflict(self):
-        r = self.classify_one("Edge Insight CTS3 monitor with EGT probe for diesel trucks")
-        self.assertEqual(r.fuel_scope, "diesel-capable")
+        r = self.classify_one("OBD2 Gauge Display for diesel trucks, DPF regen monitor")
+        self.assertEqual((r.gauge_class, r.fuel_scope), ("gauge_display", "diesel-capable"))
+        r1 = self.classify_one("Edge Insight CTS3 monitor with EGT probe for diesel trucks")
+        self.assertEqual(r1.fuel_scope, "universal")     # universal model + a single-fuel token is not a conflict
         with self.assertLogs("ca_market_reports.gauge", level=logging.WARNING) as cm:
             r2 = self.classify_one("Bully Dog GT gas and diesel 40420 Triple Dog tuner")
         self.assertEqual(r2.fuel_scope, "unspecified")
         self.assertTrue(any("gauge_fuel_conflict" in m for m in cm.output))
+
+    # ---- model-number fuel evidence (TD/TM rows first, title tokens as cross-check) ----
+    FUEL_MODEL_CASES = (
+        ("B08YJQCTH2", "Edge 85400-100 Evolution CTS3 Programmer", "tuner_with_gauge_display", "diesel-capable"),
+        ("B08YJLFVW7", "Edge 85401-201 Evolution CTS3 Programmer - CA Edition", "tuner_with_gauge_display", "diesel-capable"),
+        ("B00XM16K2Q", "Edge Products 85450 CTS2 Gas Evolution Programmer", "tuner_with_gauge_display", "gas"),
+        ("B0DLZFHVLV", None, "tuner_with_gauge_display", "diesel-capable"),
+        ("B0DLZ9CFVQ", None, "tuner_with_gauge_display", "diesel-capable"),
+        ("B087WMGLF1", None, "truck_gauge_monitor", "universal"),
+        ("B06XWX7FHK", None, "truck_gauge_monitor", "universal"),
+        ("B0GSSJ2MJ9", None, "truck_gauge_monitor", "universal"),
+        ("B0GNCW4XKM", None, "truck_gauge_monitor", "universal"),
+        ("B001P20QDS", None, "tuner_with_gauge_display", "gas"),
+        ("B06XWVYJGV", None, "tuner_with_gauge_display", "gas"),
+        ("B00AJLY628", None, "tuner_with_gauge_display", "gas"),
+        ("B0SYNTH042", "Bully Dog 40420 GT Diesel Gauge Tuner", "tuner_with_gauge_display", "diesel-capable"),
+        ("B0957S3F3H", WIIYII_P6, "obd_gps_hud", "unspecified"),
+        ("B0BFBQZZMC", None, "gauge_display", "unspecified"),     # ScanGauge is never 'universal' (no model rule)
+    )
+
+    def test_fuel_model_number_rules(self):
+        for asin, title, cls, fuel in self.FUEL_MODEL_CASES:
+            r = self.classify_one(title or golden_title(asin), asin=asin)
+            self.assertEqual((r.gauge_class, r.fuel_scope), (cls, fuel), asin)
+
+    def test_fuel_model_vs_title_conflict(self):
+        with self.assertLogs("ca_market_reports.gauge", level=logging.WARNING) as cm:
+            r = self.classify_one("Edge 85400-100 Evolution CTS3 Programmer for gasoline trucks")
+        self.assertEqual((r.gauge_class, r.fuel_scope), ("tuner_with_gauge_display", "unspecified"))
+        self.assertTrue(any("gauge_fuel_conflict" in m and "model=diesel-capable" in m for m in cm.output))
+        with self.assertLogs("ca_market_reports.gauge", level=logging.WARNING):
+            r2 = self.classify_one("Bully Dog 40410 Triple Dog GT Gas tuner, diesel")
+        self.assertEqual(r2.fuel_scope, "unspecified")
+
+    def test_fuel_model_rules_do_not_apply_to_other_classes(self):
+        # a row the map pins to obd_hud keeps title-token fuel logic even if its title carries a model phrase
+        gm = map_rows(("B0AAAAAAA1", "obd_hud", "N", "202609"))
+        r = self.classify_one("OBD2 HUD Head Up Display Data Pro Edition Speedometer", gm=gm)
+        self.assertEqual((r.gauge_class, r.fuel_scope), ("obd_hud", "unspecified"))
+        r2 = self.classify_one("OBD2 HUD Head Up Display for Gasoline Vehicles")
+        self.assertEqual(r2.fuel_scope, "gas")
 
     def test_flags(self):
         r = self.classify_one("OBD2 HUD Gesture Control Multi-Function Gauge KM/H MPH Overspeed Alarm Fatigue Driving Reminder")

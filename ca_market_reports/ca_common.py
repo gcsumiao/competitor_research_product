@@ -171,7 +171,7 @@ GAUGE_SUBTYPE_LABELS: dict[str, str] = {
 # Device feature flags (title-derived unless verified); fixed vocabularies
 FEATURE_DATA_SOURCE = ("OBD", "OBD+GPS", "GPS", "unspecified")
 FEATURE_SCREEN_TYPE = ("windshield projector", "dash-top LCD", "in-dash round gauge", "tuner touchscreen", "unspecified")
-FEATURE_FUEL_SCOPE = ("gas", "diesel-capable", "unspecified")
+FEATURE_FUEL_SCOPE = ("gas", "diesel-capable", "universal", "unspecified")
 FEATURE_COLUMNS: tuple[str, ...] = ("data_source", "screen_type", "fuel_scope", "alarms", "multi_gauge", "gesture_control", "kmh_mph", "lordco_type_unit")
 # Enrichment columns added by the gauge classifier / curated maps (finding 6): base rows + these = ENRICHED_ROW_COLUMNS
 GAUGE_ENRICHMENT_COLUMNS: tuple[str, ...] = ("gauge_device_scope", "borderline", "feature_verified_date") + FEATURE_COLUMNS
