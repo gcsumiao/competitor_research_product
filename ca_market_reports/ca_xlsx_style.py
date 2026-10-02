@@ -40,9 +40,10 @@ from ca_market_reports.ca_common import Market
 # --------------------------------------------------------------------------------------
 # Specs
 # --------------------------------------------------------------------------------------
-KINDS: tuple[str, ...] = ("text", "int", "money", "money2", "pct", "rating", "link", "bool")
-NUMERIC_KINDS: tuple[str, ...] = ("int", "money", "money2", "pct", "rating")
+KINDS: tuple[str, ...] = ("text", "int", "money", "money2", "pct", "pct2", "rating", "link", "bool")
+NUMERIC_KINDS: tuple[str, ...] = ("int", "money", "money2", "pct", "pct2", "rating")
 FMT_PCT = "0.0%"
+FMT_PCT2 = "0.00%"            # small market shares (gauge share of the code-reader market)
 FMT_RATING = "0.0"
 FMT_INT = "#,##0"
 TOTAL_POSITIONS = ("bottom", "top")
@@ -240,6 +241,9 @@ def _write_value(cell, v: Any, col: ColumnSpec, rec: dict, market: Market) -> No
     elif col.kind == "pct":
         cell.value = x
         cell.number_format = FMT_PCT
+    elif col.kind == "pct2":
+        cell.value = x
+        cell.number_format = FMT_PCT2
     elif col.kind == "rating":
         cell.value = x
         cell.number_format = FMT_RATING
