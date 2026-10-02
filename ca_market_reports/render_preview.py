@@ -20,6 +20,8 @@ from ca_market_reports import ca_common as C
 TOP50_ROWS = 20
 EXCERPT_SUMMARY_ROWS = 20
 EXCERPT_TOP_ROWS = 10
+# header fills: the house header colour + the combined workbook's market header colours (CA purple == the house header)
+HEADER_FILLS = frozenset({"#" + C.FILL_HEADER} | {"#" + v for v in C.FILL_MARKET_HEADER.values()})
 _LINK_RE = re.compile(r'^=HYPERLINK\("(?P<url>[^"]+)","(?P<text>[^"]+)"\)$')
 
 
@@ -96,7 +98,7 @@ def first_table(ws) -> tuple[int, int, int]:
     """(header_row, first_data_row, last_row) of the first table: header = first row whose A cell has the header fill."""
     for r in range(1, ws.max_row + 1):
         c = ws.cell(r, 1)
-        if c.fill is not None and c.fill.patternType == "solid" and _rgb(c.fill.fgColor) == "#" + C.FILL_HEADER and c.value:
+        if c.fill is not None and c.fill.patternType == "solid" and _rgb(c.fill.fgColor) in HEADER_FILLS and c.value:
             last = r
             while last + 1 <= ws.max_row and any(ws.cell(last + 1, k).value is not None for k in range(1, ws.max_column + 1)):
                 last += 1
@@ -109,6 +111,29 @@ def _table_width(ws, header_row: int) -> int:
     for c in range(1, ws.max_column + 1):
         if ws.cell(header_row, c).value is not None:
             n = c
+    return n
+
+
+def is_combined(wb) -> bool:
+    """The combined CA + US gauge workbook (Top 50 split into 'Top 50 CA' / 'Top 50 US')."""
+    return set(C.COMBINED_FIXED_SHEETS) <= set(wb.sheetnames)
+
+
+def top50_sheets(wb) -> list[str]:
+    """'Top 50' in the single-market workbooks; 'Top 50 CA', 'Top 50 US' in the combined workbook."""
+    if "Top 50" in wb.sheetnames:
+        return ["Top 50"]
+    return [s for s in wb.sheetnames if s.startswith("Top 50 ")]
+
+
+def _widest_table(ws) -> int:
+    """Widest header row on the sheet (header = A cell with the header fill): the combined Summary's side-by-side tables
+    are wider than its first (Key figures) table."""
+    n = 0
+    for r in range(1, ws.max_row + 1):
+        c = ws.cell(r, 1)
+        if c.fill is not None and c.fill.patternType == "solid" and _rgb(c.fill.fgColor) in HEADER_FILLS and c.value:
+            n = max(n, _table_width(ws, r))
     return n
 
 
@@ -145,9 +170,11 @@ def render_html(path: Path) -> str:
     if "Summary" in wb.sheetnames:
         ws = wb["Summary"]
         width = max(_table_width(ws, first_table(ws)[0]), 2)
+        if is_combined(wb):
+            width = max(width, _widest_table(ws))
         parts.append(sheet_html(ws, list(range(1, ws.max_row + 1)), width))
-    if "Top 50" in wb.sheetnames:
-        ws = wb["Top 50"]
+    for name in top50_sheets(wb):
+        ws = wb[name]
         h, f, last = first_table(ws)
         parts.append(sheet_html(ws, list(range(1, h + 1)) + list(range(f, min(last, f + TOP50_ROWS - 1) + 1)), _table_width(ws, h)))
     if "Metadata" in wb.sheetnames:
@@ -179,13 +206,17 @@ def render_excerpt(path: Path) -> str:
     out += [f"## Summary (first table, {len(visible)} rows shown)", "",
             _md_row([str(ws.cell(h, c).value) for c in range(1, n + 1)]), _md_row(["---"] * n)]
     out += [_md_row([fmt_value(ws.cell(r, c)) for c in range(1, n + 1)]) for r in visible]
-    ws = wb["Top 50"]
-    h, f, last = first_table(ws)
-    n = _table_width(ws, h)
-    keep = [c for c in range(1, n + 1) if ws.cell(h, c).value not in ("URL", "Link")][:10]
-    rows = list(range(f, min(last, f + EXCERPT_TOP_ROWS - 1) + 1))
-    out += ["", f"## Top 50 (top {len(rows)})", "", _md_row([str(ws.cell(h, c).value) for c in keep]), _md_row(["---"] * len(keep))]
-    out += [_md_row([fmt_value(ws.cell(r, c)) for c in keep]) for r in rows]
+    names = top50_sheets(wb)
+    if not names:
+        raise KeyError(f"{path.name}: no 'Top 50' sheet")
+    for name in names:
+        ws = wb[name]
+        h, f, last = first_table(ws)
+        n = _table_width(ws, h)
+        keep = [c for c in range(1, n + 1) if ws.cell(h, c).value not in ("URL", "Link")][:10]
+        rows = list(range(f, min(last, f + EXCERPT_TOP_ROWS - 1) + 1))
+        out += ["", f"## {name} (top {len(rows)})", "", _md_row([str(ws.cell(h, c).value) for c in keep]), _md_row(["---"] * len(keep))]
+        out += [_md_row([fmt_value(ws.cell(r, c)) for c in keep]) for r in rows]
     return "\n".join(out) + "\n"
 
 
