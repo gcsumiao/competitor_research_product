@@ -105,7 +105,7 @@ def nrow(asin, title, brand_key, brand_display, price, units, rev, typ, tsrc, gc
     d.update(asin=asin, title=title, brand_raw=brand_display, brand_key=brand_key, brand_display=brand_display, seller=seller, fulfillment=ful,
              category="Automotive", subcategory=sub, bsr=bsr, subcategory_bsr=50, list_price=price, units_month=units, revenue_month=rev,
              price=(round(rev/units, 2) if units else price), review_count=reviews, rating=rating, listing_age_months=age, variation_count=1,
-             frequently_returned=False, last_year_units=ly, yoy_units_pct=yoy, sales_trend_90d_pct="", price_trend_90d_pct="",
+             frequently_returned=False, last_year_units=ly, yoy_units_pct=(round(yoy / 100.0, 4) if yoy != "" else ""), sales_trend_90d_pct="", price_trend_90d_pct="",
              url=f"https://amazon.ca/dp/{asin}", image_url="https://m.media-amazon.com/images/I/TEST.jpg", export_date="2026-10-02",
              source_file="cr_page1.csv", source_set=source_set, market="CA", currency="CAD", type=typ, type_source=tsrc, type_confidence=1.0,
              gauge_class=gclass, gauge_in_scope=in_scope, gauge_rule_id=grule, gauge_confidence=1.0, price_tier=tier)
