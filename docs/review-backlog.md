@@ -15,3 +15,8 @@ _(empty — filled by the end-of-task Codex review)_
 - [NIT] 107 default_other rows remain (CA$15.9K, 0.4% of CA revenue): tuners (Z Automotive Tazer), TPMS tools, manuals, fuel-saver chips. Review CSV covers them.
 - [P2] `ca_xlsx_style.write_manifest`: no test asserts that writing a manifest never modifies any input file (an orchestrator patch briefly shadowed the manifest `path` variable and wrote JSON over an input CSV; caught by the validator/tests, raw exports verified intact). Add a test that snapshots input hashes before/after `write_manifest`.
 - [NIT] Manifest inputs: stale previous entries are dropped only when their file changed and this run did not declare them; a renamed input leaves a harmless orphan entry.
+
+### Codex end-of-task review 2026-10-02 (gpt-6-sol @ xhigh, FIX-FIRST → P1s fixed in one round; full text: ca_market_reports/runs/202609/codex_review_202609.md)
+- [P2] validate_outputs.py V09: the Model B "# app-gauge-capable" expected values come from the builder's `modelb_universe`; a wrong brand-map join would reproduce the same wrong number. Derive per-ASIN app capability in the validator from the typed CR rows + maps/ca_app_gauge_brands.csv independently.
+- [P2] render_preview.py: `--out` may write under NewProductCategory/ (path boundary); add the same NEW_PRODUCT_DIR guard the validator's `--json` now has.
+- (fixed in the round) V04 compares every Top-50 row; manifests + V19 use the loader's recursive raw file list; bare Edge model numbers in the fuel rule; untagged memo count; stale RUNBOOK status; `--json` path guard.
