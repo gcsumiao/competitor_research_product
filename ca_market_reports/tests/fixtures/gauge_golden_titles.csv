@@ -1,0 +1,87 @@
+title,brand,expected_class,note
+Edge 84130-3 Insight CTS3,EDGE,truck_gauge_monitor,B087WMGLF1: Edge Insight CTS3 has no gauge/obd token
+Edge Insight CS2 Monitor (1996 and Newer OBDII Enabled Vehicle) (edge84030),Edge Products,truck_gauge_monitor,B06XWX7FHK: Edge Insight CS2 monitor
+"Edge Insight CTS3 Digital Gauge, Compatible 1996 & Up OBD-II Vehicles. 84130-3 - Includes Midwest Aftermarket Decal",Midwest Aftermarket,truck_gauge_monitor,B0GSSJ2MJ9: Edge Insight CTS3 relisted by a 3P seller
+Banks Power iDash Data Pro System Universal CAN all 2008+ Stand Alone,Banks Power,truck_gauge_monitor,B0GNCW4XKM: Banks iDash Data Pro
+Edge 85401-201 Evolution CTS3 Programmer - CA Edition,Edge Products,tuner_with_gauge_display,"B08YJLFVW7: Edge Evolution CTS3; 'CA Edition' = California emissions, not Canada"
+Edge Products 85400-261 Evolution CTS3 Digital Gauge Monitor w/Locksmith,EDGE,tuner_with_gauge_display,B0DLZFHVLV: Edge Evolution CTS3 w/ Locksmith
+Edge Products 85400-262 Evolution CTS3 Digital Gauge Monitor w/Locksmith,EDGE,tuner_with_gauge_display,B0DLZ9CFVQ: Edge Evolution CTS3 w/ Locksmith
+Edge Products 85450 CTS2 Gas Evolution Programmer,Edge Products,tuner_with_gauge_display,B00XM16K2Q: Edge CTS2 Gas Evolution programmer
+Bully Dog 40410 Triple Dog GT Gas Gauge Tuner,Bully Dog,tuner_with_gauge_display,B001P20QDS: Bully Dog 40410 GT gas; fuel_scope gas
+Bully Dog Triple Dog Platinum GT Gas Tuner and Gauge (40417),Bully Dog,tuner_with_gauge_display,B06XWVYJGV: Bully Dog 40417 Platinum GT gas; fuel_scope gas
+Bully Dog 40430 Hemi Plus Gauge Tuner,Bully Dog,tuner_with_gauge_display,B00AJLY628: Bully Dog 40430 Hemi Plus; fuel_scope gas (HEMI)
+Bully Dog 40400-105 OBDll Replacement Block,BULLY DOG,gauge_accessory,B004800AHG: Bully Dog replacement block: accessory beats TD
+"ScanGauge 3 Touch Screen OBD2 Scanner, Digital Gauges & Trip Computer SG3",ScanGauge,gauge_display,B0BFBQZZMC: ScanGauge 3: scanner token but digital gauges/trip computer claim
+ScanGauge SG2 Ultra Compact 3-in-1 Automotive Computer with Customizable Real-Time Fuel Economy Digital Gauges for OBD2 Vehicles,ScanGauge,gauge_display,B000AAMY86: ScanGauge SG2
+ScanGauge II Ultra Compact 3-in-1 Automotive Computer with Customizable Real-Time Fuel Economy Digital Gauges,ScanGauge,gauge_display,B07CGR1T5T: ScanGauge II
+AEM X-Series 52mm OBD II Digital Gauge View Engine Parameters Codes CEL Black,AEM,gauge_display,B01MZ3ZURG: AEM X-Series 52mm
+AEM 30-0311 X-Series OBDII Gauge,AEM,gauge_display,B01BI2PQNY: AEM X-Series
+"wiiyii Car HUD Head Up Display P6, OBD+GPS Smart Gauge, Works Great for Most Cars",wiiyii,obd_gps_hud,B0957S3F3H: wiiyii P6 (CA title names OBD+GPS)
+"wiiyii OBD2 Gauge Display Head Up Display for Cars, Speedometer for Car P6",wiiyii,obd_gps_hud,map-only
+"Car Speedometer Gauge,OBD2 HUD Head Up Display Projector",Keenso,obd_hud,B0CJMM4RLM: Keenso OBD2 HUD projector
+KONNWEI KW206 Car OBD2 HUD Digital Meter Gauge All in One Automotive Trip Computer Smart OBD Speedometer Water Temperature Fuel Pressure Tester for All 2003 and Newer Cars,KONNWEI,obd_hud,B08GYLXJ1V: KONNWEI KW206
+Xiangtat KW206 Car OBD2 HUD Digital Meter Gauge + OBD II Engine Scanner All in One Automotive Trip Computer Smart OBD Speedometer Water Temperature Fuel Pressure Tester for All 1996 and Newer Cars,Xiangtat,obd_hud,B08NG6NGBM: KW206 clone with 'Engine Scanner'
+KW206 car Fault Scanner+Head up Display 2-in-1 Fuel Consumption and Water Temperature Gauge,alchiauto,obd_hud,B0CSN8RQKH: KW206 clone 'Fault Scanner+Head up Display'
+Fit for KONNWEI KW206 Automobile Fault Scanner On-board Computer Gauge Display 2-in-1,alektryon,obd_hud,B0DKZ77M4N: alektryon 'Fit for KONNWEI KW206' clone
+"Smart OBD2 Scanner & GPS Speedometer HUD, Dual System Car Dashboard Gauge with Gesture Control, Turbo Pressure, Oil Temp Monitor & Performance Test, Fault Code Reader for All 12V Vehicles",BYZFCM,obd_gps_hud,B0GZC9VPRS: BYZFCM 'Smart OBD2 Scanner & GPS ... HUD' must survive the scanner rule
+"Riloer Head-Up Display, OBD & GPS Scanner, Vehicle Speed, Fuel Consumption, Clear Fault Code, Compatible with All Cars, HUD Car Head-Up Display Universal Multifunction Speedometer C5",Riloer,obd_gps_hud,B0CFX3VVG2: Riloer 'OBD & GPS Scanner' HUD must survive the scanner rule
+"MH Head Up Display for Car, OBD2+GPS Dual System, OBD2 Gauge Display, GPS Speedometer, Tachometer, Water Temp, Volt, Overspeed Alarm Fault Diagnosis",MH,obd_gps_hud,B0F2H6WZZX: MH OBD2+GPS dual system
+Car HUD Display OBD GPS Dual Mode Head Up Display with Speed Voltage Water Temp Alarm Multifunction Gauge for All Vehicles,BAFOVY,obd_gps_hud,B0FY6P98BZ: OBD GPS dual mode HUD
+"DPofirs Car HUD Display, OBD2 GPS Smart Gauge Speedometer RPM Turbo Alarm for Cars",Dpofirs,obd_gps_hud,B0CW6JBMPZ: boost/turbo words only: fuel_scope unspecified
+"OBDII HUD Head Up Display Car Speedometer, OBD2 Windshield Projector Multifunction Gauge With Alarm and Fatigue Driving Reminder",Qiilu,obd_hud,B0BMXNDRVJ: OBD2 windshield projector
+SCOSCHE HUD2 3” Heads-up Multi-Color LED Display for any Vehicle with an OBD-II Interface,scosche,obd_hud,B073CSXVXS: SCOSCHE HUD2
+"Premium OBD2 Gauge Display, 2.8"" HD LCD Heads Up Display for Cars",KUOWEIHUD,obd_hud,B0HJ4R92BR: 2.8in LCD 'heads up display' (no GPS)
+MAIMEIMI OBD2 Gauge Display Speedometer for Car All in One with Dual System,MAIMEIMI,gauge_display,B0D5R7YQGP: dual system gauge display without a HUD claim
+"LUFI Xs OBD2 Gauge Display – Fuel Car Companion, Multi-Function & Overload Protection",Lufi,gauge_display,B0GRLPZNFN: LUFI Xs gauge display
+"Lufi XF OBD2 gague Display, Boost Gauge, Water Temperature Meter, Vehicle Electronic Combination Instrument Cluster, not Suitable for Pure Electric Vehicles",Lufi,gauge_display,B089VKS44X: Lufi XF misspelt 'gague'
+Fuhoghto for Car A203 OBD2 On-Board Computer Car Digital Computer Trip Display Speed Consumption Gauge,Fuhoghto,gauge_display,B0BJDCMDKP: Fuhoghto A203 on-board computer
+OBD2 On-Board Computer Auto Car Digital Computer Display OBD 2 Scanner Fuel Consumption Water Temperature Gauge (Black),GZCRDZ,gauge_display,B099N4WV2Z: on-board computer display with 'OBD 2 Scanner' words
+"Shadow FD EVO OBD2 Digital Gauge Display - Ultra Slim Futuristic Meter with Cyberpunk Design & High-Tech Look, for 12V & 48V Newer Cars",Shadow,gauge_display,B0FDGF57P5: Shadow FD EVO
+"Shadow OBD2 Display D-Meter 2 Plus - Minimalist & Futuristic Multi-Functional Gauge with RGB Accent Light, Sleek Black Frame, DTC Scan & Clear, High-Tech Design for 12V/48V Cars",Shadow,gauge_display,B0FGJDRDND: Shadow D-Meter 2 Plus ('DTC Scan & Clear' is not a scanner token)
+"GP Shadow Gauge 10-in-1 OBD2 D-Meter 2 - Digital Diagnostic Gauge Meter, Multi-Functional RGB Display Monitor for Water, Temperature, AFR, Intake Temp. etc. - Warning Sound & 7 Color Ambient Lights",gazoz performance,gauge_display,B0BR5QGN5K: Shadow D-Meter 2 with 'Diagnostic' word
+"DO907OBD Multifunctional Race Display, OBD2 with LCD Screen, Accurate Real Time Monitoring for All 12V Vehicles, Brightness Display, Simple Installation",Bognajin,gauge_display,B0F8DHH73X: DO907OBD race display
+X AUTOHAUX OBDII Multi-Function Digital Gauge KMH MPH Digital Speedometer Oil Temperature Gauge Battery Voltage Tester Scanner for 12V OBDII Auto Sedan SUV Pickup After Year 2006,x autohaux,gauge_display,B09LVGFJFT: multi-function digital gauge with 'Tester Scanner' words
+"Universal OBD2 Gauge, 2.8in Multifunction Digital OBD2 Gauge Scan Tool, Display Water Temperature Voltage Speed Turbo Pressure with RGB Indicator",aramox,gauge_display,B0BDRTB52N: OBD2 gauge with 'Scan Tool' words
+AiM Sportline SOLO2 DL GPS Lap Timer and Dash Logger with OBD2 Data Connection Cable (X47 Series),AiM Sportline,gauge_display,map-only
+"KIMISS OBD2 to HD Multimedia Interface Cable for Edge CS2 CTS2 CTS3, Car Diagnostics Plug Replacement H00008000, On Board Monitor Adapter",KIMISS,gauge_accessory,B0CTQSKD13: Edge HD Multimedia Interface cable
+Aramox H00008000 Obd2 to Hdmi Cable Diagnostic Tool for Cs2 Cts2 Cts3 Monitor,Aramox,gauge_accessory,B0BWYLSHTP: Edge H00008000 HDMI cable
+MOCW Interface Cable OBDII HDMI Plug Monitor Fit for Edge CS2 CTS2 CTS3 Replace H00008000,MOCW,gauge_accessory,B09Y8WTFLQ: Edge HDMI cable 'Fit for Edge CS2 CTS2 CTS3'
+"H00008000 Interface Cable is Designed to Connect Your Monitor/Tuner/Insight HDMI to Your vehicle's OBDII Port Perfectly. Compatible with Edge CS2, CTS2 and CTS3 Products",Generic,gauge_accessory,B0B2MMYSK7: Edge H00008000 interface cable
+OBDII HDMI Adapter Replacement Cable,Sxqddz,gauge_accessory,map-only
+Lufi Shift Light (Blue) - Alarm Light Accessory for XF OBD2 Gauge and X1 Gauges Display - Double Sided Tape Fix,Lufi,gauge_accessory,B09XTWXTB3: Lufi shift light
+"Lufi Shift Light (RED Light), Alarm Light Accessory Xf Obd2 Gauge X1 Gauges Display, Double Sided Tape Fix",Lufi,gauge_accessory,B0C74BG4Z2: Lufi shift light
+Edge Products 98611 EAS EGT Expandable,Edge Products,gauge_accessory,B004NL3L7G: Edge EAS EGT expandable sensor
+"AutoMeter - OBD-II Data Module, CAN Bridge",AUTO METER,gauge_accessory,B09WZ8XF1L: AutoMeter OBD-II data module / CAN bridge
+SplashNColor Dashboard Mount Compatible with ScanGauge II for Subaru Outback 6th Gen – Friction Fit OBD2 Gauge Holder | No-Drill Install | Vehicle Scanner Display Bracket,splash n color,gauge_accessory,B0GTC4PV7K: dashboard mount for ScanGauge II
+"penpenlu 1.8m OBD-II to Mini USB Cable, Car Diagnostic Extension Cable for HUD 5.5"" Head Up Display",penpenlu,gauge_accessory,B0DPGM6FRJ: extension cable for HUD (AC before XN cable)
+Car and Auto Mini Carry Case Compatible with BlueDriver Bluetooth Pro OBDII OBD2 Scan Tool Monitor for iPhone & Android (Black+Red Zipper),COMECASE,excluded_non_gauge,B0CFQK5Q6Z: carry case compatible with BlueDriver
+"Casematix OBD Carry Case Compatible with FIXD OBD2 Bluetooth Car Diagnostic Tool for Auto Car Health Monitor Device, Case Only",CASEMATIX,excluded_non_gauge,B07BNXNNMS: carry case compatible with FIXD
+"Vanlison Professional OBD2 Breakout Box with LED Indicator, 16-Pin OBD2 Diagnostic Tool Automotive Electrical Tester Portable Auto OBD2 Protocol Detector Monitor Car Testing",Vanlison,excluded_non_gauge,B0DZ78J8BY: breakout box
+"AUTOOL OBD2 Breakout Box OBDII Protocol Detector for Monitoring Signals of Communication/Power/Grounds, 16-Pin CAN Breakout Box, 4mm Banana Jack with Multi-Function Jumper",AUTOOL,excluded_non_gauge,B0BR9NDLFC: breakout box
+OBD2 Breakout Box OBDII Protocol Detector for Professional Automotive Diagnostics with 16-Pin CAN Breakout Box and 4mm Banana Jack Multi-Function Jumper for Monitoring Communication Power Grounds,LINXINO,excluded_non_gauge,B0CR9N9ZR8: breakout box
+"Autel OBD2 Scanner MaxiScan MS309 Car Check Engine Code Reader, Check Emission Monitor Status, 2023 Newest CAN Diagnostic Scan Tool for All OBD II Protocol Vehicles After 1996",Autel,excluded_non_gauge,B07Q5H7M5S: Autel MS309 scanner ('Monitor' is not a display claim)
+"Autel AutoLink AL329 OBD2 Scanner, Upgrade of AL319 & MS309 Code Reader, OBDII Reader with Auto VIN, Live Data, DTC Lookup, Emission Monitor Test, I/M Readiness Smog Check CAN Diagnostic Scan Tool",Autel,excluded_non_gauge,B0C3BZSPT9: Autel AL329 scanner
+"NEXAS NL101 OBD2 Scanner Diagnostic Tool for All Car Battery Test 2-in-1 Check Engine Light Code Reader with Reset Monitor, Full OBDII Mode, Freeze Frame Live Data, Free Protective Case & Update",NEXAS,excluded_non_gauge,B07Q2L41VJ: NEXAS NL101 scanner
+"ANCEL BD330 BMW OBD2 Scanner for BMW, MINI, and Rolls-Royce Vehicles, ABS Full-System Diagnostic Scan Tool, Battery Registration/BAT Check, EPB/Oil/Throttle Reset, 3-in-1 Bluetooth/Wired/HUD- Black",ANCEL,excluded_app_dongle,B0CT39TV55: ANCEL BD330 3-in-1 Bluetooth/Wired/HUD
+"Ancel BD320 OBD2 Scanner Diagnostic Tool for VW Audi Skoda Seat, Full-System Diagnostics with EPB, Oil & Throttle Reset, Battery Check, 3-in-1 Bluetooth Wired HUD Code Reader(Upgraded BD310)",ancel,excluded_app_dongle,B0CRDY7JG5: ANCEL BD320 with HUD mode
+"AUTOPHIX Bluetooth OBD2 Scanner for Cars - Read & Clear Engine Codes, Transmission ABS SRS Live Data, HUD Dashboards OBD2 Code Reader Diagnostic Tool to Scan OBD for iPhone & Android",autophix,excluded_app_dongle,B0CN9CQH1Q: AUTOPHIX Bluetooth scanner with 'HUD Dashboards' app mode
+OBD2 Adapter Viecar ELM327 iOS Bluetooth Tool 4.0 for Android OBDII Car Scanner Car Obd2 Gauge,generic,excluded_app_dongle,B0B7HDFSMV: Viecar ELM327 app dongle with 'Gauge'
+Banks Power Universal OBD-II Splitter Cable,Banks,excluded_non_gauge,B08NWG8KXG: Banks OBD-II splitter cable
+"Banks Power 64330 PedalMonster, Standalone",Banks Power,excluded_non_gauge,B08NWFGFNG: Banks PedalMonster throttle module
+Dakota Digital VHX-69C-NOV-S-B Compatible with 1969-76 Chevy Nova Analog Dash Gauge System Silver Alloy Blue Backlighting,Restoration Performance,excluded_non_gauge,B0831QHY7G: Dakota Digital VHX cluster system
+Dakota Digital OBDII/CAN Interface VHX VFD3 Expansion Module Plug-in BIM-01-2,Restoration Performance,excluded_non_gauge,B01LZ912XQ: Dakota Digital VHX expansion module
+"CCLYJ Digital Dashboard Gauge Cluster Compatible for BMW 5 Series F10 F11 F18 2010-2017 - 12.3 Inch 1920 * 720 HD Instrument Cluster Replacement, Anti-Glare OBD2 LCD Screen",CCLYJ,excluded_non_gauge,B0DXBT6W5B: instrument cluster replacement
+COPACHI On Board Computer OBC 101909901 48V 3-Pin Plugs Compatible with Club Car Precedent DS Models 1998‑2004 After-Market Parts,COPACHI,excluded_non_gauge,B0CLJ9SM1G: golf-cart on-board computer (OBC)
+"Memory Saver for Car Battery On-Board Computers, OBD11",Apopip,excluded_non_gauge,B0D8VWT838: memory saver for 'On-Board Computers'
+"Ypoyney 2PCS Car Power Upgrade Pro, Plug-and-Play Torque Booster with 35% More Power, 25% More Torque, OBD2 Automotive Plug, Compatible with Most Ga-soline Vehicles, Easy Install for Power Enhancement",Ypoyney,excluded_non_gauge,B0FXR44R95: plug-and-play power/torque booster
+"Ski-Doo 10.25"" Color Touchscreen Display Screen Protector - Compatible With 2023-2026 Models, Tempered Glass Protective Film for Snowmobile Accessories (2 Pack)",YEE PIN,excluded_non_gauge,B0DHGX3R88: screen protector
+10Pcs Universal Water Temperature Gauge Racing 60mm Tinted 17 Color OBD2 Mechanical Instrument for Car Automotive,Fydun,excluded_non_gauge,B08FBVP6LL: 10Pcs mechanical gauges with an OBD2 word
+"Thinkware OBD II Power Cable, for Select Dash Cams, Parking Surveillance Mode, Plug-and-Play",THINKWARE,excluded_non_gauge,B08KTTCKJ8: dash-cam OBD power cable
+YXQ DC 0-50V Analog Voltmeter Panel 85C1-V Gauge Meter 2.5 Accuracy for Auto Circuit Measurement Tester (DC 50V),YXQ,excluded_non_gauge,B07MVW5NK8: analog voltmeter panel
+Edge Products CTS3 84130-3 Touch Screen OBD2 Monitor Gauge Scanner & EGT Probe Pyrometer Kit 98620 Compatible with 1996 Vehicles & Newer,prime_warehouse,truck_gauge_monitor,map-only
+"Liyeeo Car HUD, Accurate Heat Resistant Inclinometer Free Rotation High Sensitivity for Motorcycles for Off-Road Vehicles",liyeeo,excluded_non_gauge,map-only
+Digital GPS Speedometer Universal Heads Up Display for Car 5.5 inch LCD,SinoTrack,gps_hud,synthetic: GPS-only HUD (adjacent)
+Club Car Golf Cart OBC On-Board Computer Replacement 48V,Generic,excluded_non_gauge,"synthetic: golf-cart OBC, golf cart first"
+Autel MaxiIM KM100 Key Programmer Immobilizer Tool,Autel,excluded_non_gauge,synthetic: key programmer
+Edge 84130-3 Insight CTS3 - CA Edition,EDGE,truck_gauge_monitor,synthetic: 'CA Edition' changes nothing
+Bully Dog Tuner,Bully Dog,ambiguous,synthetic: a bare brand never classifies TD
