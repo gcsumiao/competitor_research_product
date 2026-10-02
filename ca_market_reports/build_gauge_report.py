@@ -29,12 +29,19 @@ from ca_market_reports.ca_xlsx_style import Book, ColumnSpec as Col, TableSpec
 
 APP_GAUGE_BRANDS_DEFAULT = C.MAPS_DIR / "ca_app_gauge_brands.csv"
 GAUGE_MAP_DEFAULT = C.MAPS_DIR / "ca_gauge_map.csv"
-APP_MATRIX_APPS: tuple[str, ...] = ("OBDLink", "BlueDriver", "FIXD", "Carista", "Torque Pro", "Car Scanner ELM OBD2", "DashCommand",
-                                    "Innova RS2/CarMD")
-APP_MATRIX_COLUMNS: tuple[str, ...] = ("Live gauges", "Custom dashboards", "HUD/mirror mode", "Alarms", "Data logging",
-                                       "Enhanced/diesel PIDs", "CarPlay/Android Auto", "Subscription (CAD/USD)", "Canada availability",
-                                       "Source")
+APP_FEATURE_MATRIX_DEFAULT = C.MAPS_DIR / "ca_app_feature_matrix.csv"
+# display headers, 1:1 with ca_common.APP_FEATURE_MATRIX_COLUMNS (frozen CSV schema); rows in APP_FEATURE_MATRIX_APPS order
+APP_MATRIX_HEADERS: tuple[str, ...] = ("App", "Vendor", "Live gauges", "Custom dashboards", "HUD/mirror mode", "Alarms", "Data logging",
+                                       "Enhanced/diesel PIDs", "CarPlay/Android Auto", "Subscription", "Canada availability", "Source",
+                                       "Accessed", "Note")
+APP_MATRIX_WIDTHS: tuple[float, ...] = (24, 18, 11, 12, 12, 10, 11, 14, 13, 20, 18, 44, 11, 30)
+if len(APP_MATRIX_HEADERS) != len(C.APP_FEATURE_MATRIX_COLUMNS) or len(APP_MATRIX_WIDTHS) != len(APP_MATRIX_HEADERS):
+    raise AssertionError("APP_MATRIX_HEADERS drifted from ca_common.APP_FEATURE_MATRIX_COLUMNS")
 APP_MATRIX_PLACEHOLDER = "GAP"
+APP_MATRIX_NOTE = ("Features as described by app-store listings / vendor pages on the accessed date; 'GAP' = not found. "
+                   "Not derived from Helium 10.")
+INNOVA_COUNT_CELL = "B3"       # gauge Innova tab: A3 = the device-count line, B3 = the same count as a number (role kpi)
+SAME_ASIN_COUNT_CELL = "B3"    # US vs CA Same-ASIN: A3 = "Listings in both marketplaces", B3 = the intersection count (role kpi)
 FEATURE_HEADERS: dict[str, str] = {"data_source": "Data Source", "screen_type": "Screen Type", "fuel_scope": "Fuel Scope",
                                    "alarms": "Alarms", "multi_gauge": "Multi-gauge", "gesture_control": "Gesture Control",
                                    "kmh_mph": "km/h–mph", "lordco_type_unit": "Lordco-type Unit"}
@@ -233,6 +240,28 @@ def read_app_gauge_brands(path: Path) -> pd.DataFrame:
     return app
 
 
+def read_app_feature_matrix(path: Path) -> pd.DataFrame:
+    """maps/ca_app_feature_matrix.csv -> one row per APP_FEATURE_MATRIX_APPS app, in that order. An app absent from the CSV
+    becomes a row of 'GAP'; values of present rows are shown as written. Unknown or duplicate apps fail loudly."""
+    m = pd.read_csv(path, dtype=str, keep_default_na=False)
+    X.require_columns(m, C.APP_FEATURE_MATRIX_COLUMNS, str(path))
+    m["app"] = m["app"].str.strip()
+    unknown = sorted(set(m["app"]) - set(C.APP_FEATURE_MATRIX_APPS))
+    if unknown:
+        raise ValueError(f"{path}: apps not in APP_FEATURE_MATRIX_APPS: {unknown}")
+    dup = sorted(set(m.loc[m["app"].duplicated(), "app"]))
+    if dup:
+        raise ValueError(f"{path}: duplicate app rows {dup}")
+    by_app = {r["app"]: r for r in m[list(C.APP_FEATURE_MATRIX_COLUMNS)].to_dict("records")}
+    rows = []
+    for app in C.APP_FEATURE_MATRIX_APPS:
+        if app in by_app:
+            rows.append(by_app[app])
+        else:
+            rows.append({c: (app if c == "app" else APP_MATRIX_PLACEHOLDER) for c in C.APP_FEATURE_MATRIX_COLUMNS})
+    return pd.DataFrame(rows, columns=list(C.APP_FEATURE_MATRIX_COLUMNS))
+
+
 def modelb_universe(ds: C.CaDataset, app_map_path: Path) -> pd.DataFrame:
     """Model B universe = CA code-reader rows typed Dongle, joined with the brand-level app-gauge map on brand_key."""
     cr = X.coerce_frame(ds.code_reader)
@@ -272,6 +301,8 @@ class GCtx:
     bench_notes: list[str] = field(default_factory=list)
     bench_cr_totals: dict = field(default_factory=dict)
     modelb: pd.DataFrame | None = None
+    app_matrix: pd.DataFrame | None = None
+    app_matrix_path: Path | None = None
 
     @property
     def core(self) -> pd.DataFrame:
@@ -478,6 +509,10 @@ def _innova(book: Book, c: GCtx) -> None:
     inn_dev = c.u[(c.u["brand_key"] == "innova") & c.u["gauge_device_scope"]]
     book.line(ws, 3, f"Innova gauge/HUD device listings in this dataset: {len(inn_dev)}", role="innova",
               dataset_filter="brand_key == 'innova' & gauge_device_scope")
+    tr_n = book.number(ws, 3, 2, len(inn_dev), label="Innova gauge/HUD device listings in this dataset",
+                       dataset_filter="brand_key == 'innova' & gauge_device_scope")
+    if ws.cell(tr_n.first_data_row, tr_n.first_col).coordinate != INNOVA_COUNT_CELL:
+        raise AssertionError("Innova count cell moved")
     if c.modelb is not None:
         rows = c.modelb[c.modelb["brand_key"] == "innova"]
         total = X.fit(X.listing_totals(rows, "title", C.TOTAL_ROW_LABEL), cols)
@@ -603,11 +638,13 @@ def _modelb(book: Book, c: GCtx) -> None:
                                     X.fit(residual, cols), ("CA",),
                                     note="Sales-to-Reviews = estimated monthly units ÷ review count.",
                                     dataset_filter="Model B universe"), X.table_end(tr_b) + 3)
-    rows = pd.DataFrame([{"app": a, **{f"c{i}": APP_MATRIX_PLACEHOLDER for i in range(len(APP_MATRIX_COLUMNS))}} for a in APP_MATRIX_APPS])
-    cols = [Col("App", "app", "text", 22)] + [Col(h, f"c{i}", "text", 13) for i, h in enumerate(APP_MATRIX_COLUMNS)]
-    book.table(ws, TableSpec(ws.title, "modelb_app_matrix", "App feature matrix", cols, rows, None, None, ("CA",),
-                             note=f"'{APP_MATRIX_PLACEHOLDER}' = not yet researched; cells are filled from cited app research only.",
-                             dataset_filter="apps"), X.table_end(tr_t) + 3)
+    if c.app_matrix is None:
+        raise ValueError("CA gauge workbook needs the app feature matrix (maps/ca_app_feature_matrix.csv)")
+    cols = [Col(h, f, "text", w) for h, f, w in zip(APP_MATRIX_HEADERS, C.APP_FEATURE_MATRIX_COLUMNS, APP_MATRIX_WIDTHS, strict=True)]
+    book.table(ws, TableSpec(ws.title, "modelb_app_matrix", "App feature matrix", cols, c.app_matrix, None, None, ("CA",),
+                             note=APP_MATRIX_NOTE,
+                             dataset_filter=f"{c.app_matrix_path.name}: APP_FEATURE_MATRIX_APPS order; missing apps = GAP"),
+               X.table_end(tr_t) + 3)
     book.bar(ws, tr_b, "Brand", f"Monthly Rev ({ccy})", f"Dongle revenue by brand ({ccy})")
 
 
@@ -695,11 +732,17 @@ def _same_asin(book: Book, c: GCtx) -> None:
             Col("US Price (USD)", "us_price", "money2", 12, market="US"), Col("US Units", "us_units", "int", 9),
             Col("US Rev (USD)", "us_rev", "money", 13, market="US"), Col("Units ratio US/CA", "ratio", "rating", 11),
             Col("Link CA", "asin", "link", 24, market="CA"), Col("Link US", "asin", "link", 24, market="US")]
+    flt = "asin in CA union ∩ US union & (CA device scope | US device scope)"
+    X.write_sheet_header(ws, f"US vs CA Same-ASIN — listings in both marketplaces ({c.mon})", c.sub, len(cols))
+    tr_k = book.kpi(ws, 3, [("Listings in both marketplaces", len(frame), "int")], header=False, dataset_filter=flt,
+                    allowed_markets=("CA", "US"))
+    if ws.cell(tr_k.first_data_row, 2).coordinate != SAME_ASIN_COUNT_CELL:
+        raise AssertionError("Same-ASIN count cell moved")
     book.table(ws, TableSpec("US vs CA Same-ASIN", "same_asin", f"Listings in both marketplaces ({len(frame)}) — device scope in either",
-                             cols, frame, None, None, ("CA", "US"), subtitle=c.sub,
+                             cols, frame, None, None, ("CA", "US"),
                              note="ASIN intersection of the CA and US gauge union frames where either side is device scope. Prices "
                                   "and revenue in native currency; no FX conversion.",
-                             dataset_filter="asin in CA union ∩ US union & (CA device scope | US device scope)"), 1)
+                             dataset_filter=flt), X.table_end(tr_k) + 2)
 
 
 def _all_products(book: Book, c: GCtx) -> None:
@@ -794,6 +837,7 @@ def _source_method(book: Book, c: GCtx) -> None:
         paras += ["# Models",
                   "Model A tables use core devices. Model B universe = CA code-reader listings typed Dongle; app-gauge capability is "
                   "a brand-level research flag (maps/ca_app_gauge_brands.csv).",
+                  "App feature matrix: one row per app in a fixed order, read from maps/ca_app_feature_matrix.csv; " + APP_MATRIX_NOTE,
                   "# Benchmark",
                   "US Benchmark and US vs CA Same-ASIN compare units, listing counts and ranks; revenue is shown in native currency "
                   "side by side. No FX conversion. " + CAVEAT_US_RAW]
@@ -821,6 +865,10 @@ def _metadata(book: Book, c: GCtx) -> None:
     d["Code-reader market totals"] = (f"{c.cr_totals['n']} ASINs, {X.fmt_money(c.cr_totals['rev'], c.market)}, "
                                       f"{c.cr_totals['units']:,.0f} units (full {c.code} code-reader export, before any gauge "
                                       f"candidate filter)")
+    if c.code == "CA" and c.app_matrix is not None:
+        filled = int((c.app_matrix.drop(columns=["app"]) != APP_MATRIX_PLACEHOLDER).any(axis=1).sum())
+        d["App feature matrix"] = (f"{c.app_matrix_path.name}: {filled} of {len(C.APP_FEATURE_MATRIX_APPS)} apps with research rows; "
+                                   f"the rest '{APP_MATRIX_PLACEHOLDER}'")
     if c.code == "CA":
         d["Model B universe"] = (f"{len(c.modelb)} CA code-reader rows typed Dongle; app-gauge map {APP_GAUGE_BRANDS_DEFAULT.name}"
                                  if c.modelb is not None else "not built")
@@ -867,8 +915,8 @@ def build_gauge_book(c: GCtx) -> Book:
 # --------------------------------------------------------------------------------------
 def build_gauge_workbook(ds: C.CaDataset, out_dir: Path, *, benchmark: C.CaDataset | None, overwrite: bool, dated_copy: bool,
                          runs_dir: Path = C.RUNS_DIR, preclassified: bool = False, gauge_map: Path = GAUGE_MAP_DEFAULT,
-                         app_gauge_brands: Path = APP_GAUGE_BRANDS_DEFAULT, rederive: bool = False,
-                         input_paths: list[Path] | tuple = ()) -> Path:
+                         app_gauge_brands: Path = APP_GAUGE_BRANDS_DEFAULT, app_feature_matrix: Path = APP_FEATURE_MATRIX_DEFAULT,
+                         rederive: bool = False, input_paths: list[Path] | tuple = ()) -> Path:
     """Build <M>_OBD_Gauge_Competitor_Report_<m>.xlsx; returns its path (a dated copy, when asked, sits next to it).
 
     preclassified=True: the dataset frames already carry the gauge classification (normalized fixture / dev mode); the
@@ -902,6 +950,7 @@ def build_gauge_workbook(ds: C.CaDataset, out_dir: Path, *, benchmark: C.CaDatas
                                              rederive=rederive)
     if ds.market == "CA":
         c.modelb = modelb_universe(ds, app_gauge_brands)
+        c.app_matrix, c.app_matrix_path = read_app_feature_matrix(app_feature_matrix), Path(app_feature_matrix)
     book = build_gauge_book(c)
     manifest = X.read_manifest(out_dir, ds.month)
     path = X.safe_output_path(out_dir, book.name, overwrite, manifest)
@@ -915,6 +964,8 @@ def build_gauge_workbook(ds: C.CaDataset, out_dir: Path, *, benchmark: C.CaDatas
     reg.add_book(book)
     reg_path = reg.write(runs_dir)
     extra = [gauge_map, app_gauge_brands] if not preclassified else []
+    if ds.market == "CA":
+        extra.append(app_feature_matrix)
     inputs = X.input_hashes(list(input_paths) + extra + sorted(C.MAPS_DIR.glob("*.csv")))
     man_path = X.write_manifest(out_dir, ds.month, outputs, inputs)
     print(f"registry: {reg_path} ({len(book.tables)} tables)")
@@ -933,6 +984,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--benchmark-cr-raw-dir", type=Path)
     p.add_argument("--out-dir", type=Path, help="output folder (default NewProductCategory/<M>-OBD-GAUGE/outputs)")
     p.add_argument("--gauge-map", type=Path, default=GAUGE_MAP_DEFAULT)
+    p.add_argument("--app-feature-matrix", type=Path, default=APP_FEATURE_MATRIX_DEFAULT,
+                   help="CA only: app feature matrix CSV (ca_common.APP_FEATURE_MATRIX_COLUMNS)")
     p.add_argument("--runs-dir", type=Path, help="frozen run decisions + registry (default ca_market_reports/runs)")
     p.add_argument("--overwrite", action="store_true", help="replace an existing output (old file moved to _backup/)")
     p.add_argument("--rederive", action="store_true", help="re-derive decisions instead of replaying frozen ones")
@@ -986,7 +1039,8 @@ def main(argv: list[str] | None = None) -> int:
             inputs += sorted(Path(bcr).glob("*.csv")) + sorted(Path(bg).glob("*.csv"))
         out_dir, pre = (a.out_dir or market.gauge_out_dir()), False
     path = build_gauge_workbook(ds, out_dir, benchmark=bench, overwrite=a.overwrite, dated_copy=a.dated_copy, runs_dir=runs_dir,
-                                preclassified=pre, gauge_map=a.gauge_map, rederive=a.rederive, input_paths=inputs)
+                                preclassified=pre, gauge_map=a.gauge_map, app_feature_matrix=a.app_feature_matrix,
+                                rederive=a.rederive, input_paths=inputs)
     if not pre:
         decisions = sorted((Path(runs_dir) / a.month).glob(f"*_{a.market}_*.csv"))
         if decisions:

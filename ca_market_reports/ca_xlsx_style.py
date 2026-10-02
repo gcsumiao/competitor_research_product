@@ -450,6 +450,24 @@ def write_line(ws: Worksheet, row: int, text: str, market: Market, *, role: str,
                       dataset_filter=dataset_filter, allowed_markets=(market.code,))
 
 
+def write_number(ws: Worksheet, row: int, col: int, value: Any, market: Market, *, label: str, kind: str = "int",
+                 role: str = "kpi", dataset_filter: str = "") -> TableRange:
+    """One static numeric cell registered as a one-cell table (e.g. a count the memo cites next to a text line)."""
+    if role not in C.TABLE_ROLES:
+        raise ValueError(role)
+    if kind not in NUMERIC_KINDS:
+        raise ValueError(f"write_number needs a numeric kind, got {kind!r}")
+    if _is_blank(value):
+        raise ValueError(f"write_number({label!r}): missing value")
+    cell = ws.cell(row, col)
+    _write_value(cell, value, ColumnSpec(label, "v", kind), {}, market)
+    cell.font = Font(bold=True)
+    cell.border = BORDER
+    return TableRange(sheet=ws.title, role=role, header_row=None, first_data_row=row, last_data_row=row, total_row=None,
+                      residual_row=None, first_col=col, last_col=col, columns=[label], charts=[], title=label,
+                      dataset_filter=dataset_filter, allowed_markets=(market.code,))
+
+
 def hide_zero_revenue_rows(ws: Worksheet, table_range: TableRange) -> int:
     """Hide (never delete) data rows whose revenue is exactly 0. Only for brand summary tables. Returns the hidden count."""
     if table_range.role != "summary_brands":
@@ -745,6 +763,11 @@ class Book:
 
     def line(self, ws: Worksheet, row: int, text: str, **kw) -> TableRange:
         tr = write_line(ws, row, text, self.market, **kw)
+        self.tables.append(tr)
+        return tr
+
+    def number(self, ws: Worksheet, row: int, col: int, value: Any, **kw) -> TableRange:
+        tr = write_number(ws, row, col, value, self.market, **kw)
         self.tables.append(tr)
         return tr
 
