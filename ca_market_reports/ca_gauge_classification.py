@@ -19,8 +19,8 @@ fuel_scope (FEATURE_FUEL_SCOPE: gas | diesel-capable | universal | unspecified),
     * tuner_with_gauge_display / truck_gauge_monitor rows: MODEL-NUMBER evidence first (_MODEL_FUEL_RULES, memo research):
         Bully Dog  4041x | 40430 | hemi plus | gt gas | gas gauge tuner   -> gas
         Bully Dog  4042x | gt diesel                                     -> diesel-capable
-        Edge Evolution 85400-* | 85401-*                                 -> diesel-capable
-        Edge Evolution 8545x | cts2 gas | gas evolution                  -> gas
+        Edge Evolution 85400 | 85401 (bare or -suffixed)                -> diesel-capable
+        Edge Evolution 8545x (bare or -suffixed) | cts2 gas | gas evolution -> gas
         Edge Insight cts3 | insight cs2 | insight+ | 84130 | 84140       -> universal (gas and diesel by design)
         Banks idash | datamonster | data pro                             -> universal
       then the title tokens (diesel|dpf|egt|def|regen -> diesel-capable; gas|gasoline|petrol|hemi -> gas) as a cross-check:
@@ -236,8 +236,8 @@ _GAS_RE = re.compile(r"\bgas\b|gasoline|petrol|\bhemi\b", re.I)          # HEMI 
 _MODEL_FUEL_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\b4041\d\b|\b40430\b|hemi plus|gt gas|gas gauge tuner", re.I), "gas"),            # Bully Dog gas
     (re.compile(r"\b4042\d\b|gt diesel", re.I), "diesel-capable"),                                 # Bully Dog diesel
-    (re.compile(r"\b85400-|\b85401-", re.I), "diesel-capable"),                                     # Edge Evolution CTS3 diesel
-    (re.compile(r"\b8545\d\b|cts2 gas|gas evolution", re.I), "gas"),                                # Edge Evolution gas
+    (re.compile(r"\b8540[01](?:-\d+)?\b", re.I), "diesel-capable"),                                   # Edge Evolution CTS3 diesel
+    (re.compile(r"\b8545\d(?:-\d+)?\b|cts2 gas|gas evolution", re.I), "gas"),                              # Edge Evolution gas
     (re.compile(r"insight cts3|insight cs2|insight\+|\b84130|\b84140", re.I), "universal"),        # Edge Insight monitors
     (re.compile(r"idash|datamonster|data pro", re.I), "universal"),                                  # Banks iDash
 )
