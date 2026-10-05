@@ -97,6 +97,50 @@ class BlcktecActualsExactnessTest(unittest.TestCase):
         self.assertIn("revenue=5,000.00", message)
         self.assertIn("units=20", message)
 
+    def test_unmapped_zero_sales_code_is_skipped_with_log(self) -> None:
+        market = pd.DataFrame(
+            [self._market_row("ASIN440", "BLCKTEC 440 scanner", "blcktec", 5, 500.0)]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            actuals_path = Path(tmp) / "blcktec202609.xlsx"
+            self._write_model_actuals(
+                actuals_path,
+                [("440", 12, 1234.56), ("410", 0, 0.0)],
+                month="202609",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                actuals = _read_blcktec(actuals_path, month="202609", market_df_for_mapping=market)
+
+        self.assertEqual(actuals["ASIN"].tolist(), ["ASIN440"])
+        self.assertEqual(actuals["Monthly Sales"].sum(), 12)
+        self.assertAlmostEqual(actuals["Monthly Revenue"].sum(), 1234.56, places=2)
+        self.assertIn("unmapped zero-sales code skipped", stdout.getvalue())
+        self.assertIn("code=410", stdout.getvalue())
+
+    def test_unmapped_nonzero_code_still_raises_even_if_another_unmapped_code_is_zero(self) -> None:
+        market = pd.DataFrame(
+            [self._market_row("ASIN440", "BLCKTEC 440 scanner", "blcktec", 5, 500.0)]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            actuals_path = Path(tmp) / "blcktec202609.xlsx"
+            self._write_model_actuals(
+                actuals_path,
+                [("440", 12, 1234.56), ("410", 0, 0.0), ("420XL", 3, 120.0)],
+                month="202609",
+            )
+            with redirect_stdout(io.StringIO()):
+                with self.assertRaises(KeyError) as caught:
+                    _read_blcktec(actuals_path, month="202609", market_df_for_mapping=market)
+
+        message = str(caught.exception)
+        self.assertIn("code=420XL", message)
+        self.assertIn("revenue=120.00", message)
+        self.assertIn("units=3", message)
+        self.assertNotIn("code=410", message)
+
     def test_unmatched_blcktec_is_dropped_audited_and_total_matches_actuals(self) -> None:
         market = pd.DataFrame(
             [

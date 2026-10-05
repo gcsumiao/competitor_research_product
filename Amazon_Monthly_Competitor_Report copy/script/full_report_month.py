@@ -846,6 +846,15 @@ def _read_blcktec(path: Path, month: str, market_df_for_mapping: pd.DataFrame | 
         .groupby("Code", sort=False, as_index=False)[["Monthly Sales", "Monthly Revenue"]]
         .sum()
     )
+    zero_sales_mask = (
+        unmapped["Monthly Sales"].fillna(0).eq(0) & unmapped["Monthly Revenue"].fillna(0).eq(0)
+    )
+    for _, row in unmapped[zero_sales_mask].iterrows():
+        print(
+            f"BLCKTEC unmapped zero-sales code skipped: code={row['Code']} "
+            "(no current-month listing; units=0, revenue=0.00)"
+        )
+    unmapped = unmapped[~zero_sales_mask]
     if not unmapped.empty:
         details = "; ".join(
             f"code={row['Code']}, revenue={float(row['Monthly Revenue']):,.2f}, "
