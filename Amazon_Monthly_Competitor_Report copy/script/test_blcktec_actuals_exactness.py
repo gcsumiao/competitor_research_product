@@ -15,14 +15,17 @@ from full_report_month import _apply_actuals, _read_blcktec
 
 class BlcktecActualsExactnessTest(unittest.TestCase):
     @staticmethod
-    def _write_model_actuals(path: Path, rows: list[tuple[str, int, float]], month: str = "202608") -> None:
+    def _write_model_actuals(
+        path: Path, rows: list[tuple[str, int | None, float | None]], month: str = "202608"
+    ) -> None:
+        # None writes a genuinely blank cell; duplicate code rows are written as given.
         period = pd.Period(month, freq="M")
         date_range = f"{period.start_time:%m/%d/%Y} - {period.end_time:%m/%d/%Y}"
         workbook_rows = [
             [date_range, None, None],
             ["Model", "Unit Sold", "Revenue"],
             *rows,
-            ["Total", sum(row[1] for row in rows), sum(row[2] for row in rows)],
+            ["Total", sum(row[1] or 0 for row in rows), sum(row[2] or 0 for row in rows)],
         ]
         pd.DataFrame(workbook_rows).to_excel(path, header=False, index=False)
 
@@ -140,6 +143,70 @@ class BlcktecActualsExactnessTest(unittest.TestCase):
         self.assertIn("revenue=120.00", message)
         self.assertIn("units=3", message)
         self.assertNotIn("code=410", message)
+
+    def test_all_codes_unmapped_and_zero_raises_instead_of_empty_frame(self) -> None:
+        market = pd.DataFrame(
+            [self._market_row("ASIN440", "BLCKTEC 440 scanner", "blcktec", 5, 500.0)]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            actuals_path = Path(tmp) / "blcktec202609.xlsx"
+            self._write_model_actuals(
+                actuals_path,
+                [("410", 0, 0.0), ("415", 0, 0.0)],
+                month="202609",
+            )
+            with redirect_stdout(io.StringIO()):
+                with self.assertRaises(KeyError) as caught:
+                    _read_blcktec(actuals_path, month="202609", market_df_for_mapping=market)
+
+        message = str(caught.exception)
+        self.assertIn("none mapped", message)
+        self.assertIn("410", message)
+        self.assertIn("415", message)
+
+    def test_offsetting_unmapped_rows_still_raise(self) -> None:
+        market = pd.DataFrame(
+            [self._market_row("ASIN440", "BLCKTEC 440 scanner", "blcktec", 5, 500.0)]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            actuals_path = Path(tmp) / "blcktec202609.xlsx"
+            self._write_model_actuals(
+                actuals_path,
+                [("440", 12, 1234.56), ("410", 5, 100.0), ("410", -5, -100.0)],
+                month="202609",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                with self.assertRaises(KeyError) as caught:
+                    _read_blcktec(actuals_path, month="202609", market_df_for_mapping=market)
+
+        self.assertIn("code=410", str(caught.exception))
+        self.assertNotIn("zero-sales code skipped", stdout.getvalue())
+
+    def test_blank_cells_on_unmapped_code_raise_not_skip(self) -> None:
+        market = pd.DataFrame(
+            [self._market_row("ASIN440", "BLCKTEC 440 scanner", "blcktec", 5, 500.0)]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            actuals_path = Path(tmp) / "blcktec202609.xlsx"
+            self._write_model_actuals(
+                actuals_path,
+                [("440", 12, 1234.56), ("410", None, None)],
+                month="202609",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                with self.assertRaises(KeyError) as caught:
+                    _read_blcktec(actuals_path, month="202609", market_df_for_mapping=market)
+
+        message = str(caught.exception)
+        self.assertIn("code=410", message)
+        self.assertIn("revenue=nan", message)
+        self.assertIn("units=nan", message)
+        self.assertNotIn("zero-sales code skipped", stdout.getvalue())
 
     def test_unmatched_blcktec_is_dropped_audited_and_total_matches_actuals(self) -> None:
         market = pd.DataFrame(

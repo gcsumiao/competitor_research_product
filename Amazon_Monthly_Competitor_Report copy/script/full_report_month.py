@@ -841,14 +841,27 @@ def _read_blcktec(path: Path, month: str, market_df_for_mapping: pd.DataFrame | 
 
     mapped = data.copy()
     mapped["ASIN"] = mapped["Code"].map(code_to_asin)
+    value_cols = ["Monthly Sales", "Monthly Revenue"]
+    unmapped_rows = mapped.loc[mapped["ASIN"].isna(), ["Code", *value_cols]]
+    unmapped_codes = unmapped_rows["Code"]
+    # Zero-ness is decided per ROW before grouping: an unmapped code is skipped only when
+    # every one of its rows has exactly 0 units and 0 revenue. Offsetting +/- rows must not
+    # cancel into a skip, and a blank/unparseable cell (NaN) is not zero.
+    code_is_zero = (
+        (unmapped_rows["Monthly Sales"].eq(0) & unmapped_rows["Monthly Revenue"].eq(0))
+        .groupby(unmapped_codes, sort=False)
+        .all()
+    )
+    # Per-code totals keep NaN (any blank cell -> nan) so the error shows "nan", never a fake 0.
+    code_has_nan = unmapped_rows[value_cols].isna().groupby(unmapped_codes, sort=False).any()
     unmapped = (
-        mapped.loc[mapped["ASIN"].isna(), ["Code", "Monthly Sales", "Monthly Revenue"]]
-        .groupby("Code", sort=False, as_index=False)[["Monthly Sales", "Monthly Revenue"]]
+        unmapped_rows[value_cols]
+        .groupby(unmapped_codes, sort=False)
         .sum()
+        .mask(code_has_nan)
+        .reset_index()
     )
-    zero_sales_mask = (
-        unmapped["Monthly Sales"].fillna(0).eq(0) & unmapped["Monthly Revenue"].fillna(0).eq(0)
-    )
+    zero_sales_mask = unmapped["Code"].map(code_is_zero).astype(bool)
     for _, row in unmapped[zero_sales_mask].iterrows():
         print(
             f"BLCKTEC unmapped zero-sales code skipped: code={row['Code']} "
@@ -867,6 +880,16 @@ def _read_blcktec(path: Path, month: str, market_df_for_mapping: pd.DataFrame | 
             "(or rerun via the carryover-zero pipeline route so the listing carries forward)."
         )
     mapped = mapped.dropna(subset=["ASIN"]).copy()
+    if mapped.empty and not data.empty:
+        # An empty frame means "no workbook" downstream (_apply_actuals / exactness guard
+        # skip), so a present workbook whose codes all skipped must never return one.
+        workbook_codes = data["Code"].drop_duplicates().tolist()
+        raise KeyError(
+            f"BLCKTEC workbook has {len(workbook_codes)} code(s) but none mapped to a current-month "
+            f"listing (codes: {', '.join(workbook_codes)}); refusing to treat a present workbook as "
+            "missing actuals. Add current-month BLCKTEC rows whose titles carry these model codes "
+            "(or rerun via the carryover-zero pipeline route so the listings carry forward)."
+        )
     return mapped[["ASIN", "Monthly Sales", "Monthly Revenue"]]
 
 
