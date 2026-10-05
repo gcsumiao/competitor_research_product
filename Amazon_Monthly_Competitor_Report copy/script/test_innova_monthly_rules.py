@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import contextlib
+import io
 import math
 import unittest
 
@@ -9,6 +11,8 @@ import pandas as pd
 from full_report_month import (
     INNOVA_ADDED_1P_COL,
     INNOVA_ADDED_3P_COL,
+    INNOVA_RATING_ZERO_EXCLUSION_BRAND,
+    INNOVA_RATING_ZERO_EXCLUSION_START_MONTH,
     INNOVA_RAW_PRESENT_COL,
     _apply_innova_monthly_rules,
     _brand_avg_ratings,
@@ -16,6 +20,7 @@ from full_report_month import (
     _classify_innova_3p_non_code_product,
     _filter_innova_3p_non_code_products,
     _innova_3p_non_code_exclusion_map,
+    _log_missing_rating_metadata,
 )
 
 
@@ -302,6 +307,76 @@ class InnovaAvgRatingRuleTest(unittest.TestCase):
             ]
         )
         self.assertEqual(_brand_avg_ratings(market, "202607").loc["innova"], 4.2)
+
+
+class BlcktecAvgRatingRuleTest(unittest.TestCase):
+    # Real September 2026 shape: seven rated BLCKTEC ASINs, one at 0.
+    SEPT_2026_RATINGS = [4.4, 4.5, 4.3, 4.5, 0.0, 4.5, 4.4]
+
+    def _market(self, include_nan: bool = True) -> pd.DataFrame:
+        rows = [
+            {"ASIN": f"BLK{i}", "Title": f"BLCKTEC {i}", "Brand": "blcktec", "Reviews Rating": r}
+            for i, r in enumerate(self.SEPT_2026_RATINGS)
+        ]
+        if include_nan:
+            rows.append({"ASIN": "BLKN", "Title": "BLCKTEC no rating", "Brand": "blcktec", "Reviews Rating": None})
+        rows += [
+            {"ASIN": "INN1", "Title": "Innova 1", "Brand": "innova", "Reviews Rating": 4.5},
+            {"ASIN": "INN0", "Title": "Innova 0", "Brand": "innova", "Reviews Rating": 0.0},
+            {"ASIN": "AUT1", "Title": "Autel 1", "Brand": "autel", "Reviews Rating": 4.6},
+            {"ASIN": "AUT0", "Title": "Autel 0", "Brand": "autel", "Reviews Rating": 0.0},
+        ]
+        return pd.DataFrame(rows)
+
+    def test_202609_excludes_blcktec_zero_and_missing_ratings(self) -> None:
+        # (4.4 + 4.5 + 4.3 + 4.5 + 4.5 + 4.4) / 6 = 4.433… -> 4.4
+        self.assertEqual(_brand_avg_ratings(self._market(), "202609").loc["blcktec"], 4.4)
+
+    def test_202608_keeps_zero_inclusive_mean_for_blcktec(self) -> None:
+        # (4.4 + 4.5 + 4.3 + 4.5 + 0 + 4.5 + 4.4) / 7 = 3.8
+        self.assertEqual(_brand_avg_ratings(self._market(include_nan=False), "202608").loc["blcktec"], 3.8)
+        # skipna mean: the NaN row does not change the pre-rule value.
+        self.assertEqual(_brand_avg_ratings(self._market(), "202608").loc["blcktec"], 3.8)
+
+    def test_rule_does_not_touch_other_brands(self) -> None:
+        ratings = _brand_avg_ratings(self._market(), "202609")
+        self.assertEqual(ratings.loc["autel"], 2.3)
+
+    def test_innova_rule_unchanged_by_extension(self) -> None:
+        market = self._market()
+        self.assertEqual(_brand_avg_ratings(market, "202607").loc["innova"], 4.5)
+        self.assertEqual(_brand_avg_ratings(market, "202606").loc["innova"], 2.2)
+        # BLCKTEC stays zero-inclusive in Innova's first rule month.
+        self.assertEqual(_brand_avg_ratings(market, "202607").loc["blcktec"], 3.8)
+
+    def test_202609_blcktec_all_non_positive_is_nan(self) -> None:
+        market = pd.DataFrame(
+            [
+                {"ASIN": "A", "Brand": "blcktec", "Reviews Rating": 0.0},
+                {"ASIN": "B", "Brand": "blcktec", "Reviews Rating": None},
+            ]
+        )
+        self.assertTrue(math.isnan(_brand_avg_ratings(market, "202609").loc["blcktec"]))
+
+    def test_aliases_still_exist(self) -> None:
+        self.assertEqual(INNOVA_RATING_ZERO_EXCLUSION_START_MONTH, "202607")
+        self.assertEqual(INNOVA_RATING_ZERO_EXCLUSION_BRAND, "innova")
+
+    def _log(self, month: str) -> str:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _log_missing_rating_metadata(self._market(include_nan=False), month=month)
+        return buf.getvalue()
+
+    def test_log_prints_blcktec_exclusion_header_from_202609_only(self) -> None:
+        header = "BLCKTEC ASINs excluded from brand Ave Rating (rating <= 0, rule active 202609+):"
+        out_sep = self._log("202609")
+        self.assertIn(header, out_sep)
+        self.assertIn("blcktec BLK4 rating=0.0", out_sep)
+        self.assertIn("Innova ASINs excluded from brand Ave Rating (rating <= 0, rule active 202607+):", out_sep)
+        out_aug = self._log("202608")
+        self.assertNotIn("BLCKTEC ASINs excluded", out_aug)
+        self.assertIn("Innova ASINs excluded from brand Ave Rating (rating <= 0, rule active 202607+):", out_aug)
 
 
 if __name__ == "__main__":
