@@ -91,11 +91,16 @@ CARRYOVER_ZERO_COL = "_Carryover Zero"
 INNOVA_3P_NON_CODE_EXCLUSION_START_MONTH = "202607"
 # Brand -> first report month (YYYYMM) from which that brand's Ave Rating
 # excludes rows whose Reviews Rating is missing or <= 0. No backfill: months
-# before a brand's start keep the zero-inclusive mean.
+# before a brand's start keep the zero-inclusive mean. These are the per-brand
+# early starts; from RATING_ZERO_EXCLUSION_ALL_BRANDS_START_MONTH the rule
+# covers every brand. Entries here also drive the per-ASIN exclusion log lines.
 RATING_ZERO_EXCLUSION_START_MONTHS: dict[str, str] = {
     "innova": "202607",
     "blcktec": "202609",  # analyst decision 2026-10-05
 }
+# From this report month (YYYYMM) EVERY brand's Ave Rating excludes rows whose
+# Reviews Rating is missing or <= 0 (analyst decision 2026-10-05). No backfill.
+RATING_ZERO_EXCLUSION_ALL_BRANDS_START_MONTH = "202609"
 RATING_ZERO_EXCLUSION_LABELS: dict[str, str] = {"innova": "Innova", "blcktec": "BLCKTEC"}
 # Backward-compatible aliases (Innova-only names predate the mapping).
 INNOVA_RATING_ZERO_EXCLUSION_BRAND = "innova"
@@ -1450,6 +1455,9 @@ def _log_missing_rating_metadata(df: pd.DataFrame, month: str | None = None) -> 
             title = str(row.get("Title") or "").strip()
             print(f"  - {brand} {asin}: {title[:100]}")
 
+    if _rating_zero_exclusion_all_brands_active(month):
+        _log_all_brands_rating_exclusion_summary(df, b)
+
     if month and "Reviews Rating" in df.columns:
         rr = pd.to_numeric(df["Reviews Rating"], errors="coerce")
         for rule_brand, start_month in _active_rating_zero_exclusions(month).items():
@@ -1463,6 +1471,24 @@ def _log_missing_rating_metadata(df: pd.DataFrame, month: str | None = None) -> 
                 print(f"  - {row.get('Brand')} {row.get('ASIN')} rating={row.get('Reviews Rating')}: {title[:100]}")
 
 
+def _log_all_brands_rating_exclusion_summary(df: pd.DataFrame, brand_key: pd.Series) -> None:
+    """One summary block for the all-brands Ave Rating zero-exclusion rule."""
+    rr = pd.to_numeric(df.get("Reviews Rating", pd.Series(np.nan, index=df.index)), errors="coerce")
+    excluded = rr.isna() | (rr <= 0)
+    totals = brand_key.value_counts()
+    counts = brand_key[excluded].value_counts()
+    print(
+        f"Ave Rating zero-exclusion active ({RATING_ZERO_EXCLUSION_ALL_BRANDS_START_MONTH}+): "
+        f"{int(excluded.sum())} listings with rating <= 0 or missing excluded across {len(counts)} brands"
+    )
+    for name, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):
+        print(f"  - {name}: {int(n)} of {int(totals[name])} listings excluded")
+
+
+def _rating_zero_exclusion_all_brands_active(month: str | None) -> bool:
+    return bool(month) and month >= RATING_ZERO_EXCLUSION_ALL_BRANDS_START_MONTH
+
+
 def _active_rating_zero_exclusions(month: str | None) -> dict[str, str]:
     """Brands whose rating zero-exclusion rule is active for `month` -> start month."""
     if not month:
@@ -1473,13 +1499,19 @@ def _active_rating_zero_exclusions(month: str | None) -> dict[str, str]:
 def _brand_avg_ratings(market: pd.DataFrame, month: str | None) -> pd.Series:
     """Per-brand mean of the current-month Reviews Rating, rounded to 1 decimal.
 
-    For each brand in RATING_ZERO_EXCLUSION_START_MONTHS (innova from 202607,
-    blcktec from 202609), once `month` reaches that brand's start month, rows
-    whose Reviews Rating is missing or <= 0 are excluded from that brand's
-    denominator (NaN when no positive rating remains). Every other brand, and
-    every month before a brand's start month, keeps the original skipna mean
-    (zero ratings included).
+    From RATING_ZERO_EXCLUSION_ALL_BRANDS_START_MONTH (202609) rows whose
+    Reviews Rating is missing or <= 0 are excluded from EVERY brand's
+    denominator (NaN when a brand has no positive rating).
+
+    Before that, each brand in RATING_ZERO_EXCLUSION_START_MONTHS (innova from
+    202607) gets the same exclusion once `month` reaches its start month; every
+    other brand, and every month before a brand's start month, keeps the
+    original skipna mean (zero ratings included). `month=None` is the legacy
+    zero-inclusive mean.
     """
+    if _rating_zero_exclusion_all_brands_active(month):
+        rr = pd.to_numeric(market["Reviews Rating"], errors="coerce")
+        return rr.where(rr > 0).groupby(market["Brand"]).mean().round(1)
     ratings = market.groupby(["Brand"])["Reviews Rating"].mean()
     for rule_brand in _active_rating_zero_exclusions(month):
         brand_mask = market["Brand"].eq(rule_brand)

@@ -14,6 +14,7 @@ from full_report_month import (
     INNOVA_RATING_ZERO_EXCLUSION_BRAND,
     INNOVA_RATING_ZERO_EXCLUSION_START_MONTH,
     INNOVA_RAW_PRESENT_COL,
+    RATING_ZERO_EXCLUSION_ALL_BRANDS_START_MONTH,
     _apply_innova_monthly_rules,
     _brand_avg_ratings,
     _build_innova_account_sheet,
@@ -338,9 +339,11 @@ class BlcktecAvgRatingRuleTest(unittest.TestCase):
         # skipna mean: the NaN row does not change the pre-rule value.
         self.assertEqual(_brand_avg_ratings(self._market(), "202608").loc["blcktec"], 3.8)
 
-    def test_rule_does_not_touch_other_brands(self) -> None:
-        ratings = _brand_avg_ratings(self._market(), "202609")
-        self.assertEqual(ratings.loc["autel"], 2.3)
+    def test_other_brand_zero_excluded_from_202609_but_not_202608(self) -> None:
+        # 202609: the all-brands rule drops autel's 0 too -> 4.6 / 1 = 4.6.
+        self.assertEqual(_brand_avg_ratings(self._market(), "202609").loc["autel"], 4.6)
+        # 202608: autel keeps the zero-inclusive mean (4.6 + 0) / 2 = 2.3.
+        self.assertEqual(_brand_avg_ratings(self._market(), "202608").loc["autel"], 2.3)
 
     def test_innova_rule_unchanged_by_extension(self) -> None:
         market = self._market()
@@ -377,6 +380,130 @@ class BlcktecAvgRatingRuleTest(unittest.TestCase):
         out_aug = self._log("202608")
         self.assertNotIn("BLCKTEC ASINs excluded", out_aug)
         self.assertIn("Innova ASINs excluded from brand Ave Rating (rating <= 0, rule active 202607+):", out_aug)
+
+
+class AllBrandsAvgRatingRuleTest(unittest.TestCase):
+    SUMMARY_PREFIX = "Ave Rating zero-exclusion active (202609+):"
+
+    def _market(self) -> pd.DataFrame:
+        rows = []
+        for brand, ratings in (
+            ("autel", [4.6, 0.0]),
+            ("launch", [4.4, 4.2, 0.0, None]),
+            ("generic", [0.0, 0.0, 3.0]),
+        ):
+            rows += [
+                {"ASIN": f"{brand.upper()}{i}", "Title": f"{brand} {i}", "Brand": brand, "Reviews Rating": r}
+                for i, r in enumerate(ratings)
+            ]
+        return pd.DataFrame(rows)
+
+    def _log(self, market: pd.DataFrame, month: str) -> str:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _log_missing_rating_metadata(market, month=month)
+        return buf.getvalue()
+
+    def test_start_month_constant(self) -> None:
+        self.assertEqual(RATING_ZERO_EXCLUSION_ALL_BRANDS_START_MONTH, "202609")
+
+    def test_202609_excludes_zero_and_missing_for_all_brands(self) -> None:
+        ratings = _brand_avg_ratings(self._market(), "202609")
+        self.assertEqual(ratings.loc["autel"], 4.6)  # 4.6 / 1
+        self.assertEqual(ratings.loc["launch"], 4.3)  # (4.4 + 4.2) / 2
+        self.assertEqual(ratings.loc["generic"], 3.0)  # 3.0 / 1
+
+    def test_202608_keeps_zero_inclusive_mean_for_all_brands(self) -> None:
+        ratings = _brand_avg_ratings(self._market(), "202608")
+        self.assertEqual(ratings.loc["autel"], 2.3)  # (4.6 + 0) / 2
+        self.assertEqual(ratings.loc["launch"], 2.9)  # (4.4 + 4.2 + 0) / 3, NaN skipped
+        self.assertEqual(ratings.loc["generic"], 1.0)  # (0 + 0 + 3.0) / 3
+
+    def test_202609_brand_with_only_zero_or_missing_is_nan(self) -> None:
+        market = pd.concat(
+            [
+                self._market(),
+                pd.DataFrame(
+                    [
+                        {"ASIN": "FOX0", "Brand": "foxwell", "Reviews Rating": 0.0},
+                        {"ASIN": "FOXN", "Brand": "foxwell", "Reviews Rating": None},
+                    ]
+                ),
+            ],
+            ignore_index=True,
+        )
+        self.assertTrue(math.isnan(_brand_avg_ratings(market, "202609").loc["foxwell"]))
+        self.assertEqual(_brand_avg_ratings(market, "202608").loc["foxwell"], 0.0)
+
+    def test_house_brand_rules_unchanged(self) -> None:
+        blk = BlcktecAvgRatingRuleTest()._market()
+        self.assertEqual(_brand_avg_ratings(blk, "202609").loc["blcktec"], 4.4)
+        self.assertEqual(_brand_avg_ratings(blk, "202608").loc["blcktec"], 3.8)
+        inn = InnovaAvgRatingRuleTest()._market()
+        self.assertEqual(_brand_avg_ratings(inn, "202606").loc["innova"], 2.9)
+        for m in ("202607", "202608", "202609"):
+            self.assertEqual(_brand_avg_ratings(inn, m).loc["innova"], 4.3)
+
+    def test_month_none_keeps_legacy_zero_inclusive_values(self) -> None:
+        market = self._market()
+        legacy = market.groupby(["Brand"])["Reviews Rating"].mean().round(1)
+        pd.testing.assert_series_equal(_brand_avg_ratings(market, None), legacy)
+        self.assertEqual(_brand_avg_ratings(market, None).loc["autel"], 2.3)
+
+    def test_202609_results_rounded_to_one_decimal(self) -> None:
+        market = pd.DataFrame(
+            [
+                {"ASIN": "A1", "Brand": "autel", "Reviews Rating": r} for r in (4.5, 4.0, 4.0, 0.0)
+            ]
+            + [{"ASIN": "L1", "Brand": "launch", "Reviews Rating": r} for r in (4.7, 4.6, 4.6, 0.0, None)]
+        )
+        ratings = _brand_avg_ratings(market, "202609")
+        self.assertEqual(ratings.loc["autel"], 4.2)  # 12.5 / 3 = 4.1666…
+        self.assertEqual(ratings.loc["launch"], 4.6)  # 13.9 / 3 = 4.6333…
+        pd.testing.assert_series_equal(ratings, ratings.round(1))
+
+    def test_summary_log_header_and_counts_202609_only(self) -> None:
+        out = self._log(self._market(), "202609")
+        lines = out.splitlines()
+        header = f"{self.SUMMARY_PREFIX} 5 listings with rating <= 0 or missing excluded across 3 brands"
+        self.assertIn(header, lines)
+        i = lines.index(header)
+        # Sorted by excluded count desc (ties by brand name).
+        self.assertEqual(
+            lines[i + 1 : i + 4],
+            [
+                "  - generic: 2 of 3 listings excluded",
+                "  - launch: 2 of 4 listings excluded",
+                "  - autel: 1 of 2 listings excluded",
+            ],
+        )
+        self.assertNotIn(self.SUMMARY_PREFIX, self._log(self._market(), "202608"))
+
+    def test_202609_per_asin_detail_only_for_house_brands(self) -> None:
+        market = pd.DataFrame(
+            [
+                {"ASIN": "INN1", "Brand": "innova", "Reviews Rating": 4.5, "Review Count": 10},
+                {"ASIN": "INN0", "Brand": "innova", "Reviews Rating": 0.0, "Review Count": 0},
+                {"ASIN": "BLK1", "Brand": "blcktec", "Reviews Rating": 4.4, "Review Count": 10},
+                {"ASIN": "BLK0", "Brand": "blcktec", "Reviews Rating": 0.0, "Review Count": 0},
+                {"ASIN": "AUT1", "Brand": "autel", "Reviews Rating": 4.6, "Review Count": 10},
+                {"ASIN": "AUT0", "Brand": "autel", "Reviews Rating": 0.0, "Review Count": 0},
+            ]
+        )
+        out = self._log(market, "202609")
+        self.assertIn(f"{self.SUMMARY_PREFIX} 3 listings with rating <= 0 or missing excluded across 3 brands", out)
+        self.assertIn("Innova ASINs excluded from brand Ave Rating (rating <= 0, rule active 202607+):", out)
+        self.assertIn("innova INN0 rating=0.0", out)
+        self.assertIn("BLCKTEC ASINs excluded from brand Ave Rating (rating <= 0, rule active 202609+):", out)
+        self.assertIn("blcktec BLK0 rating=0.0", out)
+        self.assertNotIn("AUT0 rating=", out)
+
+    def test_summary_log_survives_missing_rating_and_review_columns(self) -> None:
+        market = self._market().drop(columns=["Reviews Rating"])
+        out = self._log(market, "202609")
+        # No rating column -> every listing counts as missing.
+        self.assertIn(f"{self.SUMMARY_PREFIX} 9 listings with rating <= 0 or missing excluded across 3 brands", out)
+        self.assertNotIn(self.SUMMARY_PREFIX, self._log(market, "202608"))
 
 
 if __name__ == "__main__":
