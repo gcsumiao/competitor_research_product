@@ -1,0 +1,321 @@
+asin,gauge_class,borderline,reason,decided_by,decided_month
+B087WMGLF1,truck_gauge_monitor,N,Insight CTS3 flagship gauge monitor,us_map_port,202609
+B0BFBQZZMC,gauge_display,N,ScanGauge 3 touchscreen gauges + trip computer,us_map_port,202609
+B000AAMY86,gauge_display,N,ScanGauge SG2 compact 3-in-1 trip computer,us_map_port,202609
+B06XWX7FHK,truck_gauge_monitor,N,Insight CS2 gauge monitor,us_map_port,202609
+B088FZRTNZ,truck_gauge_monitor,N,Insight CTS3 + EGT probe kit (3P seller),us_map_port,202609
+B087P84G95,excluded_non_gauge,N,"LS ECM bench flash harness (tuning infrastructure, no display)",us_map_port,202609
+B0CN9CQH1Q,excluded_app_dongle,N,"AUTOPHIX app dongle; HUD/gauge is an app mode, not a physical display",us_map_port,202609
+B08GYLXJ1V,obd_hud,N,KW206 dash-top digital meter marketed as HUD,us_map_port,202609
+B0929GLS2M,truck_gauge_monitor,N,"Insight CTS3 kit (3P seller, delisted)",us_map_port,202609
+B07FFF4457,gauge_display,Y,SOLO2 DL GPS lap timer + OBD dash logger (track-focused display),us_map_port,202609
+B01BI2PQNY,gauge_display,N,X-Series 52mm OBDII gauge,us_map_port,202609
+B0CT39TV55,excluded_app_dongle,N,ANCEL BD330 app dongle (matched via gauge/dash keywords),us_map_port,202609
+B0CHWH5R2Y,excluded_non_gauge,N,"AEV ProCal SNAP: speedometer/tire-size CALIBRATION programmer, no display",us_map_port,202609
+B08RDQ98WF,obd_hud,N,Xf OBD2 gauge display + heads-up combo,us_map_port,202609
+B07DQ44JFB,gauge_display,Y,OBD towing-weight gauge (app-based display),us_map_port,202609
+B0B2MMYSK7,gauge_accessory,N,OBDII-HDMI cable for Edge CS2/CTS2/CTS3,us_map_port,202609
+B0CYQ53QQC,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B08KTTCKJ8,excluded_non_gauge,N,Thinkware dash-cam OBD power cable,us_map_port,202609
+B08YJLFVW7,tuner_with_gauge_display,N,Evolution CTS3 tuner + gauge display (CA edition),us_map_port,202609
+B084KPRZ9J,truck_gauge_monitor,N,iDash 1.8 DataMonster OBD gauge display,us_map_port,202609
+B00ZDNJ820,tuner_with_gauge_display,N,Juice w/Attitude CS2 diesel module + display,us_map_port,202609
+B0CSP3HH75,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0FYBYDDCW,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0C84SXM31,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B09LVGFJFT,gauge_display,N,Multi-function digital gauge/speedometer,us_map_port,202609
+B09528YXS2,gauge_display,N,Digital Dash w/ GPS for ECU Master (racing dash),us_map_port,202609
+B0DCQSKMPS,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B08F5J9DCN,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0DLZFHVLV,tuner_with_gauge_display,N,Evolution CTS3 w/ Locksmith (85400-261),us_map_port,202609
+B0CRDY7JG5,excluded_app_dongle,N,ANCEL BD320 app dongle,us_map_port,202609
+B0BTHCB8DC,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B09ZDNM987,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B0F3XHP8FF,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0CHWHRJVQ,excluded_non_gauge,N,"AEV ProCal SNAP (Jeep): calibration programmer, no display",us_map_port,202609
+B01MZ3ZURG,gauge_display,N,X-Series 52mm OBDII gauge (black),us_map_port,202609
+B0D3H41DJS,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0C84V61GP,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0BFF1S38B,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0DLZ9CFVQ,tuner_with_gauge_display,N,Evolution CTS3 w/ Locksmith (85400-262),us_map_port,202609
+B07YBKRKKC,excluded_non_gauge,N,Thinkware dash-cam OBD install cable (EV),us_map_port,202609
+B08QC54PMN,obd_hud,N,V70 OBD2 gauge cluster HUD,us_map_port,202609
+B09MMXHWRP,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B0B311NPRZ,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B0DCQQQFJD,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0DBHQ1B44,excluded_non_gauge,N,Tacho Pro odometer/dash correction tool,us_map_port,202609
+B0BFF5LG3Y,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0D8VWT838,excluded_non_gauge,N,memory saver / battery-swap power supply,us_map_port,202609
+B0DJ26N75T,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0CRD2G581,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0CLJ9SM1G,excluded_non_gauge,N,COPACHI golf-cart on-board computer (charger controller part),us_map_port,202609
+B0CM5Z2YRT,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0FN3WQRJL,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B07L8HMKKG,obd_hud,N,X50 Plus OBD HUD digital meter,us_map_port,202609
+B09Y8WTFLQ,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B0CWKJ234K,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B016MXHD7Q,gauge_display,N,DashControl DL1010U OBDII display controller,us_map_port,202609
+B0897PDPGH,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0C2PQ7CNY,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0BFF2RTDF,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B085B14JFZ,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0GNCW4XKM,truck_gauge_monitor,N,iDash Data Pro standalone CAN gauge system,us_map_port,202609
+B01HET7ANE,obd_hud,N,X50 Plus HUD (variant listing),us_map_port,202609
+B0FBRDK9RR,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0DNMNDYXV,obd_hud,N,Magician F835 Plus OBD HUD (boost/speed/temp),us_map_port,202609
+B0CS5VB5D7,obd_gps_hud,Y,M13PLUS OBD2+GPS speedometer HUD (hybrid),us_map_port,202609
+B0D2SHD82B,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0F2MLBZRQ,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0CWKJXJ5Q,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0BZPLS7YF,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0F5PY47X6,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0FDGF57P5,gauge_display,N,FD EVO slim OBD2 digital gauge display,us_map_port,202609
+B09WYZGLW3,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B078C6NMQM,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0CB1MZG5D,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0DBZ792K2,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0FXR4HPG7,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0CJPTQFT1,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0B8SP322C,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B0DQ8B6NR7,excluded_non_gauge,N,instrument-cluster / IMMO bench tool,us_map_port,202609
+B0C3R1QFJT,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0DMFCFDTK,excluded_non_gauge,N,instrument-cluster / IMMO bench tool,us_map_port,202609
+B09MMWXDK8,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B0DJ8MT5XM,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0FPPV7CPV,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0F1K1F77X,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0FXR6T341,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0B7WY6PSG,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B0CT3HCJ53,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B098X2HH1F,excluded_non_gauge,N,not a gauge/dashboard display product,us_map_port,202609
+B0FGN4MBD2,excluded_non_gauge,N,LAUNCH tire tread depth gauge (not vehicle-data display),us_map_port,202609
+B0D3H4JH11,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0DGL71X7R,excluded_non_gauge,N,not a gauge/dashboard display product,us_map_port,202609
+B0DWLFFTCF,excluded_non_gauge,N,memory saver / battery-swap power supply,us_map_port,202609
+B07QYFMBPR,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0CS64Q7TF,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0CN2SXB45,excluded_non_gauge,N,instrument-cluster / IMMO bench tool,us_map_port,202609
+B09WVW1LS1,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0DQ124PS9,excluded_non_gauge,N,key programming tool,us_map_port,202609
+B0DF7KBNS7,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0B3TRR26X,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B016MXHKHY,gauge_display,N,DashControl DL1060U,us_map_port,202609
+B0F8NHG4KN,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B09H5V56PR,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0D81PKMJX,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0F1JTY7YH,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0C6QP44CZ,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B09QX7WWQS,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B016MXHGPA,gauge_display,N,DashControl DL1040U,us_map_port,202609
+B07QW1KK3W,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0DJ2B4F5T,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B01ETRJ3ES,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0CD216FZX,obd_hud,N,qians-branded X50 Plus HUD,us_map_port,202609
+B0F5H7V6C4,excluded_non_gauge,N,key programming tool,us_map_port,202609
+B0CHFP3XBF,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0DYDPPMSX,obd_gps_hud,Y,HOBS OBD+GPS HUD w/ projection film,us_map_port,202609
+B07QTZN7MW,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0B7HDFSMV,excluded_app_dongle,N,Viecar ELM327 app dongle with 'gauge' keyword in title,us_map_port,202609
+B0FMPJ6BLJ,truck_gauge_monitor,Y,iDash Pro upgrade kit bundled w/ PedalMonster,us_map_port,202609
+B0B214S8C8,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0B6Q1J79X,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0BR5QGN5K,gauge_display,N,Shadow Gauge 10-in-1 OBD2 D-Meter 2 RGB display,us_map_port,202609
+B0F5PZFDG8,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0F632ZS77,excluded_non_gauge,N,key programming tool,us_map_port,202609
+B09XDXTV77,excluded_non_gauge,N,"Liyeeo inclinometer 'HUD' (tilt meter, no OBD data)",us_map_port,202609
+B09K6PQ53C,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0FGD77WYD,obd_hud,N,KW206 HUD digital gauge (newer listing),us_map_port,202609
+B0FH4LRRJT,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0FH4MKYPM,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0D17K9X2P,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B08FYCGY7V,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B07R8YWWDZ,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0CC5MTDB7,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0D1VMMNY1,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0GGGDHCQQ,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0BR3HCQLR,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0DPM16FN1,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B01BIKCP1W,gauge_display,N,DashControl DL1066U,us_map_port,202609
+B0F2FGHXB1,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0CPDY1VGQ,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0D14FGC3K,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0B6PZ3S8D,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B08NG6NGBM,obd_hud,N,Xiangtat-branded KW206,us_map_port,202609
+B0FBVYV3W4,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0F635R8DM,excluded_non_gauge,N,key programming tool,us_map_port,202609
+B01N6XT4Y9,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B07B813BKT,obd_hud,N,HUD58OGC 5.8in heads-up LED display,us_map_port,202609
+B081TYNCG8,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0DCP2H5SX,obd_hud,N,C1 OBD2 LED HUD speedometer projector,us_map_port,202609
+B0CMPW46M8,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0FJZFCDYK,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0BWFFTH5X,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B0F2FKNGG4,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0CLTZ2B7Y,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0CGLF3TJV,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0FQ51GYBK,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0FJFMDBHT,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0C7YYH37M,excluded_non_gauge,N,MR CARTOOL M96 gyro inclinometer; OBD for power only,us_map_port,202609
+B0FPF15C9Y,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0CGHBKWNG,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0G1M6Q1NS,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0BFKMSWVN,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0F8NFML44,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0C61MRWR1,excluded_non_gauge,N,instrument-cluster / IMMO bench tool,us_map_port,202609
+B0F8H9MCNW,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0F8HFRDHR,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0D6F1T8TP,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B09P89BBRR,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0F8HHHCB4,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0CQLJ3SXR,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0BBW333GL,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B0GBW4F7BL,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0FSWVFC9V,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0FQ4Y71JB,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0CPDKJ7PZ,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0FRPN3WLB,gauge_accessory,N,OBD 7-pin to mini-USB cable for HUDs,us_map_port,202609
+B0BVMHVGKW,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0CKDR2T4C,obd_hud,N,2-in-1 OBD scanner + HUD on-board computer,us_map_port,202609
+B0F8HDMR3N,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0CM6279F8,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0FDWQSF4K,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0CLTZHBR9,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B099N4WV2Z,gauge_display,N,OBD2 on-board computer digital display (trip gauge),us_map_port,202609
+B0B3B6WSPR,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0F24KJGSS,excluded_non_gauge,N,instrument-cluster / IMMO bench tool,us_map_port,202609
+B01BIKCM7O,gauge_display,N,DashControl DL1061U,us_map_port,202609
+B0D1VMP22Z,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B017S9MSQY,gauge_display,N,DashControl DL1030U,us_map_port,202609
+B0871KBHKV,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B016MXHF42,gauge_display,N,DashControl DL1020U,us_map_port,202609
+B0CQ3VXLKJ,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B01BIKCLB6,gauge_display,N,DashControl DL1065U,us_map_port,202609
+B0D4LRMJ1F,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B08T75N4QZ,excluded_non_gauge,N,memory saver / battery-swap power supply,us_map_port,202609
+B09Z1QRYZJ,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B0CGH9QNKD,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0CQLLQKD3,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0DNMS74KC,obd_hud,N,Magician F936 Plus OBD HUD,us_map_port,202609
+B09R6S8DLM,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0D4LZV1S4,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0CXXM44JQ,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0BVMJN76M,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0BR52DQJB,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0GV75W4W4,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0GDXMR7CN,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B074K6RNDX,excluded_non_gauge,N,"VOYO OBD telematics tracker (trips/location), no display",us_map_port,202609
+B0GYF2LB7J,excluded_non_gauge,N,instrument-cluster / IMMO bench tool,us_map_port,202609
+B0D814TK58,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B08Y71KW31,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0BHYTG5LB,gauge_accessory,N,Edge OBDII-HDMI adapter cable,us_map_port,202609
+B0DPGM6FRJ,gauge_accessory,N,OBD to mini-USB extension for 5.5in HUD,us_map_port,202609
+B0C7C8G8T7,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0G5N9RH3C,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0DC5ZD8S8,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0FWQW6N5J,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0CHJL7SLR,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0FPF19DQ9,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0CLQZ141G,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0BNT43S3X,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0CPVNY22H,obd_hud,N,OBD HUD w/ LCD instrument + bracket,us_map_port,202609
+B0D57J2W12,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B09N8ZK5FV,excluded_non_gauge,N,memory saver / battery-swap power supply,us_map_port,202609
+B08H1K6YXR,excluded_non_gauge,N,key programming tool,us_map_port,202609
+B0DWSWL87L,gauge_display,N,DO907OBD gauge dash race display,us_map_port,202609
+B0FVLW81X1,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B0DP7G8FBF,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0CPSR5Z61,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B07MVWZYS9,excluded_non_gauge,N,non-OBD meter/gauge,us_map_port,202609
+B0F264CF5D,gauge_display,N,6.2in OBD2 gauge display w/ inclinometer + GPS dash,us_map_port,202609
+B07P6RLDTS,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0F6DB1BNG,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0FK18116K,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0GDXLH93X,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B09CKSDXKL,excluded_non_gauge,N,memory saver / battery-swap power supply,us_map_port,202609
+B0D6BTDHK8,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B09CKVPZ1T,excluded_non_gauge,N,memory saver / battery-swap power supply,us_map_port,202609
+B0CSN8RQKH,obd_hud,N,alchiauto-branded KW206 2-in-1,us_map_port,202609
+B0BYSTRK21,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B08M2RZCTD,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0DHL6GZHC,excluded_non_gauge,N,non-OBD meter/gauge,us_map_port,202609
+B09WLZR3CL,excluded_non_gauge,N,instrument-cluster / IMMO bench tool,us_map_port,202609
+B0DF87PBF5,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0FQ518ZF1,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0FNWNYL5G,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B07MVXW68X,excluded_non_gauge,N,non-OBD meter/gauge,us_map_port,202609
+B0871K9YQ2,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0DFH2V1V5,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0DBCP11R4,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B07JBZLRYZ,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0DFTPGPM1,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0F6VCNLD7,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B07MVWW727,excluded_non_gauge,N,non-OBD meter/gauge,us_map_port,202609
+B0GBSPCK9Y,excluded_non_gauge,N,Instrument-cluster KM filter (mileage blocker),us_map_port,202609
+B0CFB7M6Y5,obd_hud,N,OBD2 HUD windshield gauge display,us_map_port,202609
+B08BX3TC6C,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0CYPZMZ9B,obd_hud,N,OBD2 HUD windshield projector gauge,us_map_port,202609
+B08FYLV8KP,excluded_non_gauge,N,key programming tool,us_map_port,202609
+B0BMYX3VLP,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0D93428RL,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0BZY4N4C9,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B0CXSXZBHW,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0FMKQBMK9,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0B6FMVQ68,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B07MVXYY81,excluded_non_gauge,N,non-OBD meter/gauge,us_map_port,202609
+B0F5H48RXD,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0GDWT1MXG,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0DFTJ93NC,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0DKBJ4624,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B07MVW5NK8,excluded_non_gauge,N,non-OBD meter/gauge,us_map_port,202609
+B097BSLSK4,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B07MYFRJZ5,excluded_non_gauge,N,"SPR engine hour meter (small-engine gauge, not OBD)",us_map_port,202609
+B0C65Q91TZ,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0D475Z8D3,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0GC6RR78D,excluded_non_gauge,N,key programming tool,us_map_port,202609
+B0FR95FPYW,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0FPQL94C6,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B07MVW1KVZ,excluded_non_gauge,N,non-OBD meter/gauge,us_map_port,202609
+B07CGR1T5T,gauge_display,N,"ScanGauge II older listing (catalog presence, no est. sales)",us_map_port,202609
+B0FRNBRBYQ,obd_hud,N,OBD HUD speed/RPM/temp/voltage display,us_map_port,202609
+B0FXR4LBN9,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B073CSXVXS,obd_hud,N,HUD2 3in heads-up LED display,us_map_port,202609
+B0FR9623V7,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0B9S724ZK,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B07MYFB1LB,excluded_non_gauge,N,SPR engine hour meter,us_map_port,202609
+B07RYV1CJ2,obd_hud,N,Multi-function digital HUD meter,us_map_port,202609
+B0CRQH4V4Z,excluded_non_gauge,N,key programming tool,us_map_port,202609
+B0CQ2LPSDR,excluded_non_gauge,N,memory saver / battery-swap power supply,us_map_port,202609
+B0CP2KXMHZ,obd_hud,N,KW206 on-board computer display (variant),us_map_port,202609
+B0D5DB7C1J,excluded_non_gauge,N,instrument-cluster / IMMO bench tool,us_map_port,202609
+B0CL7DN4KQ,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0CKKZPKT9,obd_hud,N,lanema 2-in-1 scanner + HUD display,us_map_port,202609
+B0D928S7KT,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0CBKQNLS5,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0CBKPS527,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0DFGXBZB4,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0DFMPKNGB,excluded_non_gauge,N,E90 dashboard bezel (interior trim part),us_map_port,202609
+B0DFQKCGXF,excluded_non_gauge,N,diagnostic scanner / code reader (not a display device),us_map_port,202609
+B0BZW577P8,obd_hud,N,OBD display: RPM/speed/temp w/ alarm modes,us_map_port,202609
+B0BY8J8158,gauge_display,N,Leapiture DO907OBD LCD dashboard gauge cluster,us_map_port,202609
+B0DJVLJH43,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0BV6N5QPH,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B0BV5KFQZ5,gauge_display,N,OBD+GPS smart gauge HD speedometer display,us_map_port,202609
+B0DP5THFCX,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0DRNZ5PQ5,excluded_non_gauge,N,instrument-cluster / IMMO bench tool,us_map_port,202609
+B0DTYQYW1C,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0BG8JQJDS,obd_hud,N,wyyhaa 2-in-1 scanner + HUD display,us_map_port,202609
+B0BFDZXX1H,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B0BDRTB52N,gauge_display,N,Universal 2.8in multifunction OBD2 gauge,us_map_port,202609
+B0F1JVDSB2,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0CRV31XFY,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0B84MZYWS,gauge_accessory,N,Edge H00008000 replacement cable,us_map_port,202609
+B099N9FRD4,gauge_display,N,OBD2 on-board computer display (variant listing),us_map_port,202609
+B08FYBWVSY,excluded_non_gauge,N,OBD port wiring (splitter/pigtail/bracket/adapter),us_map_port,202609
+B07TZPNB5Y,excluded_non_gauge,N,SRS airbag simulator/resistor kit,us_map_port,202609
+B0H1WF21DG,excluded_non_gauge,N,dash-cam / power accessory,us_map_port,202609
+B0957S3F3H,obd_gps_hud,N,"wiiyii P6: CA title says OBD+GPS Smart Gauge; US title omits GPS, pin so both markets agree",t2_review_202609,202609
+B094TTNPQJ,obd_gps_hud,N,"Qiilu HUD: CA title says OBD2+GPS; US title truncated to 'OBD2+', pin so both markets agree",t2_review_202609,202609
+B0D4PS6K39,obd_gps_hud,N,TOWEBOORY HUD: CA title says OBD2 HUD + digital GPS speedometer; US title omits GPS,t2_review_202609,202609
+B07KGV1W55,excluded_app_dongle,N,"CDI Electronics SG2-0300 is a marine-engine Bluetooth diagnostic gateway; no screen, 'SG2' is not ScanGauge",t2_review_202609,202609
+B0BM4BX3CD,excluded_non_gauge,N,electric-motorcycle controller programming module; not a gauge or display,t2_review_202609,202609
+B0HFQQK8LP,excluded_non_gauge,N,"KONNWEI KW340 fault finder / CAN scan tester; diagnostic tool, no gauge display claim",t2_review_202609,202609

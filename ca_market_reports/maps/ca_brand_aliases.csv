@@ -1,0 +1,9 @@
+raw_key,canonical_key,note
+edge,edge products,"Helium10 brand 'EDGE' (Insight CTS3) and 'Edge Products' (Evolution/EAS) are one manufacturer"
+edge product,edge products,truncated variant
+bully dog,bully dog,canonical spelling (also 'BULLY DOG')
+bullydog,bully dog,no-space variant
+krazy on highways,edge products,US seller-name-as-brand artifact for Edge Insight CTS3 (never use as a brand)
+auto meter,autometer,"'AUTO METER' and 'AutoMeter' are one brand"
+motopower®,motopower,trademark glyph variant
+innova-ann,innova,US Romondes-seller artifact; CA has none but keep the alias

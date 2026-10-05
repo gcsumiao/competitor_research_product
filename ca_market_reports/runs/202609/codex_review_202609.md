@@ -1,0 +1,14 @@
+1. [P1] `ca_market_reports/validate_outputs.py:620` — V04 checks only rank 1. Swapping two later Top 50 rows can leave V04, the totals, and the ASIN checks passing while shipping a false ranking. Fix: compare every displayed rank, ASIN, revenue, and units with the independently sorted dataset; add a row-swap test.
+2. [P1] `ca_market_reports/build_gauge_report.py:1072` — the loader reads raw CSVs recursively, but the builder hashes only top-level CSVs; V19 repeats that gap at `validate_outputs.py:1397`. A used CSV in a subfolder can be absent from a passing manifest. Fix: use the loader’s discovered file list for both manifest generation and V19.
+3. [P2] `ca_market_reports/validate_outputs.py:419` — V09’s Model B app-capable counts depend on the builder’s `modelb_universe` function. A wrong brand-map join would produce the same wrong workbook and expected value. Fix: derive per-ASIN app capability directly from the typed CR rows and map in the validator, then compare the counts.
+4. [P2] `ca_market_reports/ca_gauge_classification.py:239` — the diesel model rule requires a hyphen after Edge `85400` or `85401`. Bare model titles classify as tuners with `fuel_scope=unspecified` (reproduced for both). Fix: match bare and suffixed model numbers and test both forms.
+5. [P2] `ca_market_reports/memo/CA_OBD_Gauge_Market_Memo_202609.md:317` — “only two listings” is an untagged dataset count, yet V20 passes because it checks existing tags only. Fix: add a workbook count cell and tag, or remove the count; make memo review reject untagged quantitative claims.
+6. [P2] `ca_market_reports/RUNBOOK.md:107` — the runbook says the final 202609 validation fails V07/V17 and gives 122 review rows, while the committed result passes 23/23 with 125 rows. It also gives no memo creation step for a new month before V20. Fix: update the recorded status and add a month-specific memo and source-tagging step before final validation.
+7. [P2] `ca_market_reports/validate_outputs.py:1653` — `--json` can write anywhere under `NewProductCategory/`, contrary to the stated path boundary; `render_preview.py:200` has the same exposure. Fix: reject output paths under that tree for non-builder tools and test the guard.
+
+PASS: Revenue comparisons stay in native CAD and USD; computed cross-market ratios use units.
+PASS: Source dedupe uses the stated ordering, and overlapping gauge rows keep the code-reader row.
+PASS: Type overrides precede the US map and machine rules; gauge and Type map decisions take precedence on replay.
+PASS: Workbook text cells are forced to strings, limiting formula injection from raw titles.
+
+VERDICT: FIX-FIRST

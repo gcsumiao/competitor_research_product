@@ -1,0 +1,4913 @@
+{
+ "market": "CA",
+ "month": "202609",
+ "generated_at": "2026-10-02T13:08:25",
+ "pipeline_version": "e929a9fc47d1-dirty",
+ "workbooks": {
+  "CA_Code_Reader_Analysis_202609.xlsx": {
+   "sheets": [
+    "Brand x Tier",
+    "Category",
+    "Tablet $800+",
+    "Tablet $400-$800",
+    "Tablet $400-",
+    "Total Tablet",
+    "Handheld $75+",
+    "Handheld $75-",
+    "Total Handheld",
+    "Total Dongle",
+    "Total Other Tools",
+    "Total",
+    "Trend Proxy",
+    "Type Coverage",
+    "Metadata"
+   ],
+   "brand_sheet_map": {},
+   "generated_at": "2026-10-02T13:08:19"
+  },
+  "CA_Code_Reader_Competitor_Report_202609.xlsx": {
+   "sheets": [
+    "Summary",
+    "Top 50",
+    "Innova",
+    "Autel",
+    "TOPDON",
+    "ANCEL",
+    "LAUNCH",
+    "XTOOL",
+    "MUCAR",
+    "OBDLink",
+    "BlueDriver",
+    "THINKCAR",
+    "FOXWELL",
+    "All ASINs",
+    "Metadata"
+   ],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   },
+   "generated_at": "2026-10-02T13:08:19"
+  },
+  "CA_OBD_Gauge_Competitor_Report_202609.xlsx": {
+   "sheets": [
+    "Read Me",
+    "Summary",
+    "Top 50",
+    "Innova",
+    "Edge Products",
+    "wiiyii",
+    "ScanGauge",
+    "Keenso",
+    "Bully Dog",
+    "Lufi",
+    "BYZFCM",
+    "Price Ladder (Model A)",
+    "Feature Matrix (Model A)",
+    "App-Gauge Proxy (Model B)",
+    "US Benchmark",
+    "US vs CA Same-ASIN",
+    "All Products",
+    "Dedupe & Classification Audit",
+    "Excluded",
+    "Source & Method",
+    "Metadata"
+   ],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   },
+   "generated_at": "2026-10-02T13:08:25"
+  }
+ },
+ "tables": [
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "Summary",
+   "role": "summary_brands",
+   "title": "CA Code Reader Market — Brand Summary (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 28,
+   "total_row": 30,
+   "residual_row": 29,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Brand",
+    "# of Listings",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "Monthly Rev Market Share %",
+    "Price Per Unit (CAD)",
+    "Total Reviews",
+    "Avg Rating"
+   ],
+   "dataset_filter": "all CA code-reader rows",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [
+    {
+     "type": "bar",
+     "anchor": "J3",
+     "has_axes": true
+    },
+    {
+     "type": "pie",
+     "anchor": "V3",
+     "has_axes": false
+    }
+   ],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "Top 50",
+   "role": "top_by_revenue",
+   "title": "Top 50 Listings — Rank by Revenue (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 53,
+   "total_row": 55,
+   "residual_row": 54,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Type",
+    "Price (CAD)",
+    "Est. Monthly Retail Rev (CAD)",
+    "Est. Monthly Units Sold",
+    "# of Reviews",
+    "Avg. Rating",
+    "Listing Age (Months)",
+    "Last Year Sales (Helium 10)",
+    "Sales YoY % (Helium 10)",
+    "90-day Sales Trend % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "all CA code-reader rows",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "Top 50",
+   "role": "top_by_units",
+   "title": "Top 50 Listings — Rank by Units",
+   "header_row": 60,
+   "first_data_row": 61,
+   "last_data_row": 110,
+   "total_row": 112,
+   "residual_row": 111,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Type",
+    "Price (CAD)",
+    "Est. Monthly Retail Rev (CAD)",
+    "Est. Monthly Units Sold",
+    "# of Reviews",
+    "Avg. Rating",
+    "Listing Age (Months)",
+    "Last Year Sales (Helium 10)",
+    "Sales YoY % (Helium 10)",
+    "90-day Sales Trend % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "all CA code-reader rows",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "Innova",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "brand_key == 'innova'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "Innova",
+   "role": "innova",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 31,
+   "total_row": 32,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link",
+    "Item #",
+    "Seller",
+    "Sold by Amazon",
+    "Fulfillment"
+   ],
+   "dataset_filter": "brand_key == 'innova'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "Innova",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 37,
+   "first_data_row": 38,
+   "last_data_row": 60,
+   "total_row": 61,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link",
+    "Item #",
+    "Seller",
+    "Sold by Amazon",
+    "Fulfillment"
+   ],
+   "dataset_filter": "brand_key == 'innova'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "Autel",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "brand_key == 'autel'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "Autel",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 145,
+   "total_row": 146,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'autel'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "Autel",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 151,
+   "first_data_row": 152,
+   "last_data_row": 288,
+   "total_row": 289,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'autel'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "TOPDON",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "brand_key == 'topdon'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "TOPDON",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 42,
+   "total_row": 43,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'topdon'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "TOPDON",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 48,
+   "first_data_row": 49,
+   "last_data_row": 82,
+   "total_row": 83,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'topdon'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "ANCEL",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "brand_key == 'ancel'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "ANCEL",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 62,
+   "total_row": 63,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'ancel'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "ANCEL",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 68,
+   "first_data_row": 69,
+   "last_data_row": 122,
+   "total_row": 123,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'ancel'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "LAUNCH",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "brand_key == 'launch'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "LAUNCH",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 118,
+   "total_row": 119,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'launch'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "LAUNCH",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 124,
+   "first_data_row": 125,
+   "last_data_row": 234,
+   "total_row": 235,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'launch'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "XTOOL",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "brand_key == 'xtool'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "XTOOL",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 41,
+   "total_row": 42,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'xtool'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "XTOOL",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 47,
+   "first_data_row": 48,
+   "last_data_row": 80,
+   "total_row": 81,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'xtool'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "MUCAR",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "brand_key == 'mucar'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "MUCAR",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 16,
+   "total_row": 17,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'mucar'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "MUCAR",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 22,
+   "first_data_row": 23,
+   "last_data_row": 30,
+   "total_row": 31,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'mucar'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "OBDLink",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "brand_key == 'obdlink'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "OBDLink",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 12,
+   "total_row": 13,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'obdlink'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "OBDLink",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 18,
+   "first_data_row": 19,
+   "last_data_row": 22,
+   "total_row": 23,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'obdlink'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "BlueDriver",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "brand_key == 'bluedriver'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "BlueDriver",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 11,
+   "total_row": 12,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'bluedriver'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "BlueDriver",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 17,
+   "first_data_row": 18,
+   "last_data_row": 20,
+   "total_row": 21,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'bluedriver'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "THINKCAR",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "brand_key == 'thinkcar'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "THINKCAR",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 23,
+   "total_row": 24,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'thinkcar'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "THINKCAR",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 29,
+   "first_data_row": 30,
+   "last_data_row": 44,
+   "total_row": 45,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'thinkcar'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "FOXWELL",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "brand_key == 'foxwell'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "FOXWELL",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 53,
+   "total_row": 54,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'foxwell'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "FOXWELL",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 59,
+   "first_data_row": 60,
+   "last_data_row": 104,
+   "total_row": 105,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "brand_key == 'foxwell'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "All ASINs",
+   "role": "all_rows",
+   "title": "All CA code-reader listings (1828) — by revenue",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 1831,
+   "total_row": 1832,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 17,
+   "columns": [
+    "ASIN",
+    "Title",
+    "Brand",
+    "Type",
+    "Type Source",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "Reviews",
+    "Rating",
+    "Listing Age (Months)",
+    "Last Year Sales",
+    "Sales YoY %",
+    "Price Tier",
+    "Source File",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "all CA code-reader rows",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Competitor_Report_202609.xlsx",
+   "sheet": "Metadata",
+   "role": "metadata",
+   "title": "Metadata",
+   "header_row": 2,
+   "first_data_row": 3,
+   "last_data_row": 16,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Key",
+    "Value"
+   ],
+   "dataset_filter": "",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "autel": "Autel",
+    "topdon": "TOPDON",
+    "ancel": "ANCEL",
+    "launch": "LAUNCH",
+    "xtool": "XTOOL",
+    "mucar": "MUCAR",
+    "obdlink": "OBDLink",
+    "bluedriver": "BlueDriver",
+    "thinkcar": "THINKCAR",
+    "foxwell": "FOXWELL"
+   }
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Brand x Tier",
+   "role": "tier_pivot",
+   "title": "Tablet $800+",
+   "header_row": 6,
+   "first_data_row": 8,
+   "last_data_row": 20,
+   "total_row": 7,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Tier",
+    "Brand",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $800+']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Brand x Tier",
+   "role": "tier_pivot",
+   "title": "Tablet $400-$800",
+   "header_row": 24,
+   "first_data_row": 26,
+   "last_data_row": 39,
+   "total_row": 25,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Tier",
+    "Brand",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $400-$800']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Brand x Tier",
+   "role": "tier_pivot",
+   "title": "Tablet $400-",
+   "header_row": 43,
+   "first_data_row": 45,
+   "last_data_row": 59,
+   "total_row": 44,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Tier",
+    "Brand",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $400-']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Brand x Tier",
+   "role": "tier_pivot",
+   "title": "Total Tablet",
+   "header_row": 63,
+   "first_data_row": 65,
+   "last_data_row": 84,
+   "total_row": 64,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Tier",
+    "Brand",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $800+', 'Tablet $400-$800', 'Tablet $400-']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Brand x Tier",
+   "role": "tier_pivot",
+   "title": "Handheld $75+",
+   "header_row": 88,
+   "first_data_row": 90,
+   "last_data_row": 114,
+   "total_row": 89,
+   "residual_row": 115,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Tier",
+    "Brand",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Handheld $75+']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Brand x Tier",
+   "role": "tier_pivot",
+   "title": "Handheld $75-",
+   "header_row": 119,
+   "first_data_row": 121,
+   "last_data_row": 145,
+   "total_row": 120,
+   "residual_row": 146,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Tier",
+    "Brand",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Handheld $75-']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Brand x Tier",
+   "role": "tier_pivot",
+   "title": "Total Handheld",
+   "header_row": 150,
+   "first_data_row": 152,
+   "last_data_row": 176,
+   "total_row": 151,
+   "residual_row": 177,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Tier",
+    "Brand",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Handheld $75+', 'Handheld $75-']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Brand x Tier",
+   "role": "tier_pivot",
+   "title": "Total Dongle",
+   "header_row": 181,
+   "first_data_row": 183,
+   "last_data_row": 207,
+   "total_row": 182,
+   "residual_row": 208,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Tier",
+    "Brand",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Total Dongle']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Brand x Tier",
+   "role": "tier_pivot",
+   "title": "Total Other Tools",
+   "header_row": 212,
+   "first_data_row": 214,
+   "last_data_row": 238,
+   "total_row": 213,
+   "residual_row": 239,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Tier",
+    "Brand",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Total Other Tools']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Brand x Tier",
+   "role": "tier_pivot",
+   "title": "Total",
+   "header_row": 243,
+   "first_data_row": 245,
+   "last_data_row": 269,
+   "total_row": 244,
+   "residual_row": 270,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Tier",
+    "Brand",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $800+', 'Tablet $400-$800', 'Tablet $400-', 'Handheld $75+', 'Handheld $75-', 'Total Dongle', 'Total Other Tools']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Category",
+   "role": "category",
+   "title": "Tablet $800+ — top 5 brands + Innova",
+   "header_row": 6,
+   "first_data_row": 7,
+   "last_data_row": 12,
+   "total_row": 14,
+   "residual_row": 13,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Tier",
+    "Brand",
+    "# of Listings",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $800+']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Category",
+   "role": "category",
+   "title": "Tablet $400-$800 — top 5 brands + Innova",
+   "header_row": 18,
+   "first_data_row": 19,
+   "last_data_row": 24,
+   "total_row": 26,
+   "residual_row": 25,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Tier",
+    "Brand",
+    "# of Listings",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $400-$800']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Category",
+   "role": "category",
+   "title": "Tablet $400- — top 5 brands + Innova",
+   "header_row": 30,
+   "first_data_row": 31,
+   "last_data_row": 36,
+   "total_row": 38,
+   "residual_row": 37,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Tier",
+    "Brand",
+    "# of Listings",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $400-']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Category",
+   "role": "category",
+   "title": "Total Tablet — top 5 brands + Innova",
+   "header_row": 42,
+   "first_data_row": 43,
+   "last_data_row": 48,
+   "total_row": 50,
+   "residual_row": 49,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Tier",
+    "Brand",
+    "# of Listings",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $800+', 'Tablet $400-$800', 'Tablet $400-']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Category",
+   "role": "category",
+   "title": "Handheld $75+ — top 5 brands + Innova",
+   "header_row": 54,
+   "first_data_row": 55,
+   "last_data_row": 60,
+   "total_row": 62,
+   "residual_row": 61,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Tier",
+    "Brand",
+    "# of Listings",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Handheld $75+']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Category",
+   "role": "category",
+   "title": "Handheld $75- — top 5 brands + Innova",
+   "header_row": 66,
+   "first_data_row": 67,
+   "last_data_row": 72,
+   "total_row": 74,
+   "residual_row": 73,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Tier",
+    "Brand",
+    "# of Listings",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Handheld $75-']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Category",
+   "role": "category",
+   "title": "Total Handheld — top 5 brands + Innova",
+   "header_row": 78,
+   "first_data_row": 79,
+   "last_data_row": 84,
+   "total_row": 86,
+   "residual_row": 85,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Tier",
+    "Brand",
+    "# of Listings",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Handheld $75+', 'Handheld $75-']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Category",
+   "role": "category",
+   "title": "Total Dongle — top 5 brands + Innova",
+   "header_row": 90,
+   "first_data_row": 91,
+   "last_data_row": 96,
+   "total_row": 98,
+   "residual_row": 97,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Tier",
+    "Brand",
+    "# of Listings",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Total Dongle']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Category",
+   "role": "category",
+   "title": "Total Other Tools — top 5 brands + Innova",
+   "header_row": 102,
+   "first_data_row": 103,
+   "last_data_row": 108,
+   "total_row": 110,
+   "residual_row": 109,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Tier",
+    "Brand",
+    "# of Listings",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Total Other Tools']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Category",
+   "role": "category",
+   "title": "Total — top 5 brands + Innova",
+   "header_row": 114,
+   "first_data_row": 115,
+   "last_data_row": 120,
+   "total_row": 122,
+   "residual_row": 121,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Tier",
+    "Brand",
+    "# of Listings",
+    "Avg Price (CAD)",
+    "Quantity/Mo",
+    "Qty by %",
+    "Revenue/Mo (CAD)",
+    "Revenue by %"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $800+', 'Tablet $400-$800', 'Tablet $400-', 'Handheld $75+', 'Handheld $75-', 'Total Dongle', 'Total Other Tools']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Tablet $800+",
+   "role": "tier_tab",
+   "title": "Tablet $800+ — top 25 listings by revenue (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 28,
+   "total_row": 30,
+   "residual_row": 29,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Type",
+    "Price (CAD)",
+    "Est. Monthly Retail Rev (CAD)",
+    "Est. Monthly Units Sold",
+    "# of Reviews",
+    "Avg. Rating",
+    "Listing Age (Months)",
+    "Last Year Sales (Helium 10)",
+    "Sales YoY % (Helium 10)",
+    "90-day Sales Trend % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $800+']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Tablet $400-$800",
+   "role": "tier_tab",
+   "title": "Tablet $400-$800 — top 25 listings by revenue (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 28,
+   "total_row": 30,
+   "residual_row": 29,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Type",
+    "Price (CAD)",
+    "Est. Monthly Retail Rev (CAD)",
+    "Est. Monthly Units Sold",
+    "# of Reviews",
+    "Avg. Rating",
+    "Listing Age (Months)",
+    "Last Year Sales (Helium 10)",
+    "Sales YoY % (Helium 10)",
+    "90-day Sales Trend % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $400-$800']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Tablet $400-",
+   "role": "tier_tab",
+   "title": "Tablet $400- — top 25 listings by revenue (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 28,
+   "total_row": 30,
+   "residual_row": 29,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Type",
+    "Price (CAD)",
+    "Est. Monthly Retail Rev (CAD)",
+    "Est. Monthly Units Sold",
+    "# of Reviews",
+    "Avg. Rating",
+    "Listing Age (Months)",
+    "Last Year Sales (Helium 10)",
+    "Sales YoY % (Helium 10)",
+    "90-day Sales Trend % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $400-']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Total Tablet",
+   "role": "tier_tab",
+   "title": "Total Tablet — top 25 listings by revenue (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 28,
+   "total_row": 30,
+   "residual_row": 29,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Type",
+    "Price (CAD)",
+    "Est. Monthly Retail Rev (CAD)",
+    "Est. Monthly Units Sold",
+    "# of Reviews",
+    "Avg. Rating",
+    "Listing Age (Months)",
+    "Last Year Sales (Helium 10)",
+    "Sales YoY % (Helium 10)",
+    "90-day Sales Trend % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $800+', 'Tablet $400-$800', 'Tablet $400-']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Handheld $75+",
+   "role": "tier_tab",
+   "title": "Handheld $75+ — top 25 listings by revenue (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 28,
+   "total_row": 30,
+   "residual_row": 29,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Type",
+    "Price (CAD)",
+    "Est. Monthly Retail Rev (CAD)",
+    "Est. Monthly Units Sold",
+    "# of Reviews",
+    "Avg. Rating",
+    "Listing Age (Months)",
+    "Last Year Sales (Helium 10)",
+    "Sales YoY % (Helium 10)",
+    "90-day Sales Trend % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "price_tier in ['Handheld $75+']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Handheld $75-",
+   "role": "tier_tab",
+   "title": "Handheld $75- — top 25 listings by revenue (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 28,
+   "total_row": 30,
+   "residual_row": 29,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Type",
+    "Price (CAD)",
+    "Est. Monthly Retail Rev (CAD)",
+    "Est. Monthly Units Sold",
+    "# of Reviews",
+    "Avg. Rating",
+    "Listing Age (Months)",
+    "Last Year Sales (Helium 10)",
+    "Sales YoY % (Helium 10)",
+    "90-day Sales Trend % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "price_tier in ['Handheld $75-']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Total Handheld",
+   "role": "tier_tab",
+   "title": "Total Handheld — top 25 listings by revenue (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 28,
+   "total_row": 30,
+   "residual_row": 29,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Type",
+    "Price (CAD)",
+    "Est. Monthly Retail Rev (CAD)",
+    "Est. Monthly Units Sold",
+    "# of Reviews",
+    "Avg. Rating",
+    "Listing Age (Months)",
+    "Last Year Sales (Helium 10)",
+    "Sales YoY % (Helium 10)",
+    "90-day Sales Trend % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "price_tier in ['Handheld $75+', 'Handheld $75-']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Total Dongle",
+   "role": "tier_tab",
+   "title": "Total Dongle — top 25 listings by revenue (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 28,
+   "total_row": 30,
+   "residual_row": 29,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Type",
+    "Price (CAD)",
+    "Est. Monthly Retail Rev (CAD)",
+    "Est. Monthly Units Sold",
+    "# of Reviews",
+    "Avg. Rating",
+    "Listing Age (Months)",
+    "Last Year Sales (Helium 10)",
+    "Sales YoY % (Helium 10)",
+    "90-day Sales Trend % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "price_tier in ['Total Dongle']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Total Other Tools",
+   "role": "tier_tab",
+   "title": "Total Other Tools — top 25 listings by revenue (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 28,
+   "total_row": 30,
+   "residual_row": 29,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Type",
+    "Price (CAD)",
+    "Est. Monthly Retail Rev (CAD)",
+    "Est. Monthly Units Sold",
+    "# of Reviews",
+    "Avg. Rating",
+    "Listing Age (Months)",
+    "Last Year Sales (Helium 10)",
+    "Sales YoY % (Helium 10)",
+    "90-day Sales Trend % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "price_tier in ['Total Other Tools']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Total",
+   "role": "tier_tab",
+   "title": "Total — top 25 listings by revenue (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 28,
+   "total_row": 30,
+   "residual_row": 29,
+   "first_col": 1,
+   "last_col": 16,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Type",
+    "Price (CAD)",
+    "Est. Monthly Retail Rev (CAD)",
+    "Est. Monthly Units Sold",
+    "# of Reviews",
+    "Avg. Rating",
+    "Listing Age (Months)",
+    "Last Year Sales (Helium 10)",
+    "Sales YoY % (Helium 10)",
+    "90-day Sales Trend % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "price_tier in ['Tablet $800+', 'Tablet $400-$800', 'Tablet $400-', 'Handheld $75+', 'Handheld $75-', 'Total Dongle', 'Total Other Tools']",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Trend Proxy",
+   "role": "trend_proxy",
+   "title": "Trend proxy — Helium 10 trend fields by brand, as reported (Sep '26)",
+   "header_row": 4,
+   "first_data_row": 5,
+   "last_data_row": 29,
+   "total_row": 31,
+   "residual_row": 30,
+   "first_col": 1,
+   "last_col": 9,
+   "columns": [
+    "Brand",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "Last Year Sales (Helium 10 field; semantics unverified)",
+    "# Listings with Helium 10 YoY data",
+    "# Listings with YoY > 0",
+    "# Listings with YoY < 0",
+    "Revenue share of listings with YoY > 0",
+    "Revenue share of listings with YoY data"
+   ],
+   "dataset_filter": "all CA code-reader rows",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Type Coverage",
+   "role": "type_coverage",
+   "title": "Type assignment coverage by source (Sep '26)",
+   "header_row": 4,
+   "first_data_row": 5,
+   "last_data_row": 10,
+   "total_row": 11,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 5,
+   "columns": [
+    "Type Source",
+    "# of Listings",
+    "% of Listings",
+    "Monthly Rev (CAD)",
+    "Revenue share"
+   ],
+   "dataset_filter": "all CA code-reader rows",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Type Coverage",
+   "role": "type_coverage",
+   "title": "Listings by Type",
+   "header_row": 15,
+   "first_data_row": 16,
+   "last_data_row": 24,
+   "total_row": 25,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 5,
+   "columns": [
+    "Type",
+    "# of Listings",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "Revenue share"
+   ],
+   "dataset_filter": "all CA code-reader rows",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_Code_Reader_Analysis_202609.xlsx",
+   "sheet": "Metadata",
+   "role": "metadata",
+   "title": "Metadata",
+   "header_row": 2,
+   "first_data_row": 3,
+   "last_data_row": 16,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Key",
+    "Value"
+   ],
+   "dataset_filter": "",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {}
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Read Me",
+   "role": "read_me",
+   "title": "CA OBD Gauge Competitor Report — Read Me (Sep '26)",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 21,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 1,
+   "columns": [
+    "Text"
+   ],
+   "dataset_filter": "",
+   "allowed_markets": [],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Read Me",
+   "role": "read_me",
+   "title": "Gauge taxonomy (first matching rule wins; ASIN map decisions override)",
+   "header_row": 24,
+   "first_data_row": 25,
+   "last_data_row": 34,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 4,
+   "columns": [
+    "Code",
+    "Gauge class",
+    "Label",
+    "Scope"
+   ],
+   "dataset_filter": "GAUGE_CLASSES",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Summary",
+   "role": "summary_brands",
+   "title": "CA OBD Gauge Market — Brand Summary, core devices (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 28,
+   "total_row": 30,
+   "residual_row": 29,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Brand",
+    "# of Listings",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "Monthly Rev Market Share %",
+    "Price Per Unit (CAD)",
+    "Total Reviews",
+    "Avg Rating"
+   ],
+   "dataset_filter": "core devices: gauge_device_scope & ~borderline",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [
+    {
+     "type": "bar",
+     "anchor": "J3",
+     "has_axes": true
+    }
+   ],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Summary",
+   "role": "subtype_mix",
+   "title": "Device sub-type mix (device scope incl. borderline)",
+   "header_row": 35,
+   "first_data_row": 36,
+   "last_data_row": 40,
+   "total_row": 41,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Sub-type",
+    "# ASINs",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "Rev share",
+    "Avg price (CAD)",
+    "Avg rating"
+   ],
+   "dataset_filter": "gauge_device_scope",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [
+    {
+     "type": "pie",
+     "anchor": "J35",
+     "has_axes": false
+    }
+   ],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Summary",
+   "role": "subtype_mix",
+   "title": "Adjacent (excluded from totals)",
+   "header_row": 45,
+   "first_data_row": 46,
+   "last_data_row": 46,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Sub-type",
+    "# ASINs",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "Rev share",
+    "Avg price (CAD)",
+    "Avg rating"
+   ],
+   "dataset_filter": "gauge_class in GAUGE_ADJACENT_CLASSES",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Summary",
+   "role": "tier_matrix",
+   "title": "Price tier × sub-type — Monthly Rev (CAD), core devices",
+   "header_row": 50,
+   "first_data_row": 51,
+   "last_data_row": 55,
+   "total_row": 56,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Price tier",
+    "Tuner with gauge display (CAD)",
+    "Truck gauge monitor (CAD)",
+    "OBD+GPS HUD (CAD)",
+    "OBD HUD (CAD)",
+    "Gauge display (CAD)",
+    "Total (CAD)"
+   ],
+   "dataset_filter": "core devices; tiers = GAUGE_TIERS on price (half-open)",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Summary",
+   "role": "tier_matrix",
+   "title": "Price tier × sub-type — Monthly Units, core devices",
+   "header_row": 60,
+   "first_data_row": 61,
+   "last_data_row": 65,
+   "total_row": 66,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Price tier",
+    "Tuner with gauge display",
+    "Truck gauge monitor",
+    "OBD+GPS HUD",
+    "OBD HUD",
+    "Gauge display",
+    "Total"
+   ],
+   "dataset_filter": "core devices; tiers = GAUGE_TIERS on price (half-open)",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Summary",
+   "role": "kpi",
+   "title": "Key figures",
+   "header_row": 70,
+   "first_data_row": 71,
+   "last_data_row": 77,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "see metric labels",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Summary",
+   "role": "kpi",
+   "title": "Gauge share of the code-reader market",
+   "header_row": 82,
+   "first_data_row": 83,
+   "last_data_row": 86,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 6,
+   "columns": [
+    "Measure",
+    "# ASINs",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "Share of revenue",
+    "Share of units"
+   ],
+   "dataset_filter": "core devices vs the full code-reader export",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Summary",
+   "role": "subtype_mix",
+   "title": "Fuel split (core devices)",
+   "header_row": 91,
+   "first_data_row": 92,
+   "last_data_row": 96,
+   "total_row": 97,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 13,
+   "columns": [
+    "Sub-type",
+    "gas: # ASINs",
+    "gas: Monthly Rev (CAD)",
+    "gas: Monthly Units",
+    "diesel-capable: # ASINs",
+    "diesel-capable: Monthly Rev (CAD)",
+    "diesel-capable: Monthly Units",
+    "universal: # ASINs",
+    "universal: Monthly Rev (CAD)",
+    "universal: Monthly Units",
+    "unspecified: # ASINs",
+    "unspecified: Monthly Rev (CAD)",
+    "unspecified: Monthly Units"
+   ],
+   "dataset_filter": "core devices; fuel_scope in FEATURE_FUEL_SCOPE",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Top 50",
+   "role": "top_by_revenue",
+   "title": "Top 50 core gauge devices — Rank by Revenue (Sep '26)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 47,
+   "total_row": 48,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 20,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Sub-type",
+    "Data Source",
+    "Screen Type",
+    "Fuel Scope",
+    "Price (CAD)",
+    "Est. Monthly Rev (CAD)",
+    "Est. Monthly Units",
+    "# Reviews",
+    "Avg Rating",
+    "Listing Age (Months)",
+    "Last Year Sales",
+    "Sales YoY %",
+    "90-day Sales Trend %",
+    "Lordco-type unit",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Top 50",
+   "role": "top_by_units",
+   "title": "Top 50 core gauge devices — Rank by Units",
+   "header_row": 53,
+   "first_data_row": 54,
+   "last_data_row": 97,
+   "total_row": 98,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 20,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Sub-type",
+    "Data Source",
+    "Screen Type",
+    "Fuel Scope",
+    "Price (CAD)",
+    "Est. Monthly Rev (CAD)",
+    "Est. Monthly Units",
+    "# Reviews",
+    "Avg Rating",
+    "Listing Age (Months)",
+    "Last Year Sales",
+    "Sales YoY %",
+    "90-day Sales Trend %",
+    "Lordco-type unit",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Innova",
+   "role": "innova",
+   "title": "Innova gauge/HUD device listings in this dataset: 0",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 3,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 1,
+   "columns": [
+    "Line"
+   ],
+   "dataset_filter": "brand_key == 'innova' & gauge_device_scope",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Innova",
+   "role": "kpi",
+   "title": "Innova gauge/HUD device listings in this dataset",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 3,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 2,
+   "last_col": 2,
+   "columns": [
+    "Innova gauge/HUD device listings in this dataset"
+   ],
+   "dataset_filter": "brand_key == 'innova' & gauge_device_scope",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Innova",
+   "role": "modelb_top",
+   "title": "Innova app-capable hardware — Model B universe (code-reader Type = Dongle)",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 10,
+   "total_row": 11,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 13,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "App gauge capable",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "Model B universe & brand_key == 'innova'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Edge Products",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "core devices & brand_key == 'edge products'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Edge Products",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 12,
+   "total_row": 13,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'edge products'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Edge Products",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 18,
+   "first_data_row": 19,
+   "last_data_row": 22,
+   "total_row": 23,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'edge products'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "wiiyii",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "core devices & brand_key == 'wiiyii'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "wiiyii",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 12,
+   "total_row": 13,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'wiiyii'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "wiiyii",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 18,
+   "first_data_row": 19,
+   "last_data_row": 22,
+   "total_row": 23,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'wiiyii'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "ScanGauge",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "core devices & brand_key == 'scangauge'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "ScanGauge",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 9,
+   "total_row": 10,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'scangauge'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "ScanGauge",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 15,
+   "first_data_row": 16,
+   "last_data_row": 16,
+   "total_row": 17,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'scangauge'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Keenso",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "core devices & brand_key == 'keenso'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Keenso",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 9,
+   "total_row": 10,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'keenso'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Keenso",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 15,
+   "first_data_row": 16,
+   "last_data_row": 16,
+   "total_row": 17,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'keenso'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Bully Dog",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "core devices & brand_key == 'bully dog'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Bully Dog",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 11,
+   "total_row": 12,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'bully dog'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Bully Dog",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 17,
+   "first_data_row": 18,
+   "last_data_row": 20,
+   "total_row": 21,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'bully dog'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Lufi",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "core devices & brand_key == 'lufi'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Lufi",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 12,
+   "total_row": 13,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'lufi'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Lufi",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 18,
+   "first_data_row": 19,
+   "last_data_row": 22,
+   "total_row": 23,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'lufi'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "BYZFCM",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 6,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "core devices & brand_key == 'byzfcm'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "BYZFCM",
+   "role": "brand_tab_revenue",
+   "title": "Rank by Revenue",
+   "header_row": 8,
+   "first_data_row": 9,
+   "last_data_row": 9,
+   "total_row": 10,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'byzfcm'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "BYZFCM",
+   "role": "brand_tab_units",
+   "title": "Rank by Units",
+   "header_row": 15,
+   "first_data_row": 16,
+   "last_data_row": 16,
+   "total_row": 17,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "Product Name",
+    "ASIN",
+    "Sub-type",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Tool Rating",
+    "Listing Age (Months)",
+    "Sales YoY % (Helium 10)",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "core devices & brand_key == 'byzfcm'",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Price Ladder (Model A)",
+   "role": "price_ladder",
+   "title": "Model A price ladder — core gauge devices (Sep '26)",
+   "header_row": 4,
+   "first_data_row": 5,
+   "last_data_row": 13,
+   "total_row": 14,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 10,
+   "columns": [
+    "Tier",
+    "# ASINs",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "Rev share",
+    "Avg price (CAD)",
+    "Units-weighted rating",
+    "# with sales > 0",
+    "Top ASIN",
+    "Note"
+   ],
+   "dataset_filter": "core devices",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Price Ladder (Model A)",
+   "role": "price_ladder",
+   "title": "Per-device data (scatter source), by price",
+   "header_row": 18,
+   "first_data_row": 19,
+   "last_data_row": 62,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 6,
+   "columns": [
+    "ASIN",
+    "Brand",
+    "Price (CAD)",
+    "Rating",
+    "Units",
+    "Reviews"
+   ],
+   "dataset_filter": "core devices",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [
+    {
+     "type": "scatter",
+     "anchor": "L18",
+     "has_axes": true
+    }
+   ],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Feature Matrix (Model A)",
+   "role": "feature_matrix",
+   "title": "Model A feature matrix — core gauge devices (Sep '26)",
+   "header_row": 4,
+   "first_data_row": 5,
+   "last_data_row": 48,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 13,
+   "columns": [
+    "ASIN",
+    "Brand",
+    "Sub-type",
+    "Data Source",
+    "Screen Type",
+    "Fuel Scope",
+    "Alarms",
+    "Multi-gauge",
+    "Gesture Control",
+    "km/h–mph",
+    "Lordco-type Unit",
+    "Evidence (listing title)",
+    "Verified Date"
+   ],
+   "dataset_filter": "core devices",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "App-Gauge Proxy (Model B)",
+   "role": "modelb_tiers",
+   "title": "Dongle price tiers",
+   "header_row": 6,
+   "first_data_row": 7,
+   "last_data_row": 11,
+   "total_row": 12,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 7,
+   "columns": [
+    "Tier",
+    "# ASINs",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "Rev share",
+    "Avg price (CAD)",
+    "# app-gauge-capable ASINs"
+   ],
+   "dataset_filter": "Model B universe; DONGLE_TIERS on price",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "App-Gauge Proxy (Model B)",
+   "role": "modelb_brands",
+   "title": "Dongle brands (Innova in red)",
+   "header_row": 16,
+   "first_data_row": 17,
+   "last_data_row": 41,
+   "total_row": 43,
+   "residual_row": 42,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Brand",
+    "# of Listings",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "Monthly Rev Market Share %",
+    "Price Per Unit (CAD)",
+    "App gauge capable",
+    "App"
+   ],
+   "dataset_filter": "Model B universe",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [
+    {
+     "type": "bar",
+     "anchor": "Q16",
+     "has_axes": true
+    }
+   ],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "App-Gauge Proxy (Model B)",
+   "role": "modelb_top",
+   "title": "Top 25 dongles by revenue",
+   "header_row": 48,
+   "first_data_row": 49,
+   "last_data_row": 73,
+   "total_row": 75,
+   "residual_row": 74,
+   "first_col": 1,
+   "last_col": 15,
+   "columns": [
+    "Ranking",
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# of Reviews",
+    "Avg Rating",
+    "Listing Age (Months)",
+    "Sales-to-Reviews",
+    "Frequently Returned",
+    "App gauge capable",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "Model B universe",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "App-Gauge Proxy (Model B)",
+   "role": "modelb_app_matrix",
+   "title": "App feature matrix",
+   "header_row": 80,
+   "first_data_row": 81,
+   "last_data_row": 89,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 14,
+   "columns": [
+    "App",
+    "Vendor",
+    "Live gauges",
+    "Custom dashboards",
+    "HUD/mirror mode",
+    "Alarms",
+    "Data logging",
+    "Enhanced/diesel PIDs",
+    "CarPlay/Android Auto",
+    "Subscription",
+    "Canada availability",
+    "Source",
+    "Accessed",
+    "Note"
+   ],
+   "dataset_filter": "ca_app_feature_matrix.csv: APP_FEATURE_MATRIX_APPS order; missing apps = GAP",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "US Benchmark",
+   "role": "benchmark_brands",
+   "title": "Brands",
+   "header_row": 6,
+   "first_data_row": 7,
+   "last_data_row": 31,
+   "total_row": 33,
+   "residual_row": 32,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Brand",
+    "CA # of Listings",
+    "CA Monthly Rev (CAD)",
+    "CA Monthly Units",
+    "US # of Listings",
+    "US Monthly Rev (USD)",
+    "US Monthly Units",
+    "Units ratio US/CA"
+   ],
+   "dataset_filter": "core devices, both markets",
+   "allowed_markets": [
+    "CA",
+    "US"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "US Benchmark",
+   "role": "benchmark_subtypes",
+   "title": "Device sub-types",
+   "header_row": 37,
+   "first_data_row": 38,
+   "last_data_row": 42,
+   "total_row": 43,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Sub-type",
+    "CA # of Listings",
+    "CA Monthly Rev (CAD)",
+    "CA Monthly Units",
+    "US # of Listings",
+    "US Monthly Rev (USD)",
+    "US Monthly Units",
+    "Units ratio US/CA"
+   ],
+   "dataset_filter": "core devices, both markets",
+   "allowed_markets": [
+    "CA",
+    "US"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "US Benchmark",
+   "role": "benchmark_tiers",
+   "title": "Price tiers (CA in CAD, US in USD)",
+   "header_row": 47,
+   "first_data_row": 48,
+   "last_data_row": 52,
+   "total_row": 53,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "Price tier",
+    "CA # of Listings",
+    "CA Monthly Rev (CAD)",
+    "CA Monthly Units",
+    "US # of Listings",
+    "US Monthly Rev (USD)",
+    "US Monthly Units",
+    "Units ratio US/CA"
+   ],
+   "dataset_filter": "core devices, both markets; GAUGE_TIERS per market currency",
+   "allowed_markets": [
+    "CA",
+    "US"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "US Benchmark",
+   "role": "kpi",
+   "title": "Gauge share of the code-reader market — CA vs US",
+   "header_row": 58,
+   "first_data_row": 59,
+   "last_data_row": 62,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 3,
+   "columns": [
+    "Measure",
+    "CA share",
+    "US share"
+   ],
+   "dataset_filter": "core devices vs the full code-reader export, per market",
+   "allowed_markets": [
+    "CA",
+    "US"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "US vs CA Same-ASIN",
+   "role": "kpi",
+   "title": "",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 3,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Metric",
+    "Value"
+   ],
+   "dataset_filter": "asin in CA union ∩ US union & (CA device scope | US device scope)",
+   "allowed_markets": [
+    "CA",
+    "US"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "US vs CA Same-ASIN",
+   "role": "same_asin",
+   "title": "Listings in both marketplaces (26) — device scope in either",
+   "header_row": 7,
+   "first_data_row": 8,
+   "last_data_row": 33,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 12,
+   "columns": [
+    "ASIN",
+    "Title",
+    "Sub-type",
+    "CA Price (CAD)",
+    "CA Units",
+    "CA Rev (CAD)",
+    "US Price (USD)",
+    "US Units",
+    "US Rev (USD)",
+    "Units ratio US/CA",
+    "Link CA",
+    "Link US"
+   ],
+   "dataset_filter": "asin in CA union ∩ US union & (CA device scope | US device scope)",
+   "allowed_markets": [
+    "CA",
+    "US"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "All Products",
+   "role": "all_rows",
+   "title": "All union rows (1864) — every class, by revenue",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 1867,
+   "total_row": 1868,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 22,
+   "columns": [
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Gauge Class",
+    "Sub-type",
+    "Workbook Scope",
+    "Device Scope",
+    "Borderline",
+    "Rule ID",
+    "Confidence",
+    "Source Set",
+    "CR Type",
+    "Type Conflict",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "# Reviews",
+    "Rating",
+    "Gauge Tier",
+    "Source File",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "code-reader ∪ gauge union (all classes)",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Dedupe & Classification Audit",
+   "role": "dedupe_audit",
+   "title": "Dedupe audit — union ASINs (31 rows)",
+   "header_row": 3,
+   "first_data_row": 4,
+   "last_data_row": 34,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 15,
+   "columns": [
+    "market",
+    "source_set",
+    "asin",
+    "n_rows",
+    "chosen_file",
+    "chosen_row",
+    "dropped",
+    "values_identical",
+    "Revenue chosen (CAD)",
+    "Revenue dropped max (CAD)",
+    "units_diff",
+    "price_diff",
+    "title_diff",
+    "winning_rule",
+    "discrepancy_flag"
+   ],
+   "dataset_filter": "dedupe_audit rows for union ASINs",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Dedupe & Classification Audit",
+   "role": "dedupe_audit",
+   "title": "Classification decisions (1864 union rows)",
+   "header_row": 38,
+   "first_data_row": 39,
+   "last_data_row": 1902,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 8,
+   "columns": [
+    "ASIN",
+    "Gauge Class",
+    "Workbook Scope",
+    "Device Scope",
+    "Borderline",
+    "Rule ID",
+    "Confidence",
+    "Source Set"
+   ],
+   "dataset_filter": "classification decisions (all union rows)",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Excluded",
+   "role": "excluded",
+   "title": "Excluded and ambiguous rows (1810)",
+   "header_row": 4,
+   "first_data_row": 5,
+   "last_data_row": 1814,
+   "total_row": 1815,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 13,
+   "columns": [
+    "ASIN",
+    "Product Name",
+    "Brand",
+    "Gauge Class",
+    "Rule ID",
+    "Reason",
+    "Confidence",
+    "Price (CAD)",
+    "Monthly Rev (CAD)",
+    "Monthly Units",
+    "Source Set",
+    "URL",
+    "Link"
+   ],
+   "dataset_filter": "gauge_class in GAUGE_EXCLUDED_CLASSES + ambiguous",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Source & Method",
+   "role": "source_method",
+   "title": "Source & Method (Sep '26)",
+   "header_row": null,
+   "first_data_row": 3,
+   "last_data_row": 23,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 1,
+   "columns": [
+    "Text"
+   ],
+   "dataset_filter": "",
+   "allowed_markets": [],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  },
+  {
+   "workbook": "CA_OBD_Gauge_Competitor_Report_202609.xlsx",
+   "sheet": "Metadata",
+   "role": "metadata",
+   "title": "Metadata",
+   "header_row": 2,
+   "first_data_row": 3,
+   "last_data_row": 23,
+   "total_row": null,
+   "residual_row": null,
+   "first_col": 1,
+   "last_col": 2,
+   "columns": [
+    "Key",
+    "Value"
+   ],
+   "dataset_filter": "",
+   "allowed_markets": [
+    "CA"
+   ],
+   "charts": [],
+   "brand_sheet_map": {
+    "innova": "Innova",
+    "edge products": "Edge Products",
+    "wiiyii": "wiiyii",
+    "scangauge": "ScanGauge",
+    "keenso": "Keenso",
+    "bully dog": "Bully Dog",
+    "lufi": "Lufi",
+    "byzfcm": "BYZFCM"
+   }
+  }
+ ]
+}
