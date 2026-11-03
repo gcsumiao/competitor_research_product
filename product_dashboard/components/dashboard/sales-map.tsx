@@ -23,7 +23,8 @@ export type SalesMapItem = {
 export type SalesMapControl = {
   value: string
   onChange: (value: string) => void
-  options: Array<{ value: string; label: string }>
+  /** depth 1 renders the option indented under the one before it (sub-tier scopes). */
+  options: Array<{ value: string; label: string; depth?: number }>
 }
 
 interface SalesMapProps {
@@ -161,7 +162,11 @@ export function SalesMap({
                 </SelectTrigger>
                 <SelectContent align="end">
                   {primaryControl.options.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className={option.depth ? "pl-5" : undefined}
+                    >
                       {option.label}
                     </SelectItem>
                   ))}

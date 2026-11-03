@@ -17,6 +17,17 @@ import type {
   TypeBreakdownMetric,
   TypeBreakdownSummary,
 } from "@/lib/competitor-data"
+import {
+  PRICE_TIER_SCHEME_V1,
+  PRICE_TIER_SCHEME_V2,
+  allPricedTierLabels,
+  allTotalLabels,
+  labelForKey,
+  parentLevelKeys,
+  priceTierAnnotation,
+  resolveSnapshotScheme,
+  scopeKeyForLabel,
+} from "@/lib/price-tier-scheme"
 import { formatSnapshotLabelMonthEnd, normalizeSnapshotDate } from "@/lib/snapshot-date"
 
 type ManifestFile = {
@@ -91,6 +102,8 @@ type MixDedupeEntry = {
   fromDedicatedTab: boolean
 }
 
+// Tier tabs of every scheme (V1 "Handheld $75+" ... and V2 "Tablet $300+",
+// "Handheld $100-", ...) plus the type/grand totals are analysis tabs, never brands.
 const RESERVED_SHEETS = new Set(
   [
     "summary",
@@ -99,38 +112,20 @@ const RESERVED_SHEETS = new Set(
     "sheet1",
     "category",
     "tablet total",
-    "tablet $800+",
-    "tablet $400-$800",
-    "tablet $400-",
     "handheld total",
-    "handheld $75+",
-    "handheld $75-",
     "dongle",
     "other tools",
+    ...allPricedTierLabels(),
+    ...allTotalLabels(),
   ].map((value) => normalizeSheetName(value))
 )
 
-const DETAILED_PRICE_TIER_KEYS = new Set([
-  "tablet_800_plus",
-  "tablet_400_800",
-  "tablet_under_400",
-  "handheld_75_plus",
-  "handheld_under_75",
-  "total_dongle",
-  "total_other_tools",
-])
-
-const TIER_SCOPE_KEYS = new Set([
-  "total_tablet",
-  "tablet_800_plus",
-  "tablet_400_800",
-  "tablet_under_400",
-  "total_handheld",
-  "handheld_75_plus",
-  "handheld_under_75",
-  "total_dongle",
-  "total_other_tools",
-])
+// Every tier and type-total scope key of either scheme (grand "total" excluded).
+const TIER_SCOPE_KEYS = new Set(
+  [...PRICE_TIER_SCHEME_V1.tiers, ...PRICE_TIER_SCHEME_V2.tiers]
+    .filter((tier) => tier.kind !== "grand_total")
+    .map((tier) => tier.key)
+)
 
 const FALLBACK_PRICE_TIERS = [
   { label: "$0-40", min: 0, max: 40 },
@@ -139,17 +134,30 @@ const FALLBACK_PRICE_TIERS = [
   { label: "$90+", min: 90, max: Number.POSITIVE_INFINITY },
 ]
 
+// Formatted analysis tabs: legacy "<Type> Total" names, the raw summary's
+// "Total <Type>" names, and each tier/sub-tier tab of V1 and V2.
 const KNOWN_TYPE_SHEETS = [
   "Tablet Total",
-  "Tablet $800+",
-  "Tablet $400-$800",
-  "Tablet $400-",
+  "Total Tablet",
+  ...typePricedLabels("tablet"),
   "Handheld Total",
-  "Handheld $75+",
-  "Handheld $75-",
+  "Total Handheld",
+  ...typePricedLabels("handheld"),
   "Dongle",
+  "Total Dongle",
   "Other Tools",
+  "Total Other Tools",
 ]
+
+function typePricedLabels(typeGroup: "tablet" | "handheld") {
+  const labels: string[] = []
+  for (const tier of [...PRICE_TIER_SCHEME_V1.tiers, ...PRICE_TIER_SCHEME_V2.tiers]) {
+    if (tier.typeGroup !== typeGroup) continue
+    if (tier.kind !== "tier" && tier.kind !== "subtier") continue
+    if (!labels.includes(tier.label)) labels.push(tier.label)
+  }
+  return labels
+}
 
 export async function loadCodeReaderScannerSnapshots(baseDir: string): Promise<SnapshotSummary[]> {
   const entries = await readdir(baseDir, { withFileTypes: true }).catch(() => [])
@@ -1204,9 +1212,13 @@ function metricFromRow(header: string[], row: string[], label: string): TypeBrea
     return null
   }
 
+  const scopeKey = toScopeKey(label)
   return {
-    scopeKey: toScopeKey(label),
+    scopeKey,
     label: prettyScopeLabel(label),
+    // Additive hierarchy fields ({ parentKey, kind }) for known tier keys only;
+    // old payloads simply lack them and readers derive them from the scheme.
+    ...priceTierAnnotation(scopeKey),
     avgPrice,
     avgPriceMoM: readMetricNullableShare(header, row, ["avgpricemom"]),
     avgPriceYoY: readMetricNullableShare(header, row, ["avgpriceyoy"]),
@@ -1350,7 +1362,7 @@ function buildSnapshot(
         ? top50Revenue.reduce((sum, row) => sum + row.price, 0) / top50Revenue.length
         : 0
 
-  const priceTiers = buildPriceTierSummary(parsedType, top50Revenue, totalRevenue)
+  const priceTiers = buildPriceTierSummary(parsedType, top50Revenue, totalRevenue, date)
 
   const tierAsinRanks = parsedType?.tierAsinRanks?.length ? parsedType.tierAsinRanks : undefined
 
@@ -1568,14 +1580,26 @@ function groupInnovaSplitListings<T extends { brand: string }>(entries: T[]): T[
   return [...rest.slice(0, anchorIndex + 1), ...splits, ...rest.slice(anchorIndex + 1)]
 }
 
+/**
+ * Snapshot-level price tiers = the parent-level slices of the snapshot's
+ * scheme (V1: Tablet x3, Handheld $75+/$75-, Dongle, Other Tools; V2 from
+ * 202610: Tablet x3, Handheld $100+/$100-, Dongle, Other Tools). Sub-tiers
+ * are never included, so the shares still partition the market.
+ */
 function buildPriceTierSummary(
   parsedType: ParsedTypeBreakdowns | undefined,
   topProducts: ProductSummary[],
-  totalRevenue: number
+  totalRevenue: number,
+  snapshotDate: string
 ) {
   if (parsedType?.allAsins.length) {
+    const scheme = resolveSnapshotScheme({
+      snapshotDate,
+      scopeKeys: parsedType.allAsins.map((metric) => metric.scopeKey),
+    })
+    const pieKeys = new Set(parentLevelKeys(scheme))
     const rows = parsedType.allAsins
-      .filter((metric) => DETAILED_PRICE_TIER_KEYS.has(metric.scopeKey))
+      .filter((metric) => pieKeys.has(metric.scopeKey))
       .map((metric) => ({
         label: metric.label,
         revenue: metric.revenue,
@@ -2124,63 +2148,21 @@ function parseShare(value: string): number {
   return parsed
 }
 
+/**
+ * Scope key for a summary/analysis label. Known tier and total labels of
+ * either price-tier scheme resolve through lib/price-tier-scheme (exact,
+ * collision-free: "Handheld $100+" and "Handheld $100-" stay apart); anything
+ * else keeps the legacy alphanumeric fallback.
+ */
 function toScopeKey(label: string): string {
-  const lower = label.toLowerCase().trim().replace(/\s+/g, " ")
-  if (lower.includes("tablet $800+")) return "tablet_800_plus"
-  if (lower.includes("tablet $400-$800")) return "tablet_400_800"
-  if (lower.includes("tablet $400-")) return "tablet_under_400"
-  if (lower.includes("handheld $75+")) return "handheld_75_plus"
-  if (lower.includes("handheld $75-")) return "handheld_under_75"
-
-  const normalized = normalizeText(lower)
-  if (
-    normalized === "totaltablet" ||
-    normalized === "tablettotal" ||
-    normalized === "tabletoverall" ||
-    normalized === "tablets"
-  ) {
-    return "total_tablet"
-  }
-  if (
-    normalized === "totalhandheld" ||
-    normalized === "handheldtotal" ||
-    normalized === "handheldoverall" ||
-    normalized === "handheld"
-  ) {
-    return "total_handheld"
-  }
-  if (
-    normalized === "totaldongle" ||
-    normalized === "dongleoverall" ||
-    normalized === "dongle" ||
-    normalized === "dongles"
-  ) {
-    return "total_dongle"
-  }
-  if (
-    normalized === "totalothertools" ||
-    normalized === "othertoolsoverall" ||
-    normalized === "othertools"
-  ) {
-    return "total_other_tools"
-  }
+  const known = scopeKeyForLabel(label)
+  if (known) return known
+  const normalized = normalizeText(label.toLowerCase().trim().replace(/\s+/g, " "))
   return normalized.replace(/^top50/, "top_50_")
 }
 
 function prettyScopeLabel(value: string): string {
-  const key = toScopeKey(value)
-  const map: Record<string, string> = {
-    total_tablet: "Total Tablet",
-    total_handheld: "Total Handheld",
-    total_dongle: "Total Dongle",
-    total_other_tools: "Total Other Tools",
-    tablet_800_plus: "Tablet $800+",
-    tablet_400_800: "Tablet $400-$800",
-    tablet_under_400: "Tablet $400-",
-    handheld_75_plus: "Handheld $75+",
-    handheld_under_75: "Handheld $75-",
-  }
-  return map[key] ?? value.trim()
+  return labelForKey(toScopeKey(value)) ?? value.trim()
 }
 
 async function resolvePreferredFile(dir: string, names: Array<string | null | undefined>) {

@@ -36,7 +36,6 @@ import type {
   DashboardData,
   ProductSummary,
   SnapshotSummary,
-  TypeBreakdownMetric,
 } from "@/lib/competitor-data"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
 import { averagePriceForCategory } from "@/lib/jump-starters-classification"
@@ -62,16 +61,13 @@ import {
   truncateLabel,
 } from "@/lib/dashboard-format"
 import { REVENUE_CHART_COLOR, UNITS_CHART_COLOR } from "@/lib/chart-colors"
+import {
+  buildPriceScopeOptions,
+  buildPriceTierItems,
+  findPriceScopeMetric,
+} from "@/lib/price-tier-mix"
+import { priceTierColor } from "@/lib/price-tier-scheme"
 
-const PRICE_TIER_COLORS: Record<string, string> = {
-  tablet_800_plus: "var(--color-tier-tablet-800-plus)",
-  tablet_400_800: "var(--color-tier-tablet-400-800)",
-  tablet_under_400: "var(--color-tier-tablet-under-400)",
-  handheld_75_plus: "var(--color-tier-handheld-75-plus)",
-  handheld_under_75: "var(--color-tier-handheld-under-75)",
-  total_dongle: "var(--color-tier-total-dongle)",
-  total_other_tools: "var(--color-tier-total-other-tools)",
-}
 const PRICE_TIER_FALLBACK_COLOR = "var(--color-tier-total-other-tools)"
 const INNOVA_BRAND = "innova"
 const BLCKTEC_BRAND = "blcktec"
@@ -91,16 +87,6 @@ const BLCKTEC_LOGO: MetricCardLogo = {
   height: 278,
   chipClassName: BRAND_LOGO_CHIP_CLASS,
 }
-
-const DETAILED_PRICE_TIER_KEYS = new Set([
-  "tablet_800_plus",
-  "tablet_400_800",
-  "tablet_under_400",
-  "handheld_75_plus",
-  "handheld_under_75",
-  "total_dongle",
-  "total_other_tools",
-])
 
 const CODE_READER_TOTAL_MARKET_OVERRIDE: Record<string, { revenue: number; units: number }> = {
   "2025-02": { revenue: 22940941, units: 203310 },
@@ -261,7 +247,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     .map((tier) => ({
       label: tier.label,
       value: priceTierMetric === "revenue" ? tier.revenue : tier.units,
-      color: PRICE_TIER_COLORS[tier.scopeKey] ?? PRICE_TIER_FALLBACK_COLOR,
+      color: priceTierColor(tier.scopeKey) ?? PRICE_TIER_FALLBACK_COLOR,
       revenueShare: tier.revenueShare,
       unitsShare: tier.unitsShare,
     }))
@@ -1034,134 +1020,6 @@ function findRollingRank(
 
   if (!brands?.length) return undefined
   return brands.find((brand) => brand.brand.trim().toLowerCase() === brandKey)
-}
-
-function buildPriceScopeOptions(snapshot: SnapshotSummary | undefined) {
-  if (!snapshot?.typeBreakdowns?.allAsins.length) {
-    return [{ value: "all_asins", label: "All ASINs" }]
-  }
-
-  const keys = new Set(snapshot.typeBreakdowns.allAsins.map((item) => item.scopeKey))
-  const options = [{ value: "all_asins", label: "All ASINs" }]
-
-  if (keys.has("total_tablet")) options.push({ value: "total_tablet", label: "Total Tablet" })
-  if (keys.has("total_handheld")) options.push({ value: "total_handheld", label: "Total Handheld" })
-  if (keys.has("total_dongle")) options.push({ value: "total_dongle", label: "Total Dongle" })
-  if (keys.has("total_other_tools")) {
-    options.push({ value: "total_other_tools", label: "Total Other Tools" })
-  }
-
-  return options
-}
-
-type PriceTierItem = {
-  scopeKey: string
-  label: string
-  units: number
-  unitsShare: number
-  unitsMoM: number | null
-  unitsYoY: number | null
-  revenue: number
-  revenueShare: number
-  revenueMoM: number | null
-  revenueYoY: number | null
-}
-
-function toPriceTierItem(metric: TypeBreakdownMetric): PriceTierItem {
-  return {
-    scopeKey: metric.scopeKey,
-    label: metric.label,
-    units: metric.units,
-    unitsShare: metric.unitsShare,
-    unitsMoM: metric.unitsMoM,
-    unitsYoY: metric.unitsYoY,
-    revenue: metric.revenue,
-    revenueShare: metric.revenueShare,
-    revenueMoM: metric.revenueMoM,
-    revenueYoY: metric.revenueYoY,
-  }
-}
-
-function buildPriceTierItems(snapshot: SnapshotSummary | undefined, scope: string) {
-  if (!snapshot) return [] as PriceTierItem[]
-
-  const metrics = snapshot.typeBreakdowns?.allAsins ?? []
-  if (!metrics.length) {
-    return snapshot.priceTiers.map((tier) => ({
-      scopeKey: tier.label.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
-      label: tier.label,
-      units: 0,
-      unitsShare: 0,
-      unitsMoM: null,
-      unitsYoY: null,
-      revenue: tier.revenue,
-      revenueShare: tier.share,
-      revenueMoM: null,
-      revenueYoY: null,
-    }))
-  }
-
-  if (scope === "all_asins") {
-    const detailed = metrics.filter((metric) => DETAILED_PRICE_TIER_KEYS.has(metric.scopeKey))
-    if (detailed.length) {
-      return detailed.map(toPriceTierItem)
-    }
-  }
-
-  if (scope === "total_tablet") {
-    return metrics
-      .filter((metric) => ["tablet_800_plus", "tablet_400_800", "tablet_under_400"].includes(metric.scopeKey))
-      .map(toPriceTierItem)
-  }
-
-  if (scope === "total_handheld") {
-    return metrics
-      .filter((metric) => ["handheld_75_plus", "handheld_under_75"].includes(metric.scopeKey))
-      .map(toPriceTierItem)
-  }
-
-  if (scope === "total_dongle") {
-    return metrics
-      .filter((metric) => metric.scopeKey === "total_dongle")
-      .map(toPriceTierItem)
-  }
-
-  if (scope === "total_other_tools") {
-    return metrics
-      .filter((metric) => metric.scopeKey === "total_other_tools")
-      .map(toPriceTierItem)
-  }
-
-  return snapshot.priceTiers.map((tier) => ({
-    scopeKey: tier.label.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
-    label: tier.label,
-    units: 0,
-    unitsShare: 0,
-    unitsMoM: null,
-    unitsYoY: null,
-    revenue: tier.revenue,
-    revenueShare: tier.share,
-    revenueMoM: null,
-    revenueYoY: null,
-  }))
-}
-
-function findPriceScopeMetric(
-  snapshot: SnapshotSummary | undefined,
-  scope: string,
-  scopedRows: PriceTierItem[]
-) {
-  const rows = snapshot?.typeBreakdowns?.allAsins ?? []
-  if (!rows.length) return undefined
-  if (scope === "all_asins") {
-    return rows.find((row) => row.scopeKey === "total")
-      ?? rows.find((row) => row.scopeKey === "all_asins")
-      ?? undefined
-  }
-  return rows.find((row) => row.scopeKey === scope)
-    ?? (scopedRows.length === 1
-      ? rows.find((row) => row.scopeKey === scopedRows[0].scopeKey)
-      : undefined)
 }
 
 function ratioToPercent(value: number | null | undefined) {
