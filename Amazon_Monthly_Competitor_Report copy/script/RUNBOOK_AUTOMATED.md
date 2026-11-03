@@ -153,13 +153,23 @@ stay correct even when row counts or brand order change month over month
 workbook (`template_fill/`) use scheme V2:
 
 - Tabs: Summary, Top 50, Tablet Total, Tablet $800+, Tablet $400-$800,
-  Tablet $400-, **Tablet $300+, Tablet $200-$300, Tablet $200-**, Handheld
-  Total, Handheld $100+, Handheld $100-, **Handheld $65+, Handheld $35-$65,
-  Handheld $35-**, Dongle, Other Tools, then the 8 brand tabs.
+  Tablet $400-, **Tablet $300-$400, Tablet $200-$300, Tablet $200-**, Handheld
+  Total, Handheld $100+, Handheld $100-, **Handheld $65-$100, Handheld $35-$65,
+  Handheld $35-**, Dongle, Other Tools, then the 8 brand tabs. (Final analyst
+  labels 2026-11-03; a template still carrying the first preview's "Tablet
+  $300+" / "Handheld $65+" wording is renamed in place by the upgrade.)
 - "Tablet $400-" / "Handheld $100-" get one section per sub-tier below their
   ranking tables (same block layout as the Tablet Total sections); each
   sub-tier tab's overview links to its section (its Total row = the section
   Total row = `=Summary!...`).
+- "Tablet Total" / "Handheld Total" carry a brand-breakdown section for every
+  tier AND sub-tier of the family in scheme order (6 tablet, 5 handheld); the
+  sub-tier tabs still link the parent tier tab's sections.
+- summary.xlsx Sheet1 "Qty by %" / "Revenue by %" divide by each tag's own
+  "Total"-category sums per frame (OBD1 listings belong to no category), so
+  every "Total" row reads exactly 100%; V1 months keep the whole-frame basis,
+  and the report workbook's Summary "Market ... Share %" columns and Rolling-12
+  Total Market row stay whole-market.
 - Summary category table: 16 rows (sub-tiers directly under their parent);
   the charts and the brand Revenue/Units blocks sit 6 rows lower than in V1.
 - Brand tabs keep the 10 parent-level rows (no sub-tiers).
