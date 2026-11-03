@@ -111,6 +111,8 @@ fills, tables, logos) against the hand-checked finals:
   --golden-dir YY-MM-reports
 ```
 
+(`--tier-scheme v1|v2` forces the Analysis scheme; default follows the month.)
+
 - Sandbox output: `script/runs/YYYYMM/formatted_review/` (never touches the
   golden folder; refuses to write into it).
 - Diff report: `script/runs/YYYYMM/formatted_review/diff_report.xlsx`
@@ -139,6 +141,60 @@ stay correct even when row counts or brand order change month over month
   Category sheet.
 - Brand listing tables: header row bold with lavender fill; the "Monthly
   Rev" / "Monthly Units" column highlighted lavender on every data row.
+- Analysis Summary category table (scheme V2, 202610+): sub-tier rows
+  unfilled, regular weight, label indented one level; "Total Tablet/Handheld/
+  Other Tools" gray bold; "Total Dongle" bold with **no** fill; grand "Total"
+  purple bold. (V1 months keep the template's Summary styling.)
+
+## Price-tier scheme V2 (report months 202610+)
+
+`script/price_tier_scheme.py` is the single source of the tiers. From
+202610 the raw `summary.xlsx` (`full_report_month.py`) and the Analysis
+workbook (`template_fill/`) use scheme V2:
+
+- Tabs: Summary, Top 50, Tablet Total, Tablet $800+, Tablet $400-$800,
+  Tablet $400-, **Tablet $300+, Tablet $200-$300, Tablet $200-**, Handheld
+  Total, Handheld $100+, Handheld $100-, **Handheld $65+, Handheld $35-$65,
+  Handheld $35-**, Dongle, Other Tools, then the 8 brand tabs.
+- "Tablet $400-" / "Handheld $100-" get one section per sub-tier below their
+  ranking tables (same block layout as the Tablet Total sections); each
+  sub-tier tab's overview links to its section (its Total row = the section
+  Total row = `=Summary!...`).
+- Summary category table: 16 rows (sub-tiers directly under their parent);
+  the charts and the brand Revenue/Units blocks sit 6 rows lower than in V1.
+- Brand tabs keep the 10 parent-level rows (no sub-tiers).
+
+**Self-upgrading template.** `automate_final_outputs.py` still uses last
+month's final as the template. Before filling, `template_fill/scheme_upgrade.py`
+reshapes it to the month's scheme: clones missing tier/sub-tier tabs (tables,
+6 charts, conditional formats re-pointed at the new tab), removes tier tabs of
+the other scheme, adds/replaces parent sections, grows the Summary table and
+re-points the Summary chart series by label. Each change is logged as
+`[template-upgrade] ...`; an already-V2 template is left alone. No manual
+tab/row work is needed for October.
+
+Month selection is automatic (`--month`, or the raw report title). To preview
+another month in V2, force the scheme consistently in all three steps:
+
+```bash
+.venv/bin/python script/full_report_month.py --month 202609 --tier-scheme v2 \
+  --out-report OUT/"Amazon Competitor Report.xlsx" --out-summary OUT/summary.xlsx \
+  --out-dashboard-json OUT/dashboard_snapshot_rows.json \
+  --amazon-obd2-dir "script/runs/202609/obd2_carryover_zero"
+.venv/bin/python script/automate_final_outputs.py --month 202609 --tier-scheme v2 \
+  --raw-report OUT/"Amazon Competitor Report.xlsx" --raw-summary OUT/summary.xlsx \
+  --template-report <report template> --template-analysis <analysis template> \
+  --out-dir OUT --date-tag YY-MM-DD
+.venv/bin/python script/qa_final_workbooks.py --tier-scheme v2 --report ... --analysis ... \
+  --raw-report OUT/"Amazon Competitor Report.xlsx"
+```
+
+A raw summary built with the other scheme fails the filler before anything is
+written. Tests: `cd script && ../.venv/bin/python -m unittest
+test_template_fill_scheme` (set `TEMPLATE_FILL_V2_RAW_DIR` to a V2 202609 raw
+dir to skip regenerating it; `TEMPLATE_FILL_TEST_DIR` keeps the outputs). The
+V1 regression test rebuilds September with the pre-change filler and requires
+byte-identical workbook parts.
 
 ## Optional sanity checks
 
