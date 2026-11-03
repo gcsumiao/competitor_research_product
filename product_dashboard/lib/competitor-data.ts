@@ -175,6 +175,7 @@ export type TypeBreakdownSummary = {
   allAsins: TypeBreakdownMetric[]
   top50: TypeBreakdownMetric[]
   categoryBrandMix: CategoryBrandMixMetric[]
+  brandCategoryMix?: Array<{ brand: string; brandKey: string; rows: TypeBreakdownMetric[] }>
   source: "analysis" | "summary" | "fallback"
 }
 

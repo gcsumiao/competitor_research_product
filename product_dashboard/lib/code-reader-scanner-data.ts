@@ -84,10 +84,14 @@ type ParsedReport = {
   brandSheetListings: Array<{ brand: string; products: ProductSummary[] }>
 }
 
+type BrandCategoryMixEntry = NonNullable<TypeBreakdownSummary["brandCategoryMix"]>[number]
+
 type ParsedTypeBreakdowns = {
   allAsins: TypeBreakdownMetric[]
   top50: TypeBreakdownMetric[]
   categoryBrandMix: CategoryBrandMixMetric[]
+  /** Per-brand Sheet1 rows of summary.xlsx (the brand's own category mix). */
+  brandCategoryMix?: BrandCategoryMixEntry[]
   tierAsinRanks: TierAsinRankSection[]
   source: "analysis" | "summary" | "fallback"
 }
@@ -242,6 +246,12 @@ export async function loadCodeReaderScannerSnapshotFromFiles(params: {
   let typeBreakdowns: ParsedTypeBreakdowns | undefined
   if (params.analysisPath) {
     typeBreakdowns = await parseTypeWorkbook(params.analysisPath, "analysis", issues)
+    // analysis.xlsx has no per-brand category rows; when the month also ships
+    // a summary.xlsx, its Sheet1 brand rows still give each brand's mix.
+    if (typeBreakdowns && !typeBreakdowns.brandCategoryMix?.length && params.summaryPath) {
+      const brandCategoryMix = await readSummaryBrandCategoryMix(params.summaryPath, issues)
+      if (brandCategoryMix.length) typeBreakdowns = { ...typeBreakdowns, brandCategoryMix }
+    }
   } else if (params.summaryPath) {
     typeBreakdowns = await parseTypeWorkbook(params.summaryPath, "summary", issues)
   } else {
@@ -804,6 +814,7 @@ function parseRawSummaryBreakdowns(workbook: XLSX.WorkBook): ParsedTypeBreakdown
 
   const allAsins: TypeBreakdownMetric[] = []
   const top50: TypeBreakdownMetric[] = []
+  const brandRows = new Map<string, BrandCategoryMixEntry>()
 
   let blankRun = 0
   for (let i = headerIndex + 1; i < rows.length; i += 1) {
@@ -819,10 +830,15 @@ function parseRawSummaryBreakdowns(workbook: XLSX.WorkBook): ParsedTypeBreakdown
     const category = getCell(row, categoryCol).trim()
     if (!brand || !category) continue
 
+    const normalizedBrand = normalizeText(brand)
+    if (normalizedBrand !== "total" && normalizedBrand !== "top50") {
+      addBrandCategoryMixRow(brandRows, brand, normalizedBrand, header, row, category)
+      continue
+    }
+
     const metric = metricFromRow(header, row, category)
     if (!metric) continue
 
-    const normalizedBrand = normalizeText(brand)
     if (normalizedBrand === "total") {
       allAsins.push(metric)
     }
@@ -835,8 +851,9 @@ function parseRawSummaryBreakdowns(workbook: XLSX.WorkBook): ParsedTypeBreakdown
   const categoryBrandMix = categorySheet
     ? parseRawCategoryBrandMix(sheetRows(categorySheet))
     : []
+  const brandCategoryMix = Array.from(brandRows.values())
 
-  if (!allAsins.length && !top50.length && !categoryBrandMix.length) {
+  if (!allAsins.length && !top50.length && !categoryBrandMix.length && !brandCategoryMix.length) {
     return undefined
   }
 
@@ -844,9 +861,87 @@ function parseRawSummaryBreakdowns(workbook: XLSX.WorkBook): ParsedTypeBreakdown
     allAsins,
     top50,
     categoryBrandMix,
+    ...(brandCategoryMix.length ? { brandCategoryMix } : {}),
     tierAsinRanks: [],
     source: "summary",
   }
+}
+
+async function readSummaryBrandCategoryMix(
+  summaryPath: string,
+  issues: DataQualityIssue[]
+): Promise<BrandCategoryMixEntry[]> {
+  try {
+    const parsed = parseRawSummaryBreakdowns(await readWorkbook(summaryPath))
+    return parsed?.brandCategoryMix ?? []
+  } catch (error) {
+    issues.push({
+      code: "summary_brand_mix_read_failed",
+      severity: "warning",
+      message: error instanceof Error ? error.message : "Unknown summary workbook read error",
+    })
+    return []
+  }
+}
+
+/**
+ * One per-brand Sheet1 row ("autel" x "Tablet $300-$400") into that brand's
+ * category mix. Unlike the market rows, all-zero rows are kept (a brand with
+ * no tablets still shows a 0 row in the report), shares are within the brand,
+ * and the cells are read on the raw summary.xlsx ratio scale: pandas writes
+ * bare ratios (Total row "Qty by %" = 1), so MoM/YoY spikes above 1 (55.5 =
+ * +5550%) must not hit parseShare's bare-percent heuristic, and "N/A" is null.
+ * A literal "%" (a formatted copy) still divides by 100.
+ */
+function addBrandCategoryMixRow(
+  brandRows: Map<string, BrandCategoryMixEntry>,
+  brand: string,
+  brandKey: string,
+  header: string[],
+  row: string[],
+  label: string
+) {
+  if (!brandKey || brandKey === "0") return
+  const scopeKey = toScopeKey(label)
+  let entry = brandRows.get(brandKey)
+  if (!entry) {
+    entry = { brand, brandKey, rows: [] }
+    brandRows.set(brandKey, entry)
+  }
+  if (entry.rows.some((existing) => existing.scopeKey === scopeKey)) return
+
+  entry.rows.push({
+    scopeKey,
+    label: prettyScopeLabel(label),
+    ...priceTierAnnotation(scopeKey),
+    avgPrice: readMetricCell(header, row, ["avgprice", "priceperunit"]),
+    avgPriceMoM: readMetricRatio(header, row, ["avgpricemom"]),
+    avgPriceYoY: readMetricRatio(header, row, ["avgpriceyoy"]),
+    units: readMetricCell(header, row, ["quantitymo", "monthlysales"]),
+    unitsShare: readMetricRatio(header, row, ["qtyby", "marketunitshare"]) ?? 0,
+    unitsMoM: readMetricRatio(header, row, ["qtymom"]),
+    unitsYoY: readMetricRatio(header, row, ["qtyyoy"]),
+    revenue: readMetricCell(header, row, ["revenuemo", "monthlyrevenue"]),
+    revenueShare: readMetricRatio(header, row, ["revenueby", "marketrevshare"]) ?? 0,
+    revenueMoM: readMetricRatio(header, row, ["revenuemom"]),
+    revenueYoY: readMetricRatio(header, row, ["revenueyoy"]),
+  })
+}
+
+function readMetricRatio(header: string[], row: string[], aliases: string[]): number | null {
+  const idx = findColumn(header, aliases)
+  if (idx < 0) return null
+  return parseRatioCell(getCell(row, idx))
+}
+
+function parseRatioCell(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const lower = trimmed.toLowerCase()
+  if (lower === "n/a" || lower === "na" || lower === "nan" || lower.includes("inf")) return null
+  const parsed = Number(trimmed.replace(/[$,%\s]/g, ""))
+  if (!Number.isFinite(parsed)) return null
+  return trimmed.includes("%") ? parsed / 100 : parsed
 }
 
 function parseScopeMetricTable(rows: string[][]): TypeBreakdownMetric[] {
@@ -1381,6 +1476,7 @@ function buildSnapshot(
         allAsins: parsedType.allAsins,
         top50: parsedType.top50,
         categoryBrandMix: parsedType.categoryBrandMix,
+        ...(parsedType.brandCategoryMix?.length ? { brandCategoryMix: parsedType.brandCategoryMix } : {}),
         source: parsedType.source,
       }
     : top50Revenue.length

@@ -11,9 +11,12 @@ import { fileURLToPath } from "node:url"
 import * as XLSX from "xlsx"
 
 import { loadCodeReaderScannerSnapshotFromFiles } from "../lib/code-reader-scanner-data.ts"
+import type { BrandSummary, TypeBreakdownSummary } from "../lib/competitor-data.ts"
 import {
   PRICE_TIER_V2_START_MONTH,
+  leafKeys,
   parentLevelKeys,
+  resolveSnapshotScheme,
   schemeForMonth,
 } from "../lib/price-tier-scheme.ts"
 
@@ -189,6 +192,13 @@ async function main() {
         }
 
         checkBrandMixSums(monthViolations, month, typeBreakdowns.categoryBrandMix)
+        checkBrandCategoryMix(
+          monthViolations,
+          month,
+          snapshot.date,
+          typeBreakdowns.brandCategoryMix ?? [],
+          snapshot.brandTotals
+        )
         checkUniqueScopeKeys(monthViolations, month, typeBreakdowns)
         if (month >= PRICE_TIER_V2_START_MONTH) {
           printPriceTierSchemeSentinel(month, typeBreakdowns.allAsins)
@@ -478,6 +488,67 @@ function checkBrandMixSums(
       )
     }
   }
+}
+
+/**
+ * Per-brand Sheet1 rows (typeBreakdowns.brandCategoryMix): shares/changes in
+ * range, each brand's "Total" revenue = its finest price buckets + Total
+ * Dongle + Total Other Tools within 1% (fails), and = its report brandTotals
+ * revenue within 1% (warns only: the report carries brand-level adjustments
+ * the raw summary does not, e.g. 202606 "generic" recovery).
+ */
+function checkBrandCategoryMix(
+  violations: Violation[],
+  month: string,
+  snapshotDate: string,
+  entries: NonNullable<TypeBreakdownSummary["brandCategoryMix"]>,
+  brandTotals: BrandSummary[]
+) {
+  const brandTotalsByKey = new Map(brandTotals.map((row) => [normalizeText(row.brand), row]))
+  for (const entry of entries) {
+    const scope = `brandCategoryMix.${entry.brandKey}`
+    for (const row of entry.rows) {
+      checkRatio(violations, month, scope, row.label, "unitsShare", row.unitsShare)
+      checkRatio(violations, month, scope, row.label, "revenueShare", row.revenueShare)
+      checkChange(violations, month, scope, row.label, "revenueMoM", row.revenueMoM)
+      checkChange(violations, month, scope, row.label, "revenueYoY", row.revenueYoY)
+    }
+
+    const byKey = new Map(entry.rows.map((row) => [row.scopeKey, row]))
+    const total = byKey.get("total")
+    if (!total) {
+      violations.push({ month, scope, label: entry.brand, field: "total", value: null, detail: "Brand has no Total row." })
+      continue
+    }
+    const scheme = resolveSnapshotScheme({ snapshotDate, scopeKeys: byKey.keys() })
+    const partKeys = [...leafKeys(scheme), "total_dongle", "total_other_tools"]
+    const partSum = partKeys.reduce((sum, key) => sum + (byKey.get(key)?.revenue ?? 0), 0)
+    if (relativeGap(partSum, total.revenue) > 0.01) {
+      violations.push({
+        month,
+        scope,
+        label: entry.brand,
+        field: "totalVsLeaves",
+        value: total.revenue,
+        detail: `Total revenue ${total.revenue.toFixed(2)} vs finest buckets + dongle + other tools ${partSum.toFixed(2)} (> 1%).`,
+      })
+    }
+
+    const brandTotal = brandTotalsByKey.get(entry.brandKey)
+    if (!brandTotal) {
+      console.warn(`WARNING month=${month} scope=${scope} brand not in brandTotals (Total revenue ${total.revenue.toFixed(0)}).`)
+    } else if (relativeGap(brandTotal.revenue, total.revenue) > 0.01) {
+      console.warn(
+        `WARNING month=${month} scope=${scope} Total revenue ${total.revenue.toFixed(0)} vs brandTotals ` +
+          `${brandTotal.revenue.toFixed(0)} (> 1%) — report-side brand adjustment, review upstream.`
+      )
+    }
+  }
+}
+
+function relativeGap(a: number, b: number) {
+  const scale = Math.max(Math.abs(a), Math.abs(b))
+  return scale === 0 ? 0 : Math.abs(a - b) / scale
 }
 
 function checkRatio(
