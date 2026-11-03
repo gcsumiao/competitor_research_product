@@ -1495,11 +1495,15 @@ function selectScopeRows(
   return rowsInScopeOrder(rows, breakdownKeysForScope(scope, scheme))
 }
 
+/**
+ * Rows in `order`, each labelled with the module's current label for its key
+ * (rows stored under a tier's legacy wording render today's label).
+ */
 function rowsInScopeOrder(rows: TypeBreakdownMetric[], order: readonly string[]) {
   const byScope = new Map(rows.map((row) => [row.scopeKey, row]))
   return order.flatMap((scopeKey) => {
     const row = byScope.get(scopeKey)
-    return row ? [row] : []
+    return row ? [{ ...row, label: labelForKey(scopeKey) ?? row.label }] : []
   })
 }
 

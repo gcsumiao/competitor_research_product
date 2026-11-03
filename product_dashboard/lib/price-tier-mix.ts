@@ -5,8 +5,8 @@
  *   All ASINs        -> the 7 parent-level slices of the snapshot's scheme
  *   Total Tablet     -> Tablet $800+ / $400-$800 / $400-
  *   Total Handheld   -> V1 $75+/$75-, V2 $100+/$100-
- *   Tablet $400-     -> (V2) Tablet $300+ / $200-$300 / $200-
- *   Handheld $100-   -> (V2) Handheld $65+ / $35-$65 / $35-
+ *   Tablet $400-     -> (V2) Tablet $300-$400 / $200-$300 / $200-
+ *   Handheld $100-   -> (V2) Handheld $65-$100 / $35-$65 / $35-
  *   Total Dongle / Total Other Tools -> the single total slice
  * A parent and its own sub-tiers never share a pie, and a partition scope
  * (type total with tiers, V2 parent tier) with a missing slice row draws no
@@ -16,6 +16,7 @@ import type { SnapshotSummary, TypeBreakdownMetric } from "@/lib/competitor-data
 import {
   dashboardScopeOptions,
   isPartitionScope,
+  labelForKey,
   pieKeysForScope,
   resolveSnapshotScheme,
   type PriceTierScheme,
@@ -61,7 +62,9 @@ export function buildPriceScopeOptions(snapshot: SnapshotLike | undefined): Pric
 function toPriceTierItem(metric: TypeBreakdownMetric): PriceTierItem {
   return {
     scopeKey: metric.scopeKey,
-    label: metric.label,
+    // Known keys render the module's current label, so rows stored under a
+    // tier's legacy wording still show today's label.
+    label: labelForKey(metric.scopeKey) ?? metric.label,
     units: metric.units,
     unitsShare: metric.unitsShare,
     unitsMoM: metric.unitsMoM,

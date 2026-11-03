@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
+  allPricedTierLabels,
   breakdownKeysForScope,
   PRICE_TIER_SCHEME_V1,
   PRICE_TIER_SCHEME_V2,
@@ -43,19 +44,25 @@ const V2_LABELS_TO_KEYS: Array<[string, string]> = [
   ["Tablet $800+", "tablet_800_plus"],
   ["Tablet $400-$800", "tablet_400_800"],
   ["Tablet $400-", "tablet_under_400"],
-  ["Tablet $300+", "tablet_300_400"],
+  ["Tablet $300-$400", "tablet_300_400"],
   ["Tablet $200-$300", "tablet_200_300"],
   ["Tablet $200-", "tablet_under_200"],
   ["Total Tablet", "total_tablet"],
   ["Handheld $100+", "handheld_100_plus"],
   ["Handheld $100-", "handheld_under_100"],
-  ["Handheld $65+", "handheld_65_100"],
+  ["Handheld $65-$100", "handheld_65_100"],
   ["Handheld $35-$65", "handheld_35_65"],
   ["Handheld $35-", "handheld_under_35"],
   ["Total Handheld", "total_handheld"],
   ["Total Dongle", "total_dongle"],
   ["Total Other Tools", "total_other_tools"],
   ["Total", "total"],
+]
+
+// Pre-relabel wording (analyst decision 2026-11-03): parser aliases only.
+const LEGACY_LABELS_TO_KEYS: Array<[string, string]> = [
+  ["Tablet $300+", "tablet_300_400"],
+  ["Handheld $65+", "handheld_65_100"],
 ]
 
 test("scheme label order and keys mirror price_tier_scheme.py", () => {
@@ -98,6 +105,48 @@ test("scope keys are unique within and across schemes (no $ +/- collisions)", ()
   assert.notEqual(scopeKeyForLabel("Handheld $75+"), scopeKeyForLabel("Handheld $75-"))
   assert.notEqual(scopeKeyForLabel("Tablet $200-"), scopeKeyForLabel("Tablet $200-$300"))
   assert.notEqual(scopeKeyForLabel("Handheld $35-"), scopeKeyForLabel("Handheld $35-$65"))
+})
+
+test("relabelled sub-tiers keep their keys; legacy wording parses but never renders", () => {
+  assert.equal(labelForKey("tablet_300_400"), "Tablet $300-$400")
+  assert.equal(labelForKey("handheld_65_100"), "Handheld $65-$100")
+  // Spacing noise around the range hyphen still resolves.
+  assert.equal(scopeKeyForLabel("Tablet $300 - $400"), "tablet_300_400")
+  assert.equal(scopeKeyForLabel("Handheld $65 - $100"), "handheld_65_100")
+
+  for (const [legacy, key] of LEGACY_LABELS_TO_KEYS) {
+    assert.equal(scopeKeyForLabel(legacy), key, legacy)
+    assert.equal(scopeKeyForLabel(`  ${legacy.toUpperCase()} `), key, `${legacy} (upper)`)
+    assert.equal(scopeKeyForLabel(legacy.replace(/\s+/g, "")), key, `${legacy} (no spaces)`)
+    assert.deepEqual(tierDefinition(key)?.legacyLabels, [legacy])
+    assert.notEqual(labelForKey(key), legacy)
+  }
+  // Only the two relabelled sub-tiers carry legacy wording.
+  const withLegacy = [...PRICE_TIER_SCHEME_V1.tiers, ...PRICE_TIER_SCHEME_V2.tiers]
+    .filter((tier) => tier.legacyLabels.length)
+    .map((tier) => tier.key)
+  assert.deepEqual([...new Set(withLegacy)], ["tablet_300_400", "handheld_65_100"])
+
+  // Tab names: both wordings are reserved analysis tabs, never brands.
+  const priced = allPricedTierLabels()
+  for (const label of ["Tablet $300-$400", "Handheld $65-$100", ...LEGACY_LABELS_TO_KEYS.map(([label]) => label)]) {
+    assert.ok(priced.includes(label), label)
+  }
+
+  // No scheme label or option list shows the legacy wording.
+  const legacy = new Set(LEGACY_LABELS_TO_KEYS.map(([label]) => label))
+  for (const scheme of [PRICE_TIER_SCHEME_V1, PRICE_TIER_SCHEME_V2]) {
+    const rendered = [
+      ...scheme.tiers.map((tier) => tier.label),
+      ...scheme.tiers.map((tier) => labelForKey(tier.key)),
+      ...dashboardScopeOptions(scheme).map((option) => option.label),
+      ...typeTierOptions("tablet", scheme).map((option) => option.label),
+      ...typeTierOptions("handheld", scheme).map((option) => option.label),
+    ]
+    for (const label of rendered) {
+      assert.ok(label && !legacy.has(label), `${scheme.version} renders ${label}`)
+    }
+  }
 })
 
 test("scopeKeyForLabel keeps legacy total aliases and rejects unknown labels", () => {
@@ -302,14 +351,14 @@ test("Types tier dropdowns list sub-tiers and follow the keys present", () => {
       ["Tablet $800+", 0],
       ["Tablet $400-$800", 0],
       ["Tablet $400-", 0],
-      ["Tablet $300+", 1],
+      ["Tablet $300-$400", 1],
       ["Tablet $200-$300", 1],
       ["Tablet $200-", 1],
     ]
   )
   assert.deepEqual(
     typeTierOptions("handheld", "v2").map((option) => option.label),
-    ["All handheld tiers", "Handheld $100+", "Handheld $100-", "Handheld $65+", "Handheld $35-$65", "Handheld $35-"]
+    ["All handheld tiers", "Handheld $100+", "Handheld $100-", "Handheld $65-$100", "Handheld $35-$65", "Handheld $35-"]
   )
   assert.deepEqual(
     typeTierOptions("handheld", "v1").map((option) => option.label),

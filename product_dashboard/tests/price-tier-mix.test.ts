@@ -58,7 +58,12 @@ const V2_VALUES: Record<string, [number, number]> = {
 }
 
 function v2Snapshot(
-  options: { omit?: string[]; values?: Record<string, [number, number]> } = {}
+  options: {
+    omit?: string[]
+    values?: Record<string, [number, number]>
+    /** Stored row labels by key (default: the scheme's current label). */
+    labels?: Record<string, string>
+  } = {}
 ): Snapshot {
   const values = { ...V2_VALUES, ...options.values }
   return {
@@ -69,7 +74,7 @@ function v2Snapshot(
         .filter((tier) => !options.omit?.includes(tier.key))
         .map((tier) => {
           const [revenue, units] = values[tier.key]
-          return metric(tier.key, tier.label, revenue, units)
+          return metric(tier.key, options.labels?.[tier.key] ?? tier.label, revenue, units)
         }),
       top50: [],
       categoryBrandMix: [],
@@ -108,6 +113,28 @@ test("V2 snapshot: card scopes add Tablet $400- and Handheld $100- after their t
       "Handheld $100-",
       "Total Dongle",
       "Total Other Tools",
+    ]
+  )
+})
+
+test("V2 snapshot: rows stored under the legacy sub-tier wording render the current labels", () => {
+  const snapshot = v2Snapshot({
+    labels: { tablet_300_400: "Tablet $300+", handheld_65_100: "Handheld $65+" },
+  })
+  assert.deepEqual(
+    buildPriceTierItems(snapshot, "tablet_under_400").map((row) => [row.scopeKey, row.label]),
+    [
+      ["tablet_300_400", "Tablet $300-$400"],
+      ["tablet_200_300", "Tablet $200-$300"],
+      ["tablet_under_200", "Tablet $200-"],
+    ]
+  )
+  assert.deepEqual(
+    buildPriceTierItems(snapshot, "handheld_under_100").map((row) => [row.scopeKey, row.label]),
+    [
+      ["handheld_65_100", "Handheld $65-$100"],
+      ["handheld_35_65", "Handheld $35-$65"],
+      ["handheld_under_35", "Handheld $35-"],
     ]
   )
 })

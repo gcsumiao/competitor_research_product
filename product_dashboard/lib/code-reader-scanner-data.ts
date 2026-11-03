@@ -103,8 +103,9 @@ type MixDedupeEntry = {
   fromDedicatedTab: boolean
 }
 
-// Tier tabs of every scheme (V1 "Handheld $75+" ... and V2 "Tablet $300+",
-// "Handheld $100-", ...) plus the type/grand totals are analysis tabs, never brands.
+// Tier tabs of every scheme (V1 "Handheld $75+" ... and V2 "Tablet $300-$400",
+// "Handheld $100-", ..., plus each tier's legacy wording) and the type/grand
+// totals are analysis tabs, never brands.
 const RESERVED_SHEETS = new Set(
   [
     "summary",
@@ -136,7 +137,8 @@ const FALLBACK_PRICE_TIERS = [
 ]
 
 // Formatted analysis tabs: legacy "<Type> Total" names, the raw summary's
-// "Total <Type>" names, and each tier/sub-tier tab of V1 and V2.
+// "Total <Type>" names, and each tier/sub-tier tab of V1 and V2 under its
+// current label and any legacy label (a relabel renames the tab).
 const KNOWN_TYPE_SHEETS = [
   "Tablet Total",
   "Total Tablet",
@@ -155,7 +157,9 @@ function typePricedLabels(typeGroup: "tablet" | "handheld") {
   for (const tier of [...PRICE_TIER_SCHEME_V1.tiers, ...PRICE_TIER_SCHEME_V2.tiers]) {
     if (tier.typeGroup !== typeGroup) continue
     if (tier.kind !== "tier" && tier.kind !== "subtier") continue
-    if (!labels.includes(tier.label)) labels.push(tier.label)
+    for (const label of [tier.label, ...tier.legacyLabels]) {
+      if (!labels.includes(label)) labels.push(label)
+    }
   }
   return labels
 }
