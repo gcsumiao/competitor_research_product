@@ -13,6 +13,7 @@ import { CustomerOrders } from "@/components/dashboard/customer-orders"
 import { TopProducts } from "@/components/dashboard/top-products"
 import { SalesMap } from "@/components/dashboard/sales-map"
 import { AllBrandsRankChart } from "@/components/dashboard/all-brands-rank-chart"
+import { BrandCategoryMixCard } from "@/components/dashboard/brand-category-mix-card"
 import { TrendLineCard } from "@/components/dashboard/trend-line-card"
 import { useDashboardFilters } from "@/components/dashboard/use-dashboard-filters"
 import { buttonVariants } from "@/components/ui/button"
@@ -659,6 +660,8 @@ export function CompetitorsClient({ data }: { data: DashboardData }) {
                   Rolling-12 history is tracked for the top 25 market brands only
                 </div>
               )}
+
+              <BrandCategoryMixCard snapshot={activeSnapshot} brand={resolvedSelectedBrand} />
 
               <Card className="bg-card border border-border">
                 <CardHeader className="pb-2">
