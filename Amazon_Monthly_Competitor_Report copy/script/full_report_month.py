@@ -11,6 +11,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from price_tier_scheme import SCHEME_CHOICES, category_dict, describe_scheme
+
 try:
     from preprocess_month import NON_OBD2_ASINS
 except ImportError:
@@ -1613,6 +1615,12 @@ def main() -> int:
         default=None,
         help="Optional formatted report path used to enforce historical Rolling 12 mo values.",
     )
+    parser.add_argument(
+        "--tier-scheme",
+        choices=list(SCHEME_CHOICES),
+        default="auto",
+        help="Price-tier scheme for summary.xlsx: auto (by month: v2 from 202610, else v1), or force v1/v2 (e.g. v2 previews of older months).",
+    )
     args = parser.parse_args()
 
     month = str(args.month).strip()
@@ -1995,18 +2003,8 @@ def main() -> int:
     cate_summary_ly: list[list] = []
     top_list: dict[str, list[str]] = {}
     price_range = math.ceil(max(market.Price))
-    category = {
-        "Tablet $800+": [["Tablet"], 800, price_range],
-        "Tablet $400-$800": [["Tablet"], 400, 800],
-        "Tablet $400-": [["Tablet"], 0, 400],
-        "Total Tablet": [["Tablet"], 0, price_range],
-        "Handheld $75+": [["Handheld"], 75, price_range],
-        "Handheld $75-": [["Handheld"], 0, 75],
-        "Total Handheld": [["Handheld"], 0, price_range],
-        "Total Dongle": [["Dongle"], 0, price_range],
-        "Total Other Tools": [["Key", "Cable/Adapter", "Other", "Probe", "VCI"], 0, price_range],
-        "Total": [["Tablet", "Handheld", "Dongle", "Key", "Cable/Adapter", "Other", "Probe", "VCI"], 0, price_range],
-    }
+    print(f"Price tier scheme: {describe_scheme(month, args.tier_scheme)}")
+    category = category_dict(month, price_range, scheme=args.tier_scheme)
 
     for db, top50_db, ls in zip(
         [market, market_lm, market_ly],
