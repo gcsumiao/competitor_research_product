@@ -3,6 +3,7 @@ import type { PoolClient } from "pg"
 import type { ProductSummary, SnapshotSummary } from "@/lib/competitor-data"
 import { queryDb, withDbTransaction } from "@/lib/db/client"
 import { upsertSourceArtifact, type SourceArtifactInput } from "@/lib/db/source-artifacts"
+import { scopeKeyForLabel } from "@/lib/price-tier-scheme"
 
 type JsonRecord = Record<string, unknown>
 
@@ -139,7 +140,7 @@ export async function ingestSnapshotData(input: SnapshotIngestInput) {
       }
       await insertSnapshotProducts(client, snapshotId, input.snapshotPayload)
       await insertBrandTotals(client, snapshotId, input.snapshotPayload)
-      await insertPriceTiers(client, snapshotId, input.snapshotPayload)
+      await insertPriceTiers(client, snapshotId, input.snapshotPayload, input.categoryId)
       await insertRolling12(client, snapshotId, input.snapshotPayload)
       await insertTypeBreakdowns(client, snapshotId, input.snapshotPayload)
       await insertCategoryBrandMix(client, snapshotId, input.snapshotPayload)
@@ -386,9 +387,16 @@ async function insertBrandTotals(
 async function insertPriceTiers(
   client: PoolClient,
   snapshotId: number,
-  snapshot: SnapshotSummary
+  snapshot: SnapshotSummary,
+  categoryId: string
 ) {
   for (const tier of snapshot.priceTiers) {
+    // Code-reader tiers store the parser's exact scope key (tablet_800_plus,
+    // handheld_100_plus, handheld_under_100, ...). The generic label slug
+    // folded "$75+"/"$75-" (and "$100+"/"$100-") into one key.
+    const scopeKey =
+      (categoryId === "code_reader_scanner" ? scopeKeyForLabel(tier.label) : null) ??
+      normalizeTierKey(tier.label)
     await client.query(
       `
         INSERT INTO snapshot_price_tiers (
@@ -409,7 +417,7 @@ async function insertPriceTiers(
       `,
       [
         snapshotId,
-        normalizeTierKey(tier.label),
+        scopeKey,
         tier.label,
         safeNumber(tier.revenue),
         safeNumber(tier.share),

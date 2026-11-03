@@ -240,14 +240,16 @@ function getCachedEnvelopeProbeLoader(scope: DashboardScope, categoryId: Categor
         oversized: byteLength > MAX_CACHE_ENTRY_BYTES,
       }
     },
-    // v7: cache-bust for the 2026-10-05 September re-ingest (Ave Rating zero-exclusion
+    // v8: price-tier scheme V2 (202610+): new tier scope keys and additive
+    // { parentKey, kind } on typeBreakdowns rows. v7: cache-bust for the
+    // 2026-10-05 September re-ingest (Ave Rating zero-exclusion
     // for all brands). v6 was the BLCKTEC-only rating re-ingest; v5 the first 202609 ingest
     // the same day; v4 was
     // the 2026-09-02 BLCKTEC-exactness re-ingest (v3 was
     // the rolling-label re-ingest) — prod's /api/revalidate sits behind
     // Cloudflare JWT until the service token lands, so data fixes flush by
     // bumping this version instead.
-    ["dashboard-scope-envelope", "v7", scope, categoryId],
+    ["dashboard-scope-envelope", "v8", scope, categoryId],
     {
       tags: [DASHBOARD_DATA_TAG],
       revalidate: CACHE_REVALIDATE_SECONDS,
@@ -275,7 +277,7 @@ function getCachedCategoryLoader(scope: DashboardScope, categoryId: CategoryId) 
       }
       return entry
     },
-    ["dashboard-scope", "v7", scope, categoryId],
+    ["dashboard-scope", "v8", scope, categoryId],
     {
       tags: [DASHBOARD_DATA_TAG],
       revalidate: CACHE_REVALIDATE_SECONDS,

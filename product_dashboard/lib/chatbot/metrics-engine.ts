@@ -33,6 +33,11 @@ import type {
   TopContributor,
 } from "@/lib/chatbot/types"
 import type { CategorySummary, SnapshotSummary, TypeBreakdownMetric } from "@/lib/competitor-data"
+import {
+  finestPresentTierKeys,
+  isKnownPriceTierKey,
+  resolveSnapshotScheme,
+} from "@/lib/price-tier-scheme"
 
 type BuildParams = {
   message: string
@@ -2131,8 +2136,7 @@ function analyzePriceTierGrowth(params: AnalyzerParams): AnalyzerOutput {
   const metric = params.parsed.plan.rankingMetric
   const window = params.parsed.plan.growthWindow
 
-  const rankedTiers = mart.priceScopeMetrics
-    .filter(isDetailedPriceTierMetric)
+  const rankedTiers = detailedPriceTierMetrics(mart.priceScopeMetrics, mart.snapshot.date)
     .map((row) => {
       const mom = metric === "units" ? row.unitsMoM : row.revenueMoM
       const yoy = metric === "units" ? row.unitsYoY : row.revenueYoY
@@ -2424,7 +2428,7 @@ function analyzeRatingReviews(params: AnalyzerParams): AnalyzerOutput {
 
 function analyzeFeatureAnalysis(params: AnalyzerParams): AnalyzerOutput {
   const { mart } = params
-  const tierRows = mart.priceScopeMetrics.filter(isDetailedPriceTierMetric)
+  const tierRows = detailedPriceTierMetrics(mart.priceScopeMetrics, mart.snapshot.date)
   const topTier = tierRows
     .slice()
     .sort((a, b) => safe(b.revenueShare) - safe(a.revenueShare))[0]
@@ -2986,7 +2990,24 @@ function formatSignedNumber(value: number) {
   return `${value >= 0 ? "+" : "-"}${abs}`
 }
 
-function isDetailedPriceTierMetric(metric: TypeBreakdownMetric) {
+/**
+ * Price-tier rows for growth / proxy rankings. Known scheme keys keep only the
+ * finest buckets present (V2: Tablet $400- and Handheld $100- give way to
+ * their sub-tiers, so a parent is never ranked beside its own children; V1
+ * keeps its 5 tiers as before). Unknown keys keep the legacy label heuristic.
+ */
+function detailedPriceTierMetrics(metrics: TypeBreakdownMetric[], snapshotDate: string) {
+  const presentKeys = metrics.map((metric) => metric.scopeKey)
+  const scheme = resolveSnapshotScheme({ snapshotDate, scopeKeys: presentKeys })
+  const finest = finestPresentTierKeys(presentKeys, scheme)
+  return metrics.filter((metric) =>
+    isKnownPriceTierKey(metric.scopeKey)
+      ? finest.has(metric.scopeKey)
+      : isLegacyDetailedPriceTierMetric(metric)
+  )
+}
+
+function isLegacyDetailedPriceTierMetric(metric: TypeBreakdownMetric) {
   const key = normalize(metric.scopeKey)
   const label = metric.label.toLowerCase()
   if (/\$/.test(label)) return true

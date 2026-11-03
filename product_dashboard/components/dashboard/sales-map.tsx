@@ -23,7 +23,8 @@ export type SalesMapItem = {
 export type SalesMapControl = {
   value: string
   onChange: (value: string) => void
-  options: Array<{ value: string; label: string }>
+  /** depth 1 renders the option indented under the one before it (sub-tier scopes). */
+  options: Array<{ value: string; label: string; depth?: number }>
 }
 
 interface SalesMapProps {
@@ -49,6 +50,8 @@ interface SalesMapProps {
   topDisplayOrder?: "value-first" | "label-first"
   growthDisplay?: "default" | "paired"
   highlightPrimaryControl?: boolean
+  /** One muted line under the chart (e.g. a data-mismatch note). */
+  footnote?: string
 }
 
 const CustomTooltip = ({
@@ -101,6 +104,7 @@ export function SalesMap({
   topDisplayOrder = "value-first",
   growthDisplay = "default",
   highlightPrimaryControl = false,
+  footnote,
 }: SalesMapProps) {
   const total = items.reduce((sum, item) => sum + item.value, 0)
   const formatValue = valueFormatter ?? formatCurrencyCompact
@@ -161,7 +165,11 @@ export function SalesMap({
                 </SelectTrigger>
                 <SelectContent align="end">
                   {primaryControl.options.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className={option.depth ? "pl-5" : undefined}
+                    >
                       {option.label}
                     </SelectItem>
                   ))}
@@ -307,6 +315,9 @@ export function SalesMap({
             </div>
           </div>
         </div>
+        {footnote ? (
+          <p className="mt-3 text-[11px] text-muted-foreground">{footnote}</p>
+        ) : null}
       </CardContent>
     </Card>
   )

@@ -11,6 +11,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from price_tier_scheme import SCHEME_CHOICES, categorized_share_basis, category_dict, describe_scheme
+
 try:
     from preprocess_month import NON_OBD2_ASINS
 except ImportError:
@@ -1528,9 +1530,24 @@ def extract_first_digit(text: str) -> str | None:
     return str(match.group()) if match else None
 
 
-def append_summary_list(df: pd.DataFrame, category: dict, tag: str, summary: list[list]):
-    unit_total = df["Monthly Sales"].sum()
-    rev_total = df["Monthly Revenue"].sum()
+def append_summary_list(
+    df: pd.DataFrame, category: dict, tag: str, summary: list[list], *, categorized_shares: bool = False
+):
+    """Append one ``[tag, category, units, units share, revenue, revenue share]``
+    row per category of ``category`` (scheme order) for the frame ``df``.
+
+    Share denominators: by default (scheme V1, published months) the whole
+    frame ``df``, listings outside every category (type OBD1) included, so the
+    "Total" row reads e.g. 99.87%. ``categorized_shares`` (scheme V2+) divides
+    by the frame's own "Total"-category sums instead: the "Total" row reads
+    exactly 100% and every other row is a share of the categorized frame.
+    """
+    basis = df
+    if categorized_shares:
+        types, low, high = category["Total"]
+        basis = df[(df.Type.isin(types)) & (df.Price >= low) & (df.Price < high)]
+    unit_total = basis["Monthly Sales"].sum()
+    rev_total = basis["Monthly Revenue"].sum()
     for c, l in category.items():
         df_cate = df[(df.Type.isin(l[0])) & (df.Price >= l[1]) & (df.Price < l[2])]
         if len(df_cate) > 0:
@@ -1612,6 +1629,12 @@ def main() -> int:
         type=Path,
         default=None,
         help="Optional formatted report path used to enforce historical Rolling 12 mo values.",
+    )
+    parser.add_argument(
+        "--tier-scheme",
+        choices=list(SCHEME_CHOICES),
+        default="auto",
+        help="Price-tier scheme for summary.xlsx: auto (by month: v2 from 202610, else v1), or force v1/v2 (e.g. v2 previews of older months).",
     )
     args = parser.parse_args()
 
@@ -1995,18 +2018,14 @@ def main() -> int:
     cate_summary_ly: list[list] = []
     top_list: dict[str, list[str]] = {}
     price_range = math.ceil(max(market.Price))
-    category = {
-        "Tablet $800+": [["Tablet"], 800, price_range],
-        "Tablet $400-$800": [["Tablet"], 400, 800],
-        "Tablet $400-": [["Tablet"], 0, 400],
-        "Total Tablet": [["Tablet"], 0, price_range],
-        "Handheld $75+": [["Handheld"], 75, price_range],
-        "Handheld $75-": [["Handheld"], 0, 75],
-        "Total Handheld": [["Handheld"], 0, price_range],
-        "Total Dongle": [["Dongle"], 0, price_range],
-        "Total Other Tools": [["Key", "Cable/Adapter", "Other", "Probe", "VCI"], 0, price_range],
-        "Total": [["Tablet", "Handheld", "Dongle", "Key", "Cable/Adapter", "Other", "Probe", "VCI"], 0, price_range],
-    }
+    print(f"Price tier scheme: {describe_scheme(month, args.tier_scheme)}")
+    category = category_dict(month, price_range, scheme=args.tier_scheme)
+    # V2+: Sheet1 "Qty by %" / "Revenue by %" divide by each frame's "Total"
+    # category (OBD1 listings belong to no category), so Total rows read 100%.
+    # The report workbook's Summary "Market ... Share %" columns and its
+    # Rolling-12 Total Market row stay whole-market (market_rev_total above).
+    categorized_shares = categorized_share_basis(month, args.tier_scheme)
+    print(f"Summary share basis: {'Total category' if categorized_shares else 'whole market'}")
 
     for db, top50_db, ls in zip(
         [market, market_lm, market_ly],
@@ -2014,12 +2033,12 @@ def main() -> int:
         [list_summary, list_summary_lm, list_summary_ly],
         strict=True,
     ):
-        append_summary_list(db, category, "Total", ls)
+        append_summary_list(db, category, "Total", ls, categorized_shares=categorized_shares)
         top50 = top50_db.sort_values("Monthly Revenue", ascending=False, ignore_index=True).head(50)
-        append_summary_list(top50, category, "Top 50", ls)
+        append_summary_list(top50, category, "Top 50", ls, categorized_shares=categorized_shares)
         for brands in brand_list:
             df_b = db[db["Brand"] == brands].copy()
-            append_summary_list(df_b, category, brands, ls)
+            append_summary_list(df_b, category, brands, ls, categorized_shares=categorized_shares)
 
     summary = pd.DataFrame(list_summary, columns=["Brand", "Category", "Quantity/Mo", "Qty by %", "Revenue/Mo", "Revenue by %"])
     summary_lm = pd.DataFrame(list_summary_lm, columns=["Brand", "Category", "Quantity/Mo", "Qty by %", "Revenue/Mo", "Revenue by %"])

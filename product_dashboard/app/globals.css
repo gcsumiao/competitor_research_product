@@ -102,6 +102,18 @@
   --color-tier-handheld-under-75: #eab308;
   --color-tier-total-dongle: #2563eb;
   --color-tier-total-other-tools: #64748b;
+  /* Scheme V2 (report month 202610+). Handheld $100+/$100- keep the
+     green/yellow roles of $75+/$75-; sub-tiers are dark -> light steps of
+     their parent's hue (Tablet $400- amber, Handheld $100- yellow) and are
+     only ever drawn in their parent's own pie. */
+  --color-tier-tablet-300-400: #b45309;
+  --color-tier-tablet-200-300: #f59e0b;
+  --color-tier-tablet-under-200: #fcd34d;
+  --color-tier-handheld-100-plus: #059669;
+  --color-tier-handheld-under-100: #eab308;
+  --color-tier-handheld-65-100: #854d0e;
+  --color-tier-handheld-35-65: #ca8a04;
+  --color-tier-handheld-under-35: #fde047;
 }
 
 .dark {
@@ -147,6 +159,14 @@
   --color-tier-handheld-under-75: #fde047;
   --color-tier-total-dongle: #60a5fa;
   --color-tier-total-other-tools: #94a3b8;
+  --color-tier-tablet-300-400: #d97706;
+  --color-tier-tablet-200-300: #fbbf24;
+  --color-tier-tablet-under-200: #fde68a;
+  --color-tier-handheld-100-plus: #34d399;
+  --color-tier-handheld-under-100: #fde047;
+  --color-tier-handheld-65-100: #ca8a04;
+  --color-tier-handheld-35-65: #facc15;
+  --color-tier-handheld-under-35: #fef08a;
 }
 
 @layer base {
