@@ -50,6 +50,8 @@ interface SalesMapProps {
   topDisplayOrder?: "value-first" | "label-first"
   growthDisplay?: "default" | "paired"
   highlightPrimaryControl?: boolean
+  /** One muted line under the chart (e.g. a data-mismatch note). */
+  footnote?: string
 }
 
 const CustomTooltip = ({
@@ -102,6 +104,7 @@ export function SalesMap({
   topDisplayOrder = "value-first",
   growthDisplay = "default",
   highlightPrimaryControl = false,
+  footnote,
 }: SalesMapProps) {
   const total = items.reduce((sum, item) => sum + item.value, 0)
   const formatValue = valueFormatter ?? formatCurrencyCompact
@@ -312,6 +315,9 @@ export function SalesMap({
             </div>
           </div>
         </div>
+        {footnote ? (
+          <p className="mt-3 text-[11px] text-muted-foreground">{footnote}</p>
+        ) : null}
       </CardContent>
     </Card>
   )

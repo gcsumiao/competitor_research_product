@@ -71,7 +71,7 @@ import {
   truncateLabel,
 } from "@/lib/dashboard-format"
 import { REVENUE_CHART_COLOR, UNITS_CHART_COLOR } from "@/lib/chart-colors"
-import { schemeForSnapshot } from "@/lib/price-tier-mix"
+import { pieCompletenessForRows, schemeForSnapshot } from "@/lib/price-tier-mix"
 import {
   breakdownKeysForScope,
   labelForKey,
@@ -1516,13 +1516,17 @@ function selectProductTypeRows(
 /**
  * Price tier pie: All ASINs = the 7 parent-level slices, a type total = its
  * top-level tiers, a V2 parent tier = its sub-tiers, a leaf = itself. A
- * parent and its own sub-tiers never share the pie.
+ * parent and its own sub-tiers never share the pie, and a partition scope
+ * with a missing slice row (e.g. Tablet $400- without its Tablet $200- row)
+ * draws no pie rather than a partial one (same rule as the Dashboard card).
  */
 function selectPriceTierMixRows(
   rows: TypeBreakdownMetric[],
   scope: ResolvedTypeScope,
   scheme: PriceTierScheme
 ) {
+  const completeness = pieCompletenessForRows(rows, scope, scheme)
+  if (completeness.partition && !completeness.complete) return [] as TypeBreakdownMetric[]
   return rowsInScopeOrder(rows, pieKeysForScope(scope, scheme))
 }
 

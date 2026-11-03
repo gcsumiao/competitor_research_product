@@ -27,6 +27,7 @@ import {
   priceTierAnnotation,
   resolveSnapshotScheme,
   scopeKeyForLabel,
+  tierDefinition,
 } from "@/lib/price-tier-scheme"
 import { formatSnapshotLabelMonthEnd, normalizeSnapshotDate } from "@/lib/snapshot-date"
 
@@ -1208,11 +1209,16 @@ function metricFromRow(header: string[], row: string[], label: string): TypeBrea
   const revenue = readMetricCell(header, row, ["revenuemo", "monthlyrevenue"])
   const avgPrice = readMetricCell(header, row, ["avgprice", "priceperunit"])
 
-  if (units === 0 && revenue === 0 && avgPrice === 0) {
+  const scopeKey = toScopeKey(label)
+  // All-zero rows are skipped, except a priced tier/sub-tier (label has a "$"):
+  // a zero-revenue sub-tier is a real 0% slice, and dropping it would make
+  // its parent's pie look incomplete. Type-total aliases ("Handheld") stay
+  // skipped so an empty section header never shadows the real total row.
+  const pricedKind = tierDefinition(scopeKey)?.kind
+  if (units === 0 && revenue === 0 && avgPrice === 0 && pricedKind !== "tier" && pricedKind !== "subtier") {
     return null
   }
 
-  const scopeKey = toScopeKey(label)
   return {
     scopeKey,
     label: prettyScopeLabel(label),

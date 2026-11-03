@@ -9,6 +9,7 @@ import {
   childrenOf,
   dashboardScopeOptions,
   finestPresentTierKeys,
+  isPartitionScope,
   labelForKey,
   leafKeys,
   normalizeMonthKey,
@@ -265,12 +266,32 @@ test("dashboard scope options: V1 has the 5 legacy scopes, V2 adds the two paren
       ["total_other_tools", "Total Other Tools"],
     ]
   )
-  // Parent scopes need their own row and at least one sub-tier row.
+  // Parent scopes need their own row and EVERY sub-tier row.
   const withoutChildren = new Set(["total_tablet", "tablet_under_400", "total_handheld", "handheld_under_100"])
   assert.deepEqual(
     dashboardScopeOptions("v2", withoutChildren).map((option) => option.value),
     ["all_asins", "total_tablet", "total_handheld"]
   )
+  const allV2 = PRICE_TIER_SCHEME_V2.tiers.map((tier) => tier.key)
+  const missingOneChild = new Set(allV2.filter((key) => key !== "tablet_200_300"))
+  assert.deepEqual(
+    dashboardScopeOptions("v2", missingOneChild).map((option) => option.value),
+    ["all_asins", "total_tablet", "total_handheld", "handheld_under_100", "total_dongle", "total_other_tools"]
+  )
+  const missingParent = new Set(allV2.filter((key) => key !== "handheld_under_100"))
+  assert.ok(!dashboardScopeOptions("v2", missingParent).some((option) => option.value === "handheld_under_100"))
+})
+
+test("isPartitionScope: type totals with tiers and V2 parents only", () => {
+  for (const scope of ["total_tablet", "total_handheld", "tablet_under_400", "handheld_under_100"]) {
+    assert.equal(isPartitionScope(scope, "v2"), true, scope)
+  }
+  for (const scope of ["all_asins", "total_dongle", "total_other_tools", "tablet_300_400", "tablet_800_plus"]) {
+    assert.equal(isPartitionScope(scope, "v2"), false, scope)
+  }
+  assert.equal(isPartitionScope("total_tablet", "v1"), true)
+  // V1 Tablet $400- has no sub-tiers: its pie is just itself.
+  assert.equal(isPartitionScope("tablet_under_400", "v1"), false)
 })
 
 test("Types tier dropdowns list sub-tiers and follow the keys present", () => {
@@ -298,6 +319,21 @@ test("Types tier dropdowns list sub-tiers and follow the keys present", () => {
   assert.deepEqual(
     typeTierOptions("handheld", "v2", present).map((option) => option.value),
     ["total_handheld", "handheld_100_plus", "handheld_under_100"]
+  )
+  // A missing sub-tier is simply not listed; its parent stays.
+  const missingOneChild = new Set(
+    PRICE_TIER_SCHEME_V2.tiers.map((tier) => tier.key).filter((key) => key !== "tablet_200_300")
+  )
+  assert.deepEqual(
+    typeTierOptions("tablet", "v2", missingOneChild).map((option) => [option.value, option.depth]),
+    [
+      ["total_tablet", 0],
+      ["tablet_800_plus", 0],
+      ["tablet_400_800", 0],
+      ["tablet_under_400", 0],
+      ["tablet_300_400", 1],
+      ["tablet_under_200", 1],
+    ]
   )
 })
 

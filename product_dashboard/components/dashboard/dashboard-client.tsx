@@ -65,6 +65,7 @@ import {
   buildPriceScopeOptions,
   buildPriceTierItems,
   findPriceScopeMetric,
+  pieCompleteness,
 } from "@/lib/price-tier-mix"
 import { priceTierColor } from "@/lib/price-tier-scheme"
 
@@ -239,6 +240,12 @@ export function DashboardClient({ data }: { data: DashboardData }) {
 
   const currentPriceTierRows = buildPriceTierItems(activeSnapshot, resolvedPriceScope)
   const scopeMetric = findPriceScopeMetric(activeSnapshot, resolvedPriceScope, currentPriceTierRows)
+  // Data guard: a complete partition (type total / V2 parent tier) whose
+  // slices differ from the scope's own sheet row by > 1% gets a muted note.
+  const priceScopeCompleteness = pieCompleteness(activeSnapshot, resolvedPriceScope)
+  const priceTierFootnote = priceScopeCompleteness.mismatch && priceScopeCompleteness.parentRevenue !== null
+    ? `Data mismatch: tiers sum to ${formatCurrencyCompact(priceScopeCompleteness.sumRevenue)} vs ${formatCurrencyCompact(priceScopeCompleteness.parentRevenue)} on the scope row.`
+    : undefined
 
   // Fixed revenue-desc slice order (matching the Types page pie) so toggling
   // revenue <-> units tweens slice sizes in place instead of reshuffling.
@@ -615,6 +622,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
               onChange: setPriceScope,
               options: priceScopeOptions,
             }}
+            footnote={priceTierFootnote}
           />
         </div>
       </div>

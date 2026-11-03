@@ -419,6 +419,19 @@ export function pieKeysForScope(scope: string, scheme: SchemeLike): string[] {
 }
 
 /**
+ * True when a scope's pie keys partition the scope's own row — a type total
+ * with price tiers (Total Tablet, Total Handheld) or a V2 parent tier
+ * (Tablet $400-, Handheld $100-). Its slices read as 100% of that row, so a
+ * missing slice row must blank the pie instead of drawing a partial one.
+ * All ASINs and single-row scopes (Total Dongle, a leaf tier) are not.
+ */
+export function isPartitionScope(scope: string, scheme: SchemeLike): boolean {
+  if (scope === "all_asins") return false
+  const keys = pieKeysForScope(scope, scheme)
+  return !(keys.length === 1 && keys[0] === scope)
+}
+
+/**
  * Rows for a "type scope breakdown" table in scheme order: all keys for
  * all_asins, a type's tiers + sub-tiers + total for total_<type>, a parent and
  * its sub-tiers for a parent tier, otherwise just the key.
@@ -446,7 +459,9 @@ function hasKey(presentKeys: ReadonlySet<string> | undefined, key: string) {
  * Dashboard "Price tier mix" scope options (Option A): All ASINs, each type
  * total, and — directly after its type total — every tier that has sub-tiers
  * (V2: "Tablet $400-", "Handheld $100-"). With presentKeys, options whose rows
- * are missing from the snapshot are dropped.
+ * are missing from the snapshot are dropped; a parent tier is offered only
+ * when its own row AND every sub-tier row are present (zero-revenue rows
+ * count as present), so its pie always adds up to the parent.
  */
 export function dashboardScopeOptions(
   scheme: SchemeLike,
@@ -466,7 +481,7 @@ export function dashboardScopeOptions(
     const children = childrenOf(definition.key, resolved)
     if (!children.length) continue
     if (!hasKey(presentKeys, definition.key)) continue
-    if (presentKeys && !children.some((child) => presentKeys.has(child))) continue
+    if (presentKeys && !children.every((child) => presentKeys.has(child))) continue
     options.push({ value: definition.key, label: definition.label, depth: 1 })
   }
 
@@ -495,7 +510,9 @@ const TYPE_TIER_ALL_LABELS: Partial<Record<PriceTierTypeGroup, string>> = {
  * Types page tier dropdown for Total Tablet / Total Handheld: "All <type>
  * tiers" (the type total) followed by every tier and sub-tier of the scheme
  * in scheme order. With presentKeys, tiers missing from the snapshot are
- * dropped so each month shows only the tiers it actually has.
+ * dropped so each month shows only the tiers it actually has: a missing
+ * sub-tier is simply not listed while its parent stays (the parent's pie
+ * then blanks — see isPartitionScope — rather than drawing a partial pie).
  */
 export function typeTierOptions(
   typeGroup: "tablet" | "handheld",
