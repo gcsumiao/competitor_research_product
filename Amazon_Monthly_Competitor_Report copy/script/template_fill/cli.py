@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from price_tier_scheme import SCHEME_CHOICES
+
 from .config import DEFAULT_RAW_REPORT, DEFAULT_RAW_SUMMARY, ROOT, STAGING_TEMPLATE
 from .main import build_monthly_output
 
@@ -17,6 +19,13 @@ def main() -> None:
     parser.add_argument("--raw-report", type=Path, default=DEFAULT_RAW_REPORT)
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--brand-header-dir", type=Path, default=None)
+    parser.add_argument("--month", default=None, help="Report month YYYYMM (picks the price-tier scheme). Defaults to the raw report month.")
+    parser.add_argument(
+        "--tier-scheme",
+        choices=SCHEME_CHOICES,
+        default="auto",
+        help="Price-tier scheme: auto (by month: v2 from 202610), or force v1/v2 to match a forced raw summary.",
+    )
     args = parser.parse_args()
 
     def resolve(path: Path | None) -> Path | None:
@@ -33,6 +42,8 @@ def main() -> None:
         raw_report=resolve(args.raw_report),
         out_dir=resolve(args.out_dir),
         brand_header_dir=resolve(args.brand_header_dir),
+        month=args.month,
+        tier_scheme=args.tier_scheme,
     )
     print(out)
 

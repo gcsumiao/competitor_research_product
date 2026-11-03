@@ -5,10 +5,13 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import BadZipFile, ZipFile
 
+from openpyxl.chart.bar_chart import BarChart, BarChart3D
+from openpyxl.utils import quote_sheetname
 from openpyxl.workbook import Workbook
 
-from .config import FIXED_BRANDS, VISIBLE_SHEETS
+from .config import FIXED_BRANDS, SUMMARY_FIRST_ROW, SchemeLayout, layout_for_month
 from .formula_map import sorted_tables, table_bounds
+from .scheme_upgrade import PIE_TYPES, _ref_areas, chart_refs, find_sections, summary_row_kind
 
 
 CANONICAL_URL = re.compile(r"^https://amazon\.com/dp/[A-Z0-9]{10}$")
@@ -21,19 +24,30 @@ OWN_BRAND_COLORS = {
 }
 
 
-def validate_workbook(wb: Workbook) -> list[str]:
+def validate_workbook(wb: Workbook, month: str | None = None, tier_scheme: str = "auto") -> list[str]:
+    """Structural checks for a filled Analysis workbook.
+
+    ``month`` (YYYYMM) selects the price-tier scheme the workbook must follow
+    (V2 from 202610; None = V1); ``tier_scheme`` 'v1'/'v2' forces one.
+    """
+    layout = layout_for_month(month, tier_scheme)
     issues: list[str] = []
     visible = [ws.title for ws in wb.worksheets if ws.sheet_state == "visible"]
-    if visible != VISIBLE_SHEETS:
+    if visible != list(layout.visible_sheets):
         issues.append(f"Visible sheet order mismatch: {visible}")
+    missing = [name for name in layout.visible_sheets if name not in wb.sheetnames]
+    if missing:
+        issues.append(f"Missing tabs for scheme {layout.name}: {missing}")
+        return issues
 
     for ws in wb.worksheets:
         if ws.title.startswith("_stg_") and ws.sheet_state != "hidden":
             issues.append(f"Staging sheet is not hidden: {ws.title}")
 
-    for sheet_name in VISIBLE_SHEETS[1:11] + [display for display, _ in FIXED_BRANDS]:
+    # Explicit tab list (was a positional slice of the V1 tab order).
+    for sheet_name in ["Top 50", *layout.category_tabs] + [display for display, _ in FIXED_BRANDS]:
         ws = wb[sheet_name]
-        if sheet_name != "Summary" and not ws.column_dimensions["K"].hidden:
+        if not ws.column_dimensions["K"].hidden:
             issues.append(f"Column K should be hidden on {sheet_name}")
 
     for display, _key in FIXED_BRANDS:
@@ -58,13 +72,19 @@ def validate_workbook(wb: Workbook) -> list[str]:
     _validate_top50(wb, issues)
     _validate_summary_brand_colors(wb, issues)
     _validate_total_shares(wb, issues)
-    _validate_parent_section_total_links(wb, issues)
-    _validate_child_links(wb, issues)
+    _validate_parent_section_total_links(wb, issues, layout)
+    _validate_child_links(wb, issues, layout)
     _validate_listing_hyperlinks(wb, issues)
     _validate_brand_tabs(wb, issues)
     _validate_brand_logos(wb, issues)
     _validate_brand_overview_fills(wb, issues)
-    _validate_parent_section_total_fills(wb, issues)
+    _validate_parent_section_total_fills(wb, issues, layout)
+    if not layout.is_legacy:
+        # Scheme V2+ checks; V1 validation is unchanged.
+        _validate_summary_table(wb, issues, layout)
+        _validate_summary_charts(wb, issues, layout)
+        _validate_category_tab_artifacts(wb, issues, layout)
+        _validate_sections(wb, issues, layout)
 
     for ws in wb.worksheets:
         if ws.sheet_state != "visible":
@@ -231,19 +251,33 @@ def _validate_total_shares(wb: Workbook, issues: list[str]) -> None:
             issues.append(f"{sheet_name}!J{row_idx} should be 100%")
 
 
-def _validate_child_links(wb: Workbook, issues: list[str]) -> None:
-    links = {
-        "Tablet $800+": "Tablet Total",
-        "Tablet $400-$800": "Tablet Total",
-        "Tablet $400-": "Tablet Total",
-        "Handheld $75+": "Handheld Total",
-        "Handheld $75-": "Handheld Total",
-    }
-    for child, parent in links.items():
+def _validate_child_links(wb: Workbook, issues: list[str], layout: SchemeLayout) -> None:
+    for child, (parent, section_title) in layout.child_section_links.items():
         ws = wb[child]
         first = ws.cell(5, 1).value
         if not (isinstance(first, str) and first.startswith(f"='{parent}'!A")):
             issues.append(f"{child}!A5 should link to {parent}")
+        if layout.is_legacy:
+            continue
+        # V2+: every overview row links its parent-section row (so a sub-tier
+        # tab's Total equals the parent's section Total) and A3 links the
+        # section title.
+        parent_ws = wb[parent]
+        try:
+            title_row = _find_label_row(parent_ws, section_title, 1, parent_ws.max_row)
+            total_row = _find_section_total_row(parent_ws, title_row)
+        except ValueError as exc:
+            issues.append(f"{child}: parent section missing ({exc})")
+            continue
+        prefix = f"={quote_sheetname(parent)}!"
+        for offset, parent_row in enumerate(range(title_row + 2, total_row + 1)):
+            for col in (1, 5, 9):
+                letter = _col_letter(col)
+                expected = f"{prefix}{letter}{parent_row}"
+                if ws.cell(5 + offset, col).value != expected:
+                    issues.append(f"{child}!{letter}{5 + offset} should be {expected}")
+        if ws.cell(3, 1).value != f"{prefix}A{title_row}":
+            issues.append(f"{child}!A3 should link to the section title {prefix}A{title_row}")
 
 
 def _validate_summary_brand_colors(wb: Workbook, issues: list[str]) -> None:
@@ -283,16 +317,12 @@ def _summary_brand_blocks(ws) -> list[tuple[int, int]]:
     return blocks
 
 
-def _validate_parent_section_total_links(wb: Workbook, issues: list[str]) -> None:
-    sections = {
-        "Tablet Total": ("Tablet $800+", "Tablet $400-$800", "Tablet $400-"),
-        "Handheld Total": ("Handheld $75+", "Handheld $75-"),
-    }
+def _validate_parent_section_total_links(wb: Workbook, issues: list[str], layout: SchemeLayout) -> None:
     summary = wb["Summary"]
-    for sheet_name, titles in sections.items():
+    for sheet_name, titles in layout.parent_sections.items():
         ws = wb[sheet_name]
         for title in titles:
-            summary_row = _find_label_row(summary, title, 4, 13)
+            summary_row = _find_label_row(summary, title, SUMMARY_FIRST_ROW, layout.summary_last_row)
             title_row = _find_label_row(ws, title, 1, ws.max_row)
             total_row = _find_section_total_row(ws, title_row)
             def _norm_ref(value: object) -> str:
@@ -315,12 +345,8 @@ def _validate_parent_section_total_links(wb: Workbook, issues: list[str]) -> Non
                     issues.append(f"{sheet_name}!{_col_letter(col)}{total_row} should be a SUM formula")
 
 
-def _validate_parent_section_total_fills(wb: Workbook, issues: list[str]) -> None:
-    sections = {
-        "Tablet Total": ("Tablet $800+", "Tablet $400-$800", "Tablet $400-"),
-        "Handheld Total": ("Handheld $75+", "Handheld $75-"),
-    }
-    for sheet_name, titles in sections.items():
+def _validate_parent_section_total_fills(wb: Workbook, issues: list[str], layout: SchemeLayout) -> None:
+    for sheet_name, titles in layout.parent_sections.items():
         ws = wb[sheet_name]
         for title in titles:
             title_row = _find_label_row(ws, title, 1, ws.max_row)
@@ -328,6 +354,91 @@ def _validate_parent_section_total_fills(wb: Workbook, issues: list[str]) -> Non
             kind = _fill_kind(ws.cell(total_row, 2))
             if kind != "rgb:FFB5A7D7":
                 issues.append(f"{sheet_name}!B{total_row} section total should have the purple fill, got {kind}")
+
+
+def _validate_summary_table(wb: Workbook, issues: list[str], layout: SchemeLayout) -> None:
+    """Summary category table: one row per scheme label in order (rows
+    4..4+n-1), sub-tier rows unfilled/regular/indented, family subtotals gray
+    and bold except the unshaded "Total Dongle", grand Total purple."""
+    ws = wb["Summary"]
+    first, last = SUMMARY_FIRST_ROW, layout.summary_last_row
+    actual = [str(ws.cell(row_idx, 1).value or "").strip() for row_idx in range(first, last + 1)]
+    if actual != list(layout.summary_labels):
+        issues.append(f"Summary rows {first}-{last} should be {list(layout.summary_labels)}, got {actual}")
+        return
+    after = str(ws.cell(last + 1, 1).value or "").strip()
+    if after:
+        issues.append(f"Summary!A{last + 1} should be blank below the category table, got {after!r}")
+    for row_idx, label in zip(range(first, last + 1), actual):
+        kind = summary_row_kind(label, layout.subtier_labels)
+        cell_a, cell_b = ws.cell(row_idx, 1), ws.cell(row_idx, 2)
+        fill = _fill_kind(cell_b)
+        indent = cell_a.alignment.indent or 0
+        bold = bool(cell_b.font.bold)
+        if kind in ("tier", "subtier"):
+            if fill not in ("none", "theme0:0.0", "rgb:FFFFFFFF"):
+                issues.append(f"Summary!B{row_idx} {label} should be unfilled, got {fill}")
+            if bold or cell_a.font.bold:
+                issues.append(f"Summary!A{row_idx} {label} should be regular weight")
+            if kind == "subtier" and indent < 1:
+                issues.append(f"Summary!A{row_idx} sub-tier {label} should be indented")
+            if kind == "tier" and indent:
+                issues.append(f"Summary!A{row_idx} {label} should not be indented")
+        elif kind == "subtotal":
+            wanted = "none" if label.lower() == "total dongle" else "theme0:-0.25"
+            if fill != wanted:
+                issues.append(f"Summary!B{row_idx} {label} fill should be {wanted}, got {fill}")
+            if not bold:
+                issues.append(f"Summary!B{row_idx} {label} should be bold")
+        else:
+            if fill != "rgb:FFB5A7D7":
+                issues.append(f"Summary!B{row_idx} Total should have the purple fill, got {fill}")
+
+
+def _validate_summary_charts(wb: Workbook, issues: list[str], layout: SchemeLayout) -> None:
+    """Summary pies must plot the labelled family-total rows; bars the full
+    category table."""
+    ws = wb["Summary"]
+    first, last = SUMMARY_FIRST_ROW, layout.summary_last_row
+    family_totals = {label for label in layout.summary_labels if summary_row_kind(label, ()) == "subtotal"}
+    for chart in getattr(ws, "_charts", []):
+        is_pie = isinstance(chart, PIE_TYPES)
+        is_bar = isinstance(chart, (BarChart, BarChart3D))
+        for ref in chart_refs(chart):
+            areas = _ref_areas(ref.f or "")
+            if not areas:
+                continue
+            rows = sorted({r for _t, _c1, r1, _c2, r2 in areas for r in range(r1, r2 + 1)})
+            labels = {str(ws.cell(r, 1).value or "").strip() for r in rows}
+            if is_pie and labels != family_totals:
+                issues.append(f"Summary pie reference {ref.f} should plot {sorted(family_totals)}, got {sorted(labels)}")
+            if is_bar and rows != list(range(first, last + 1)):
+                issues.append(f"Summary bar reference {ref.f} should cover rows {first}-{last}")
+
+
+def _validate_category_tab_artifacts(wb: Workbook, issues: list[str], layout: SchemeLayout) -> None:
+    for tab in layout.category_tabs:
+        ws = wb[tab]
+        if len(getattr(ws, "_charts", [])) != 6:
+            issues.append(f"{tab} should have 6 charts, has {len(getattr(ws, '_charts', []))}")
+        if len(ws.tables) != 2:
+            issues.append(f"{tab} should have 2 ranking tables, has {len(ws.tables)}")
+        title = str(ws.cell(1, 1).value or "")
+        if tab not in layout.total_tabs and title != f"{tab} Monthly Summary":
+            issues.append(f"{tab}!A1 should read {tab!r} + ' Monthly Summary', got {title!r}")
+        for chart in getattr(ws, "_charts", []):
+            for ref in chart_refs(chart):
+                for sheet, *_rest in _ref_areas(ref.f or "") or []:
+                    if sheet.lower() != tab.lower():
+                        issues.append(f"{tab} chart reference {ref.f} points at another sheet")
+
+
+def _validate_sections(wb: Workbook, issues: list[str], layout: SchemeLayout) -> None:
+    for tab in layout.category_tabs:
+        expected = list(layout.parent_sections.get(tab, ()))
+        actual = [title for title, _row, _total in find_sections(wb[tab])]
+        if actual != expected:
+            issues.append(f"{tab} sections should be {expected}, got {actual}")
 
 
 def _validate_listing_hyperlinks(wb: Workbook, issues: list[str]) -> None:

@@ -14,14 +14,14 @@ from openpyxl.styles import PatternFill
 from openpyxl.styles.colors import Color
 
 from .config import (
-    CATEGORY_TABS,
     DEFAULT_RAW_REPORT,
     DEFAULT_RAW_SUMMARY,
     FIXED_BRANDS,
-    LISTING_SOURCE_SHEETS,
     ROOT,
     STAGING_TEMPLATE,
-    VISIBLE_SHEETS,
+    SUMMARY_FIRST_ROW,
+    SchemeLayout,
+    layout_for_month,
     slug,
 )
 from .formula_map import hyperlink_formula, sorted_tables, table_bounds
@@ -34,6 +34,14 @@ from .raw_loader import (
     RawData,
     ordered_brand_summary,
 )
+from .scheme_upgrade import (
+    SUMMARY_WIDTH,
+    UpgradeReport,
+    apply_summary_chart_plan,
+    fit_overview_chart_refs,
+    summary_row_kind,
+    upgrade_template,
+)
 from .stg_writer import ensure_sheet, write_staging_block
 from .validate import validate_output_file, validate_workbook
 from brand_headers import refresh_brand_headers
@@ -43,21 +51,15 @@ from xlsx_rowshift import shift_row_artifacts
 
 TOP50_OVERVIEW_CATEGORIES = ["Total Tablet", "Total Handheld", "Total Dongle", "Total Other Tools", "Total"]
 
-# Sections are pulled from the raw summary "Category" sheet by section name
-# (zero rows dropped) — absolute row numbers drift month to month and caused
-# the Tablet/Handheld Total misalignment.
-PARENT_SECTIONS = {
-    "Tablet Total": ["Tablet $800+", "Tablet $400-$800", "Tablet $400-"],
-    "Handheld Total": ["Handheld $75+", "Handheld $75-"],
-}
+# Parent sections, child links, category tabs and the tab order come from the
+# price-tier scheme of the report month (config.layout_for_month). Sections
+# are pulled from the raw summary "Category" sheet by section name (zero rows
+# dropped) - absolute row numbers drift month to month and caused the
+# Tablet/Handheld Total misalignment.
 
-CHILD_SECTION_LINKS = {
-    "Tablet $800+": ("Tablet Total", "Tablet $800+"),
-    "Tablet $400-$800": ("Tablet Total", "Tablet $400-$800"),
-    "Tablet $400-": ("Tablet Total", "Tablet $400-"),
-    "Handheld $75+": ("Handheld Total", "Handheld $75+"),
-    "Handheld $75-": ("Handheld Total", "Handheld $75-"),
-}
+# Summary rows below the category table sit at fixed offsets from its last
+# row (row 13 in a 10-row V1 table): brand Revenue block 47-71, Units 78-102.
+SUMMARY_V1_LAST_ROW = 13
 
 OWN_BRAND_COLORS = {
     "blcktec": "FF0000FF",
@@ -103,21 +105,37 @@ def build_monthly_output(
     raw_report: Path = DEFAULT_RAW_REPORT,
     out_dir: Path | None = None,
     brand_header_dir: Path | None = None,
+    month: str | None = None,
+    tier_scheme: str = "auto",
 ) -> Path:
+    """Fill ``template`` (last month's Analysis workbook) for the raw month.
+
+    ``month`` (YYYYMM) picks the price-tier scheme (V2 from 202610); when None
+    it is inferred from the raw report title. ``tier_scheme`` 'v1'/'v2' forces
+    a scheme (previews of older months). The template is upgraded in place to
+    the scheme's layout first (see scheme_upgrade.upgrade_template).
+    """
     context = _resolve_month_context(raw_report, month_label, month_name)
+    month_key = _resolve_month_key(month, context)
+    layout = layout_for_month(month_key, tier_scheme)
+    raw = RawData.load(raw_summary, raw_report)
+    raw.require_fixed_brands()
+    _require_raw_scheme(raw, layout, raw_summary)
+
     if out_dir is None:
         out_dir = template.parents[1] / context.output_folder_name
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / context.analysis_output_name(date_tag)
     shutil.copy2(template, out_path)
 
-    raw = RawData.load(raw_summary, raw_report)
-    raw.require_fixed_brands()
     wb = load_workbook(out_path)
     try:
-        _prepare_visible_sheets(wb)
-        _write_staging(wb, raw)
-        _write_visible_values(wb, raw)
+        upgrade = upgrade_template(wb, layout)
+        for line in upgrade.describe():
+            print(f"[template-upgrade] {line}")
+        _prepare_visible_sheets(wb, layout)
+        _write_staging(wb, raw, layout)
+        _write_visible_values(wb, raw, layout, upgrade)
         replace_month_labels(wb, context.short_label, context.month_name)
         refresh_brand_headers(
             wb,
@@ -129,7 +147,7 @@ def build_monthly_output(
         _set_chart_frames_rectangular(wb)
         wb.calculation.fullCalcOnLoad = True
         wb.calculation.forceFullCalc = True
-        issues = validate_workbook(wb)
+        issues = validate_workbook(wb, month=month_key, tier_scheme=layout.name)
         validate_month_headers(wb, context, issues)
         if issues:
             raise ValueError("Validation failed:\n- " + "\n- ".join(issues))
@@ -151,6 +169,31 @@ def _resolve_month_context(raw_report: Path, month_label: str | None, month_name
     return infer_month_context(raw_report)
 
 
+def _resolve_month_key(month: str | None, context: MonthContext) -> str:
+    """YYYYMM of the report: ``month`` when given (must match the raw month),
+    else the month of the raw report / labels."""
+    inferred = f"{context.year}{context.month:02d}"
+    if month is None:
+        return inferred
+    text = str(month).strip()
+    if not (len(text) == 6 and text.isdigit()):
+        raise ValueError(f"month must be YYYYMM, got {month!r}")
+    if text != inferred:
+        raise ValueError(f"month {text} does not match the raw report month {inferred}")
+    return text
+
+
+def _require_raw_scheme(raw: RawData, layout: SchemeLayout, raw_summary: Path) -> None:
+    labels = raw.total_category_labels()
+    expected = list(layout.summary_labels)
+    if labels != expected:
+        raise ValueError(
+            f"Raw summary {raw_summary} was not built with price-tier scheme {layout.name}: "
+            f"expected categories {expected}, got {labels}. Rebuild it with full_report_month.py "
+            "(same --tier-scheme) or pass the matching --tier-scheme to the filler."
+        )
+
+
 def _month_number(month_name: str) -> int:
     months = [
         "January",
@@ -169,17 +212,18 @@ def _month_number(month_name: str) -> int:
     return months.index(month_name) + 1
 
 
-def _prepare_visible_sheets(wb) -> None:
+def _prepare_visible_sheets(wb, layout: SchemeLayout) -> None:
+    visible_sheets = list(layout.visible_sheets)
     for ws in wb.worksheets:
-        ws.sheet_state = "visible" if ws.title in VISIBLE_SHEETS else "hidden"
-    ordered = [wb[title] for title in VISIBLE_SHEETS]
+        ws.sheet_state = "visible" if ws.title in visible_sheets else "hidden"
+    ordered = [wb[title] for title in visible_sheets]
     for sheet in ordered:
         wb._sheets.remove(sheet)
     for idx, sheet in enumerate(ordered):
         wb._sheets.insert(idx, sheet)
 
 
-def _write_staging(wb, raw: RawData) -> None:
+def _write_staging(wb, raw: RawData, layout: SchemeLayout) -> None:
     for sheet_name in list(wb.sheetnames):
         if sheet_name.startswith("_stg_"):
             del wb[sheet_name]
@@ -196,14 +240,15 @@ def _write_staging(wb, raw: RawData) -> None:
     blocks["_stg_top50_revenue"] = (LISTING_HEADERS, top_rev)
     blocks["_stg_top50_units"] = (LISTING_HEADERS, top_units)
 
-    for tab, category in CATEGORY_TABS.items():
-        name = _short_stage_slug(tab)
+    stage_names = _stage_names(list(layout.category_tabs), legacy=layout.is_legacy)
+    for tab, category in layout.category_tabs.items():
+        name = stage_names[tab]
         overview = raw.category_rows(category)
         total = raw.summary_total_for_category(category)
         if total:
             overview = overview + [total]
         blocks[f"_stg_c_{name}_ov"] = (SUMMARY_HEADERS, overview)
-        src = LISTING_SOURCE_SHEETS[tab]
+        src = layout.listing_source_sheets[tab]
         rev_rows, unit_rows = raw.summary_dual_listing_blocks(src)
         blocks[f"_stg_c_{name}_rev"] = (LISTING_HEADERS, rev_rows)
         blocks[f"_stg_c_{name}_unit"] = (LISTING_HEADERS, unit_rows)
@@ -212,7 +257,7 @@ def _write_staging(wb, raw: RawData) -> None:
         name = _short_stage_slug(display)
         blocks[f"_stg_b_{name}_sum"] = (
             SUMMARY_HEADERS,
-            ordered_brand_summary(raw.sheet1_by_brand(key)),
+            ordered_brand_summary(raw.sheet1_by_brand(key), layout.category_order),
         )
         rev_rows, unit_rows = raw.report_dual_blocks(key)
         blocks[f"_stg_b_{name}_rev"] = (BRAND_LISTING_HEADERS, rev_rows)
@@ -222,24 +267,59 @@ def _write_staging(wb, raw: RawData) -> None:
         write_staging_block(ensure_sheet(wb, sheet_name), headers, rows)
 
 
-def _write_visible_values(wb, raw: RawData) -> None:
-    _write_summary(wb["Summary"], raw)
+def _write_visible_values(wb, raw: RawData, layout: SchemeLayout, upgrade: UpgradeReport) -> None:
+    _write_summary(wb["Summary"], raw, layout, upgrade)
     _write_top50(wb["Top 50"], raw)
-    for tab, category in CATEGORY_TABS.items():
-        _write_category_tab(wb[tab], raw, tab, category)
-    _write_parent_section_summary_total_links(wb)
-    _write_child_category_links(wb)
+    for tab, category in layout.category_tabs.items():
+        _write_category_tab(wb[tab], raw, tab, category, layout)
+    _write_parent_section_summary_total_links(wb, layout)
+    _write_child_category_links(wb, layout, upgrade)
     for display, key in FIXED_BRANDS:
-        _write_brand_tab(wb[display], raw, display, key)
+        _write_brand_tab(wb[display], raw, display, key, layout)
 
 
-def _write_summary(ws, raw: RawData) -> None:
-    _write_summary_overview(ws, 4, 13, raw.sheet1_by_brand("Total"), summary_sheet=True)
+def _write_summary(ws, raw: RawData, layout: SchemeLayout, upgrade: UpgradeReport) -> None:
+    last_row = layout.summary_last_row
+    offset = last_row - SUMMARY_V1_LAST_ROW
+    _write_summary_overview(ws, SUMMARY_FIRST_ROW, last_row, raw.sheet1_by_brand("Total"), summary_sheet=True)
+    if not layout.is_legacy or upgrade.summary_resized:
+        _format_summary_category_rows(ws, layout, upgrade.summary_styles)
+        apply_summary_chart_plan(ws, layout, upgrade.summary_chart_plan)
     rev, units = raw.report_summary_blocks()
-    _write_simple_block(ws, 47, 71, rev, width=9)
-    _write_simple_block(ws, 78, 102, units, width=9)
-    _mark_summary_owned_brand_rows(ws, 47, 71)
-    _mark_summary_owned_brand_rows(ws, 78, 102)
+    _write_simple_block(ws, 47 + offset, 71 + offset, rev, width=9)
+    _write_simple_block(ws, 78 + offset, 102 + offset, units, width=9)
+    _mark_summary_owned_brand_rows(ws, 47 + offset, 71 + offset)
+    _mark_summary_owned_brand_rows(ws, 78 + offset, 102 + offset)
+
+
+def _format_summary_category_rows(ws, layout: SchemeLayout, styles: dict[str, list]) -> None:
+    """Label-driven Summary table styling (V2+, or any resized table): tier and
+    sub-tier rows unfilled and regular weight, sub-tier labels indented one
+    level (label text unchanged), family subtotals bold on the gray subtotal
+    fill, grand Total bold purple. V2: "Total Dongle" stays bold but has NO
+    fill (analyst decision 2026-11-03); "Total Other Tools" keeps the gray."""
+    for row_idx in range(SUMMARY_FIRST_ROW, layout.summary_last_row + 1):
+        label = str(ws.cell(row_idx, 1).value or "").strip()
+        kind = summary_row_kind(label, layout.subtier_labels)
+        base = styles["tier" if kind == "subtier" else kind]
+        for col in range(1, SUMMARY_WIDTH + 1):
+            ws.cell(row_idx, col)._style = copy(base[col - 1])
+        if kind == "grand":
+            fill, bold = _overview_total_fill(), True
+        elif kind == "subtotal":
+            unshaded = label.lower() == "total dongle" and not layout.is_legacy
+            fill, bold = (NO_FILL if unshaded else _overview_subtotal_fill()), True
+        else:
+            fill, bold = NO_FILL, False
+        _set_row_fill(ws, row_idx, fill, max_col=SUMMARY_WIDTH, bold=bold)
+        label_cell = ws.cell(row_idx, 1)
+        current = label_cell.alignment
+        label_cell.alignment = Alignment(
+            horizontal="left",
+            vertical=current.vertical,
+            wrap_text=current.wrap_text,
+            indent=1 if kind == "subtier" else 0,
+        )
 
 
 def _write_top50(ws, raw: RawData) -> None:
@@ -253,7 +333,7 @@ def _write_top50(ws, raw: RawData) -> None:
         _mark_top50_owned_brand_rows(ws, table)
 
 
-def _write_category_tab(ws, raw: RawData, tab: str, category: str) -> None:
+def _write_category_tab(ws, raw: RawData, tab: str, category: str, layout: SchemeLayout) -> None:
     rows = raw.category_rows(category)
     total = raw.summary_total_for_category(category)
     if total:
@@ -263,14 +343,14 @@ def _write_category_tab(ws, raw: RawData, tab: str, category: str) -> None:
     rows = _fit_category_overview_rows(category, rows, overview_end - overview_start + 1)
     _write_summary_overview(ws, overview_start, overview_end, rows, summary_sheet=False)
     _format_category_overview(ws, overview_start, overview_end, len(rows), has_total=bool(total))
-    if tab in {"Tablet Total", "Handheld Total", "Dongle", "Other Tools"}:
+    if tab in layout.total_tabs:
         _set_overview_total_share_to_100(ws, overview_start, overview_end)
-    rev, units = raw.summary_dual_listing_blocks(LISTING_SOURCE_SHEETS[tab])
+    rev, units = raw.summary_dual_listing_blocks(layout.listing_source_sheets[tab])
     tables = sorted_tables(ws)
     _write_listing_table(ws, tables[0], rev, style="market")
     _write_listing_table(ws, tables[1], units, style="market")
-    if tab in PARENT_SECTIONS:
-        _write_parent_category_sections(ws, raw, tab)
+    if tab in layout.parent_sections:
+        _write_parent_category_sections(ws, raw, tab, layout)
 
 
 def _overview_total_fill() -> PatternFill:
@@ -359,8 +439,9 @@ def _format_category_overview(ws, start_row: int, end_row: int, data_count: int,
         _set_row_fill(ws, row_idx, NO_FILL)
 
 
-def _write_brand_tab(ws, raw: RawData, _display: str, key: str) -> None:
-    rows = ordered_brand_summary(raw.sheet1_by_brand(key))
+def _write_brand_tab(ws, raw: RawData, _display: str, key: str, layout: SchemeLayout) -> None:
+    # Brand tabs keep the 10-row parent-level table: sub-tiers are excluded.
+    rows = ordered_brand_summary(raw.sheet1_by_brand(key), layout.category_order)
     _write_summary_overview(ws, 8, 17, rows, summary_sheet=False)
     _format_brand_overview(ws, 8, 17)
     rev, units = raw.report_dual_blocks(key)
@@ -485,20 +566,22 @@ def _set_overview_total_share_to_100(ws, start_row: int, end_row: int) -> None:
             return
 
 
-def _write_parent_category_sections(ws, raw: RawData, tab: str) -> None:
-    for section_title in PARENT_SECTIONS[tab]:
+def _write_parent_category_sections(ws, raw: RawData, tab: str, layout: SchemeLayout) -> None:
+    for section_title in layout.parent_sections[tab]:
         rows = raw.category_rows(section_title)
         if not rows:
             raise ValueError(f"Raw Category sheet has no non-zero rows for section {section_title!r}")
         _write_parent_section(ws, section_title, rows)
 
 
-def _write_parent_section_summary_total_links(wb) -> None:
+def _write_parent_section_summary_total_links(wb, layout: SchemeLayout, tabs: list[str] | None = None) -> None:
     summary_ws = wb["Summary"]
-    for tab, sections in PARENT_SECTIONS.items():
+    for tab, sections in layout.parent_sections.items():
+        if tabs is not None and tab not in tabs:
+            continue
         ws = wb[tab]
         for section_title in sections:
-            summary_row = _find_summary_category_row(summary_ws, section_title)
+            summary_row = _find_summary_category_row(summary_ws, section_title, layout.summary_last_row)
             title_row = _find_row_by_label(ws, section_title)
             data_start = title_row + 2
             total_row = _find_section_total_row(ws, title_row)
@@ -511,9 +594,9 @@ def _write_parent_section_summary_total_links(wb) -> None:
             )
 
 
-def _find_summary_category_row(summary_ws, label: str) -> int:
+def _find_summary_category_row(summary_ws, label: str, last_row: int) -> int:
     target = label.strip().lower()
-    for row_idx in range(4, 14):
+    for row_idx in range(SUMMARY_FIRST_ROW, last_row + 1):
         value = str(summary_ws.cell(row_idx, 1).value or "").strip().lower()
         if value == target:
             return row_idx
@@ -584,8 +667,10 @@ def _write_parent_section_total_row(
         ws.cell(row_idx, 10, f"=SUM(J{data_start}:J{data_end})")
 
 
-def _write_child_category_links(wb) -> None:
-    for child_tab, (parent_tab, section_title) in CHILD_SECTION_LINKS.items():
+def _write_child_category_links(wb, layout: SchemeLayout, upgrade: UpgradeReport) -> None:
+    # Scheme order: a tier that is also a parent (V2 "Tablet $400-") is linked
+    # (and its overview resized) before its sub-tiers link to its sections.
+    for child_tab, (parent_tab, section_title) in layout.child_section_links.items():
         parent_ws = wb[parent_tab]
         child_ws = wb[child_tab]
         title_row = _find_row_by_label(parent_ws, section_title)
@@ -601,6 +686,21 @@ def _write_child_category_links(wb) -> None:
                 child_ws.cell(child_row, col, f"={parent_name}!{col_letter}{parent_row}")
         _format_child_overview_rows(child_ws, parent_ws, source_rows)
         _refresh_listing_hyperlinks(child_ws)
+        if child_tab in layout.parent_sections:
+            # The overview resize moved this tab's own sections; re-point
+            # their Total rows (SUM ranges + Summary links) at the new rows.
+            _write_parent_section_summary_total_links(wb, layout, tabs=[child_tab])
+        if child_tab in upgrade.cloned_tabs:
+            fit_overview_chart_refs(child_ws, 5, 5 + len(source_rows) - 1)
+    # A3 = link to the parent section title, written once every overview has
+    # its final size. V1 keeps the template's A3 (published months rebuild
+    # identically); V2 rewrites it, which also fixes the drifted links such
+    # as Tablet $400-!A3 -> 'Tablet Total'!A91 while the title sits on row 92.
+    for child_tab, (parent_tab, section_title) in layout.child_section_links.items():
+        if layout.is_legacy and child_tab not in upgrade.cloned_tabs:
+            continue
+        title_row = _find_row_by_label(wb[parent_tab], section_title)
+        wb[child_tab]["A3"] = f"={quote_sheetname(parent_tab)}!A{title_row}"
 
 
 def _format_child_overview_rows(child_ws, parent_ws, source_rows: list[int]) -> None:
@@ -868,6 +968,38 @@ def ws_col_letter(col: int) -> str:
 
 def _short_stage_slug(value: str) -> str:
     return slug(value).replace("tablet_", "t_").replace("handheld_", "h_")[:14]
+
+
+def _stage_names(tabs: list[str], legacy: bool) -> dict[str, str]:
+    """Staging-sheet slug per category tab.
+
+    The short slug drops "+"/"-", so "Handheld $75+"/"$75-" (V1) and
+    "Handheld $100+"/"$100-" (V2) collide and the second tab's staging blocks
+    overwrite the first's. V1 keeps the historical names (published months
+    rebuild identically); later schemes disambiguate with p/m suffixes and
+    every name is unique and fits Excel's 31-character sheet-name limit.
+    """
+    names = {tab: _short_stage_slug(tab) for tab in tabs}
+    if legacy:
+        return names
+    counts: dict[str, int] = {}
+    for name in names.values():
+        counts[name] = counts.get(name, 0) + 1
+    for tab, name in list(names.items()):
+        if counts[name] > 1:
+            stripped = tab.rstrip()
+            names[tab] = name + {"+": "p", "-": "m"}.get(stripped[-1:], "")
+    seen: dict[str, int] = {}
+    for tab, name in list(names.items()):
+        seen[name] = seen.get(name, 0) + 1
+        if seen[name] > 1:
+            names[tab] = f"{name}{seen[name]}"
+    if len(set(names.values())) != len(names):
+        raise ValueError(f"Staging names are not unique: {names}")
+    too_long = [f"_stg_c_{name}_unit" for name in names.values() if len(f"_stg_c_{name}_unit") > 31]
+    if too_long:
+        raise ValueError(f"Staging sheet names exceed 31 characters: {too_long}")
+    return names
 
 
 def _write_metric_rows(ws, start_row: int, end_row: int, rows: list[list[object]], hidden_k: bool) -> None:
