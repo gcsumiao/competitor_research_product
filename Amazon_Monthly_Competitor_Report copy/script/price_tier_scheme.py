@@ -5,9 +5,10 @@ Each tier is a product-``Type`` filter plus a half-open price range
 ``[low, high)``: a listing belongs to a tier when ``Type in types`` and
 ``low <= Price < high``. A boundary price therefore always lands in the UPPER
 bucket (a $400.00 tablet is "Tablet $400-$800", not "Tablet $400-").
-``high=None`` means open-ended: it is filled with the caller's ``price_range``
-(``math.ceil(max(market.Price))`` in full_report_month.py) when the legacy
-``category`` dict is built.
+``high=None`` means open-ended: the legacy ``category`` dict gives it an upper
+bound of ``math.inf``, so the most expensive listing always lands in it (the
+old bound, ``math.ceil(max(market.Price))``, dropped a listing priced at a whole
+dollar amount, and capped last month / last year at this month's maximum).
 
 Scheme V1 (report months before 202610; kept verbatim so published months
 reproduce exactly):
@@ -34,6 +35,7 @@ Stdlib + typing only so any script can import it without pandas.
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, Union
@@ -49,7 +51,7 @@ class Tier:
     label: str
     types: tuple[str, ...]
     low: float
-    high: float | None  # None = open-ended (up to the caller's price_range)
+    high: float | None  # None = open-ended (no upper bound)
     parent: str | None
     kind: TierKind
 
@@ -144,15 +146,22 @@ def describe_scheme(month: str | int | None, scheme: str = "auto") -> str:
     return text
 
 
-def category_dict(month: str | int | None, price_range: float, *, scheme: str = "auto") -> dict[str, list]:
+def category_dict(
+    month: str | int | None, price_range: float | None = None, *, scheme: str = "auto"
+) -> dict[str, list]:
     """Legacy ``category`` dict: ``label -> [list(types), low, high]`` in scheme order.
 
-    ``high=None`` tiers are filled with ``price_range``. Consumers filter with
-    ``Type.isin(types) & (Price >= low) & (Price < high)``.
+    Open-ended tiers (``high=None``) get ``math.inf`` as their upper bound, for
+    every scheme. Consumers filter with
+    ``Type.isin(types) & (Price >= low) & (Price < high)``, so a whole-dollar
+    maximum price (202403: $9,987.00) no longer falls out of every open bucket.
+    ``price_range`` (the old ``math.ceil(max(market.Price))`` cap) is accepted
+    for call-site compatibility and ignored.
     """
+    del price_range  # kept in the signature for existing callers; no longer a bound
     tiers = SCHEMES[resolve_scheme_name(month, scheme)]
     return {
-        t.label: [list(t.types), t.low, price_range if t.high is None else t.high]
+        t.label: [list(t.types), t.low, math.inf if t.high is None else t.high]
         for t in tiers
     }
 

@@ -29,38 +29,41 @@ from price_tier_scheme import (
     total_labels,
 )
 
-# Literal copy of the dict that lived in full_report_month.main() before scheme V2
-# (price_range = 1000). Months before 202610 must keep producing exactly this.
-OLD_CATEGORY_DICT_1000 = {
-    "Tablet $800+": [["Tablet"], 800, 1000],
+# The dict that lived in full_report_month.main() before scheme V2, with one
+# deliberate change: open-ended tiers are bounded by math.inf instead of the old
+# price_range = ceil(max(Price)) cap, which dropped a listing priced at a whole
+# dollar amount (202403: $9,987.00) from every open bucket. Months before 202610
+# must keep producing exactly this (same keys, order, types and closed bounds).
+V1_CATEGORY_DICT = {
+    "Tablet $800+": [["Tablet"], 800, math.inf],
     "Tablet $400-$800": [["Tablet"], 400, 800],
     "Tablet $400-": [["Tablet"], 0, 400],
-    "Total Tablet": [["Tablet"], 0, 1000],
-    "Handheld $75+": [["Handheld"], 75, 1000],
+    "Total Tablet": [["Tablet"], 0, math.inf],
+    "Handheld $75+": [["Handheld"], 75, math.inf],
     "Handheld $75-": [["Handheld"], 0, 75],
-    "Total Handheld": [["Handheld"], 0, 1000],
-    "Total Dongle": [["Dongle"], 0, 1000],
-    "Total Other Tools": [["Key", "Cable/Adapter", "Other", "Probe", "VCI"], 0, 1000],
-    "Total": [["Tablet", "Handheld", "Dongle", "Key", "Cable/Adapter", "Other", "Probe", "VCI"], 0, 1000],
+    "Total Handheld": [["Handheld"], 0, math.inf],
+    "Total Dongle": [["Dongle"], 0, math.inf],
+    "Total Other Tools": [["Key", "Cable/Adapter", "Other", "Probe", "VCI"], 0, math.inf],
+    "Total": [["Tablet", "Handheld", "Dongle", "Key", "Cable/Adapter", "Other", "Probe", "VCI"], 0, math.inf],
 }
 
 V2_EXPECTED = [
-    ("Tablet $800+", ["Tablet"], 800, 1000),
+    ("Tablet $800+", ["Tablet"], 800, math.inf),
     ("Tablet $400-$800", ["Tablet"], 400, 800),
     ("Tablet $400-", ["Tablet"], 0, 400),
     ("Tablet $300+", ["Tablet"], 300, 400),
     ("Tablet $200-$300", ["Tablet"], 200, 300),
     ("Tablet $200-", ["Tablet"], 0, 200),
-    ("Total Tablet", ["Tablet"], 0, 1000),
-    ("Handheld $100+", ["Handheld"], 100, 1000),
+    ("Total Tablet", ["Tablet"], 0, math.inf),
+    ("Handheld $100+", ["Handheld"], 100, math.inf),
     ("Handheld $100-", ["Handheld"], 0, 100),
     ("Handheld $65+", ["Handheld"], 65, 100),
     ("Handheld $35-$65", ["Handheld"], 35, 65),
     ("Handheld $35-", ["Handheld"], 0, 35),
-    ("Total Handheld", ["Handheld"], 0, 1000),
-    ("Total Dongle", ["Dongle"], 0, 1000),
-    ("Total Other Tools", ["Key", "Cable/Adapter", "Other", "Probe", "VCI"], 0, 1000),
-    ("Total", ["Tablet", "Handheld", "Dongle", "Key", "Cable/Adapter", "Other", "Probe", "VCI"], 0, 1000),
+    ("Total Handheld", ["Handheld"], 0, math.inf),
+    ("Total Dongle", ["Dongle"], 0, math.inf),
+    ("Total Other Tools", ["Key", "Cable/Adapter", "Other", "Probe", "VCI"], 0, math.inf),
+    ("Total", ["Tablet", "Handheld", "Dongle", "Key", "Cable/Adapter", "Other", "Probe", "VCI"], 0, math.inf),
 ]
 
 
@@ -75,15 +78,29 @@ def _listing(type_: str, price: float, units: int) -> dict:
 
 
 class PriceTierSchemeDictTest(unittest.TestCase):
-    def test_v1_dict_is_byte_for_byte_the_old_literal(self) -> None:
+    def test_v1_dict_matches_the_pinned_literal(self) -> None:
         for month in ("202609", "202501", None):
             got = category_dict(month, 1000)
-            self.assertEqual(got, OLD_CATEGORY_DICT_1000)
-            self.assertEqual(list(got), list(OLD_CATEGORY_DICT_1000))
+            self.assertEqual(got, V1_CATEGORY_DICT)
+            self.assertEqual(list(got), list(V1_CATEGORY_DICT))
             for value in got.values():
                 self.assertIsInstance(value[0], list)
                 self.assertIsInstance(value[1], int)
-                self.assertIsInstance(value[2], int)
+                if value[2] == math.inf:
+                    self.assertIsInstance(value[2], float)
+                else:
+                    self.assertIsInstance(value[2], int)
+
+    def test_open_ended_bound_is_inf_whatever_the_price_range(self) -> None:
+        for scheme in ("v1", "v2"):
+            for price_range in (1000, 9987, 1, None):
+                got = category_dict("202610", price_range, scheme=scheme)
+                open_ended = [label for label, (_types, _low, high) in got.items() if high == math.inf]
+                self.assertEqual(
+                    open_ended,
+                    [t.label for t in (SCHEME_V1 if scheme == "v1" else SCHEME_V2) if t.high is None],
+                    (scheme, price_range),
+                )
 
     def test_v2_dict_has_16_keys_in_order_with_ranges(self) -> None:
         got = category_dict("202610", 1000)
@@ -107,7 +124,7 @@ class PriceTierSchemeDictTest(unittest.TestCase):
 
     def test_forced_scheme_overrides_month(self) -> None:
         self.assertEqual(list(category_dict("202609", 1000, scheme="v2")), [label for label, *_ in V2_EXPECTED])
-        self.assertEqual(category_dict("202610", 1000, scheme="v1"), OLD_CATEGORY_DICT_1000)
+        self.assertEqual(category_dict("202610", 1000, scheme="v1"), V1_CATEGORY_DICT)
         self.assertEqual(resolve_scheme_name("202609", "auto"), "v1")
         self.assertEqual(resolve_scheme_name("202609", "v2"), "v2")
         with self.assertRaises(ValueError):
@@ -151,7 +168,7 @@ class PriceTierSchemeDictTest(unittest.TestCase):
 
 class PriceTierSchemeHelpersTest(unittest.TestCase):
     def test_labels_and_totals(self) -> None:
-        self.assertEqual(tier_labels("v1"), list(OLD_CATEGORY_DICT_1000))
+        self.assertEqual(tier_labels("v1"), list(V1_CATEGORY_DICT))
         self.assertEqual(tier_labels(SCHEME_V2), [label for label, *_ in V2_EXPECTED])
         self.assertEqual(subtier_labels("v1"), [])
         self.assertEqual(
@@ -277,10 +294,34 @@ class PriceTierSchemeBucketingTest(unittest.TestCase):
                 self.assertEqual(hit_parents, {parent} if parent else set())
 
     def test_max_price_listing_stays_in_open_tier(self) -> None:
-        # Open-ended tiers use price_range = ceil(max Price); a non-integer max stays in.
         got = _summary(self.market, self.v2)
         self.assertEqual(got["Tablet $800+"][0], 3 + 5)
         self.assertEqual(got["Handheld $100+"][0], 37 + 41)
+
+    def test_whole_dollar_max_price_listing_stays_in_open_tiers(self) -> None:
+        # The old open-ended bound ceil(max Price) equalled a whole-dollar max
+        # (202403: $9,987.00), so ``Price < high`` dropped that listing from
+        # every open bucket. The caller still passes that price_range.
+        market = pd.DataFrame(
+            [
+                _listing("Tablet", 1000.0, 3),
+                _listing("Tablet", 850.5, 5),
+                _listing("Tablet", 450.0, 7),
+                _listing("Handheld", 120.0, 11),
+                _listing("Dongle", 30.0, 13),
+            ]
+        )
+        price_range = math.ceil(max(market.Price))
+        self.assertEqual(price_range, 1000)
+        total_units = 3 + 5 + 7 + 11 + 13
+        for month in ("202609", "202610"):  # v1, v2
+            with self.subTest(scheme=scheme_version(month)):
+                got = _summary(market, category_dict(month, price_range))
+                self.assertEqual(got["Tablet $800+"][0], 3 + 5)
+                self.assertAlmostEqual(got["Tablet $800+"][1], 3000.0 + 4252.5, places=6)
+                self.assertEqual(got["Total Tablet"][0], 3 + 5 + 7)
+                self.assertEqual(got["Total"][0], total_units)
+                self.assertAlmostEqual(got["Total"][1], market["Monthly Revenue"].sum(), places=6)
 
 
 if __name__ == "__main__":
