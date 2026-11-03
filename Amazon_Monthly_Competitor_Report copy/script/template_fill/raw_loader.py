@@ -111,6 +111,11 @@ class RawData:
         rows = self.summary_sheets["Category"][1:]
         return [_trim(r) for r in rows if _norm(r[0]) == _norm(category) and not is_zero_row(r)]
 
+    def total_category_labels(self) -> list[str]:
+        """Sheet1 'Total' category labels in raw order, zero rows included -
+        the price-tier scheme the raw summary was built with."""
+        return [str(row[1] or "").strip() for row in self.sheet1_by_brand("Total", include_zero=True)]
+
     def summary_total_for_category(self, category: str) -> Row | None:
         for row in self.sheet1_by_brand("Total"):
             if _norm(row[1]) == _norm(category):
@@ -305,6 +310,9 @@ def aggregate_top50_overview(top50_rows: list[Row]) -> list[Row]:
     ]
 
 
-def ordered_brand_summary(rows: list[Row]) -> list[Row]:
+def ordered_brand_summary(rows: list[Row], category_order: Iterable[str] | None = None) -> list[Row]:
+    """Brand overview rows in category order. ``category_order`` is the
+    active scheme's parent-level labels (sub-tiers excluded); default V1."""
     by_cat = {row[1]: row for row in rows}
-    return [by_cat[c] for c in CATEGORY_ORDER if c in by_cat]
+    order = CATEGORY_ORDER if category_order is None else list(category_order)
+    return [by_cat[c] for c in order if c in by_cat]
