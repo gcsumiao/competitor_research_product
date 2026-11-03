@@ -50,8 +50,10 @@ class SchemeLayout:
 
     Tab order per family: "<Family> Total" first, then its tiers and
     sub-tiers in scheme order. A family-total tab carries one section per
-    tier; a tier with sub-tiers carries one section per sub-tier. Every tier
-    links to its family-total section, every sub-tier to its parent tier's.
+    tier AND sub-tier of the family, in scheme order (V2: "Tablet Total" has
+    six, analyst decision 2026-11-03); a tier with sub-tiers also carries one
+    section per sub-tier. Every tier links to its family-total section, every
+    sub-tier to its parent tier's (not to the family-total copy).
     """
 
     name: str
@@ -98,7 +100,7 @@ def layout_for(scheme_name: str) -> SchemeLayout:
         total_tab = category_tab_name(tier.label)
         total_tabs.add(total_tab)
         category_tabs[total_tab] = tier.label
-        family_tiers = tuple(t.label for t in pending if t.kind == "tier")
+        family_tiers = tuple(t.label for t in pending)  # tiers and sub-tiers
         if family_tiers:
             parent_sections[total_tab] = family_tiers
         for t in pending:

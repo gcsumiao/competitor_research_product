@@ -15,7 +15,8 @@ written:
 2. category tabs of another scheme (e.g. "Handheld $75+" in a V2 build) are
    removed;
 3. parent tabs get exactly the sections the scheme asks for, cloned from an
-   existing section block ("Tablet Total" first section);
+   existing section block ("Tablet Total" first section); sections already in
+   scheme order are kept and only the missing ones are appended below them;
 4. the Summary category table grows/shrinks to the scheme's row count (rows are
    inserted just above the grand "Total" row with every dependent range,
    formula and chart reference kept in step), and the Summary chart series are
@@ -381,20 +382,28 @@ def _ensure_parent_sections(wb, layout: SchemeLayout, report: UpgradeReport, blo
         ws = wb[tab]
         expected = list(layout.parent_sections.get(tab, ()))
         existing = find_sections(ws)
-        if [title for title, _r, _t in existing] == expected:
+        titles = [title for title, _r, _t in existing]
+        if titles == expected:
             continue
-        if existing:
-            remove_sections(ws, existing)
-            report.sections_removed[tab] = [title for title, _r, _t in existing]
-        if not expected:
+        if existing and titles == expected[: len(titles)] and existing[-1][2] >= last_used_row(ws, SECTION_WIDTH):
+            # The sections present are the scheme's first ones and end the
+            # tab (e.g. a V1 "Tablet Total" gaining the V2 sub-tier sections):
+            # keep them - and any hand formatting - and append the rest.
+            missing = expected[len(titles) :]
+        else:
+            if existing:
+                remove_sections(ws, existing)
+                report.sections_removed[tab] = titles
+            missing = expected
+        if not missing:
             continue
         if block is None:
             raise ValueError(f"Analysis template has no section block to copy for {tab!r}")
         top = last_used_row(ws, SECTION_WIDTH) + 2
-        for title in expected:
+        for title in missing:
             paste_section(ws, top, block, title)
             top += block.height + 1
-        report.sections_added[tab] = expected
+        report.sections_added[tab] = missing
 
 
 def last_used_row(ws, max_col: int) -> int:

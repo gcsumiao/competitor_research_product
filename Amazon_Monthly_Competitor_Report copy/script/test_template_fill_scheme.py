@@ -307,12 +307,21 @@ class SchemeLayoutTest(unittest.TestCase):
     def test_v2_tab_order_sections_and_links(self) -> None:
         v2 = layout_for("v2")
         self.assertEqual(list(v2.visible_sheets), V2_TABS)
+        # Family Total tabs carry every tier AND sub-tier section in scheme
+        # order (analyst decision 2026-11-03); the parent tier tabs keep
+        # their own sub-tier sections too.
         self.assertEqual(
             v2.parent_sections,
             {
-                "Tablet Total": ("Tablet $800+", "Tablet $400-$800", "Tablet $400-"),
+                "Tablet Total": (
+                    "Tablet $800+", "Tablet $400-$800", "Tablet $400-",
+                    "Tablet $300-$400", "Tablet $200-$300", "Tablet $200-",
+                ),
                 "Tablet $400-": ("Tablet $300-$400", "Tablet $200-$300", "Tablet $200-"),
-                "Handheld Total": ("Handheld $100+", "Handheld $100-"),
+                "Handheld Total": (
+                    "Handheld $100+", "Handheld $100-",
+                    "Handheld $65-$100", "Handheld $35-$65", "Handheld $35-",
+                ),
                 "Handheld $100-": ("Handheld $65-$100", "Handheld $35-$65", "Handheld $35-"),
             },
         )
@@ -523,6 +532,38 @@ class V2BuildTest(unittest.TestCase):
         v2 = layout_for("v2")
         for tab, titles in v2.parent_sections.items():
             self.assertEqual([t for t, _r, _tot in find_sections(self.wb[tab])], list(titles), tab)
+
+    def test_total_tab_subtier_sections_match_the_parent_tier_tab(self) -> None:
+        # The family Total tab repeats each sub-tier section of the parent
+        # tier tab: same brand rows, Total linked to the same Summary row.
+        # The sub-tier tabs keep linking the parent TIER tab's section.
+        v2 = layout_for("v2")
+        for family, parent in (("Tablet Total", "Tablet $400-"), ("Handheld Total", "Handheld $100-")):
+            in_family = {t: (r, tot) for t, r, tot in find_sections(self.wb[family])}
+            in_parent = {t: (r, tot) for t, r, tot in find_sections(self.wb[parent])}
+            for title in v2.parent_sections[parent]:
+                (f_row, f_tot), (p_row, p_tot) = in_family[title], in_parent[title]
+                body = lambda ws, a, b: [[ws.cell(r, c).value for c in range(1, 14)] for r in range(a + 2, b)]
+                self.assertEqual(body(self.wb[family], f_row, f_tot), body(self.wb[parent], p_row, p_tot), title)
+                self.assertGreater(f_tot, f_row + 2, title)
+                self.assertEqual(self.wb[family].cell(f_tot, 1).value, self.wb[parent].cell(p_tot, 1).value, title)
+                self.assertEqual(v2.child_section_links[title], (parent, title))
+                self.assertEqual(self.wb[title]["A3"].value, f"={quote_sheetname(parent)}!A{p_row}")
+
+    def test_upgrade_keeps_the_existing_total_tab_sections(self) -> None:
+        # The September final's Total tabs already hold the tier sections in
+        # scheme order: they are kept and the sub-tier sections appended.
+        wb = load_workbook(_Fixtures.template(SEP_TEMPLATE))
+        try:
+            before = {tab: find_sections(wb[tab]) for tab in ("Tablet Total", "Handheld Total")}
+            report = upgrade_template(wb, layout_for("v2"))
+            for tab, sections in before.items():
+                self.assertNotIn(tab, report.sections_removed)
+                kept = len(sections)
+                self.assertEqual(report.sections_added.get(tab, []), list(layout_for("v2").parent_sections[tab][kept:]), tab)
+                self.assertEqual(find_sections(wb[tab])[:kept], sections, tab)
+        finally:
+            wb.close()
 
     def test_summary_table(self) -> None:
         ws = self.wb["Summary"]
@@ -820,7 +861,10 @@ class V2FromV1TemplateTest(unittest.TestCase):
             self.assertEqual(validate_workbook(wb, month=MONTH, tier_scheme="v2"), [])
             self.assertNotIn("Handheld $75+", wb.sheetnames)
             self.assertNotIn("Handheld $75-", wb.sheetnames)
-            self.assertEqual([t for t, _r, _x in find_sections(wb["Handheld Total"])], ["Handheld $100+", "Handheld $100-"])
+            self.assertEqual(
+                [t for t, _r, _x in find_sections(wb["Handheld Total"])],
+                list(layout_for("v2").parent_sections["Handheld Total"]),
+            )
         finally:
             wb.close()
 
