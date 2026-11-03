@@ -12,16 +12,23 @@
  *
  * Scheme V2 (report month 202610 onward, analyst decision 2026-11-03):
  *   Tablet $800+ | Tablet $400-$800 | Tablet $400- |
- *       Tablet $300+ ($300-$400) | Tablet $200-$300 | Tablet $200- |
+ *       Tablet $300-$400 | Tablet $200-$300 | Tablet $200- |
  *   Total Tablet |
  *   Handheld $100+ | Handheld $100- |
- *       Handheld $65+ ($65-$100) | Handheld $35-$65 | Handheld $35- |
+ *       Handheld $65-$100 | Handheld $35-$65 | Handheld $35- |
  *   Total Handheld | Total Dongle | Total Other Tools | Total
  *
- * Labels are verbatim analyst wording ("Tablet $300+" means $300-$400). Every
- * label maps to exactly one scope key; keys never collide across schemes, and
- * a key shared by both schemes (e.g. tablet_under_400) means the same range.
- * New-scheme tiers get NEW keys — history is never spliced across the switch.
+ * Labels are verbatim analyst wording. Every label maps to exactly one scope
+ * key; keys never collide across schemes, and a key shared by both schemes
+ * (e.g. tablet_under_400) means the same range. New-scheme tiers get NEW
+ * keys — history is never spliced across the switch.
+ *
+ * Relabels keep the key: a tier's former wording moves to `legacyLabels`,
+ * which the parser still accepts (old summaries / tab names) but nothing ever
+ * renders — labelForKey and every option list return the current label.
+ * 2026-11-03: the bounded sub-tiers tablet_300_400 / handheld_65_100 were
+ * relabelled to "Tablet $300-$400" / "Handheld $65-$100" so they no longer
+ * read as open-ended.
  *
  * Pure module (no React, no Node APIs) so server parsers, client components,
  * scripts and node:test can all import it.
@@ -35,7 +42,10 @@ export type PriceTierTypeGroup = "tablet" | "handheld" | "dongle" | "other_tools
 
 export type PriceTierDefinition = {
   readonly key: string
+  /** Current display label (what the report's summary.xlsx carries). */
   readonly label: string
+  /** Former labels of this key: parser aliases only, never rendered. */
+  readonly legacyLabels: readonly string[]
   /** Parent tier key for a sub-tier; null for tiers and totals. */
   readonly parentKey: string | null
   readonly kind: PriceTierKind
@@ -70,7 +80,7 @@ function tier(
   high: number | null,
   colorToken: string
 ): PriceTierDefinition {
-  return { key, label, parentKey: null, kind: "tier", typeGroup, low, high, colorToken }
+  return { key, label, legacyLabels: [], parentKey: null, kind: "tier", typeGroup, low, high, colorToken }
 }
 
 function subtier(
@@ -80,9 +90,10 @@ function subtier(
   typeGroup: PriceTierTypeGroup,
   low: number,
   high: number,
-  colorToken: string
+  colorToken: string,
+  legacyLabels: readonly string[] = []
 ): PriceTierDefinition {
-  return { key, label, parentKey, kind: "subtier", typeGroup, low, high, colorToken }
+  return { key, label, legacyLabels, parentKey, kind: "subtier", typeGroup, low, high, colorToken }
 }
 
 function total(
@@ -94,6 +105,7 @@ function total(
   return {
     key,
     label,
+    legacyLabels: [],
     parentKey: null,
     kind: typeGroup === "all" ? "grand_total" : "total",
     typeGroup,
@@ -106,7 +118,9 @@ function total(
 const TABLET_800_PLUS = tier("tablet_800_plus", "Tablet $800+", "tablet", 800, null, "--color-tier-tablet-800-plus")
 const TABLET_400_800 = tier("tablet_400_800", "Tablet $400-$800", "tablet", 400, 800, "--color-tier-tablet-400-800")
 const TABLET_UNDER_400 = tier("tablet_under_400", "Tablet $400-", "tablet", 0, 400, "--color-tier-tablet-under-400")
-const TABLET_300_400 = subtier("tablet_300_400", "Tablet $300+", "tablet_under_400", "tablet", 300, 400, "--color-tier-tablet-300-400")
+// Relabelled 2026-11-03; the pre-relabel wording stays a parser alias (one
+// preview summary.xlsx carries it).
+const TABLET_300_400 = subtier("tablet_300_400", "Tablet $300-$400", "tablet_under_400", "tablet", 300, 400, "--color-tier-tablet-300-400", ["Tablet $300+"])
 const TABLET_200_300 = subtier("tablet_200_300", "Tablet $200-$300", "tablet_under_400", "tablet", 200, 300, "--color-tier-tablet-200-300")
 const TABLET_UNDER_200 = subtier("tablet_under_200", "Tablet $200-", "tablet_under_400", "tablet", 0, 200, "--color-tier-tablet-under-200")
 const TOTAL_TABLET = total("total_tablet", "Total Tablet", "tablet", null)
@@ -115,7 +129,7 @@ const HANDHELD_75_PLUS = tier("handheld_75_plus", "Handheld $75+", "handheld", 7
 const HANDHELD_UNDER_75 = tier("handheld_under_75", "Handheld $75-", "handheld", 0, 75, "--color-tier-handheld-under-75")
 const HANDHELD_100_PLUS = tier("handheld_100_plus", "Handheld $100+", "handheld", 100, null, "--color-tier-handheld-100-plus")
 const HANDHELD_UNDER_100 = tier("handheld_under_100", "Handheld $100-", "handheld", 0, 100, "--color-tier-handheld-under-100")
-const HANDHELD_65_100 = subtier("handheld_65_100", "Handheld $65+", "handheld_under_100", "handheld", 65, 100, "--color-tier-handheld-65-100")
+const HANDHELD_65_100 = subtier("handheld_65_100", "Handheld $65-$100", "handheld_under_100", "handheld", 65, 100, "--color-tier-handheld-65-100", ["Handheld $65+"])
 const HANDHELD_35_65 = subtier("handheld_35_65", "Handheld $35-$65", "handheld_under_100", "handheld", 35, 65, "--color-tier-handheld-35-65")
 const HANDHELD_UNDER_35 = subtier("handheld_under_35", "Handheld $35-", "handheld_under_100", "handheld", 0, 35, "--color-tier-handheld-under-35")
 const TOTAL_HANDHELD = total("total_handheld", "Total Handheld", "handheld", null)
@@ -185,14 +199,23 @@ const V2_KEYS = new Set(PRICE_TIER_SCHEME_V2.tiers.map((definition) => definitio
 const V1_ONLY_KEYS = new Set([...V1_KEYS].filter((key) => !V2_KEYS.has(key)))
 const V2_ONLY_KEYS = new Set([...V2_KEYS].filter((key) => !V1_KEYS.has(key)))
 
+function isPriced(definition: PriceTierDefinition) {
+  return definition.kind === "tier" || definition.kind === "subtier"
+}
+
 /**
- * Price-bucket labels matched by substring, longest first so "Tablet $400-$800"
- * wins over "Tablet $400-" and "Handheld $35-$65" over "Handheld $35-".
- * Whitespace is ignored on both sides.
+ * Price-bucket labels (current and legacy) matched by substring, longest
+ * first so "Tablet $400-$800" wins over "Tablet $400-" and "Handheld $35-$65"
+ * over "Handheld $35-". Whitespace is ignored on both sides.
  */
 const PRICED_LABEL_MATCHERS = ALL_DEFINITIONS
-  .filter((definition) => definition.kind === "tier" || definition.kind === "subtier")
-  .map((definition) => ({ key: definition.key, needle: compactLabel(definition.label) }))
+  .filter(isPriced)
+  .flatMap((definition) =>
+    [definition.label, ...definition.legacyLabels].map((label) => ({
+      key: definition.key,
+      needle: compactLabel(label),
+    }))
+  )
   .sort((a, b) => b.needle.length - a.needle.length)
 
 /** Alphanumeric-only aliases for the type totals (tab names, block labels, legacy rows). */
@@ -272,8 +295,9 @@ export function resolveSnapshotScheme(input: {
 }
 
 /**
- * Exact scope key for a known tier/total label (or an already-canonical key);
- * null for anything else so callers can keep their own fallback.
+ * Exact scope key for a known tier/total label — current or legacy wording —
+ * or an already-canonical key; null for anything else so callers can keep
+ * their own fallback.
  */
 export function scopeKeyForLabel(label: string): string | null {
   const trimmed = label.trim()
@@ -300,6 +324,7 @@ export function isKnownPriceTierKey(key: string) {
   return DEFINITION_BY_KEY.has(key)
 }
 
+/** Current display label for a key (never a legacy label); undefined if unknown. */
 export function labelForKey(key: string): string | undefined {
   return DEFINITION_BY_KEY.get(key)?.label
 }
@@ -319,11 +344,14 @@ export function schemeKeys(scheme: SchemeLike): string[] {
   return resolveScheme(scheme).tiers.map((definition) => definition.key)
 }
 
-/** Every tier/sub-tier label any scheme has ever used (sheet names included). */
+/**
+ * Every tier/sub-tier label any scheme has ever used, legacy wording included
+ * (sheet names: tier tabs are analysis tabs, never brands).
+ */
 export function allPricedTierLabels(): string[] {
   return ALL_DEFINITIONS
-    .filter((definition) => definition.kind === "tier" || definition.kind === "subtier")
-    .map((definition) => definition.label)
+    .filter(isPriced)
+    .flatMap((definition) => [definition.label, ...definition.legacyLabels])
 }
 
 /** Every total label any scheme has used ("Total Tablet", ..., "Total"). */
@@ -335,8 +363,8 @@ export function allTotalLabels(): string[] {
 
 /**
  * Finest non-overlapping price buckets (tiers/sub-tiers that are not a parent).
- * V1: 5 keys. V2: Tablet $800+, $400-$800, $300+, $200-$300, $200-,
- * Handheld $100+, $65+, $35-$65, $35-.
+ * V1: 5 keys. V2: Tablet $800+, $400-$800, $300-$400, $200-$300, $200-,
+ * Handheld $100+, $65-$100, $35-$65, $35-.
  */
 export function leafKeys(scheme: SchemeLike): string[] {
   const tiers = resolveScheme(scheme).tiers
@@ -349,7 +377,7 @@ export function leafKeys(scheme: SchemeLike): string[] {
 /**
  * The finest tier buckets among the keys present: known tiers/sub-tiers,
  * minus any parent whose own sub-tiers are present. Rankings built on this
- * never list "Tablet $400-" beside "Tablet $300+"; V1 snapshots keep their
+ * never list "Tablet $400-" beside "Tablet $300-$400"; V1 snapshots keep their
  * five tiers; a V2 parent whose sub-tier rows are missing stays in.
  */
 export function finestPresentTierKeys(presentKeys: Iterable<string>, scheme: SchemeLike): Set<string> {
@@ -399,7 +427,7 @@ export function typeTotalKey(typeGroup: PriceTierTypeGroup): string | undefined 
  * parent with its own sub-tiers:
  *   all_asins            -> parentLevelKeys (7)
  *   total_<type>         -> that type's top-level tiers (or the total itself for Dongle/Other)
- *   a tier with children -> its sub-tiers (e.g. Tablet $400- -> $300+, $200-$300, $200-)
+ *   a tier with children -> its sub-tiers (e.g. Tablet $400- -> $300-$400, $200-$300, $200-)
  *   any other key        -> itself
  */
 export function pieKeysForScope(scope: string, scheme: SchemeLike): string[] {
@@ -416,6 +444,19 @@ export function pieKeysForScope(scope: string, scheme: SchemeLike): string[] {
 
   const children = childrenOf(scope, resolved)
   return children.length ? children : [scope]
+}
+
+/**
+ * True when a scope's pie keys partition the scope's own row — a type total
+ * with price tiers (Total Tablet, Total Handheld) or a V2 parent tier
+ * (Tablet $400-, Handheld $100-). Its slices read as 100% of that row, so a
+ * missing slice row must blank the pie instead of drawing a partial one.
+ * All ASINs and single-row scopes (Total Dongle, a leaf tier) are not.
+ */
+export function isPartitionScope(scope: string, scheme: SchemeLike): boolean {
+  if (scope === "all_asins") return false
+  const keys = pieKeysForScope(scope, scheme)
+  return !(keys.length === 1 && keys[0] === scope)
 }
 
 /**
@@ -446,7 +487,9 @@ function hasKey(presentKeys: ReadonlySet<string> | undefined, key: string) {
  * Dashboard "Price tier mix" scope options (Option A): All ASINs, each type
  * total, and — directly after its type total — every tier that has sub-tiers
  * (V2: "Tablet $400-", "Handheld $100-"). With presentKeys, options whose rows
- * are missing from the snapshot are dropped.
+ * are missing from the snapshot are dropped; a parent tier is offered only
+ * when its own row AND every sub-tier row are present (zero-revenue rows
+ * count as present), so its pie always adds up to the parent.
  */
 export function dashboardScopeOptions(
   scheme: SchemeLike,
@@ -466,7 +509,7 @@ export function dashboardScopeOptions(
     const children = childrenOf(definition.key, resolved)
     if (!children.length) continue
     if (!hasKey(presentKeys, definition.key)) continue
-    if (presentKeys && !children.some((child) => presentKeys.has(child))) continue
+    if (presentKeys && !children.every((child) => presentKeys.has(child))) continue
     options.push({ value: definition.key, label: definition.label, depth: 1 })
   }
 
@@ -495,7 +538,9 @@ const TYPE_TIER_ALL_LABELS: Partial<Record<PriceTierTypeGroup, string>> = {
  * Types page tier dropdown for Total Tablet / Total Handheld: "All <type>
  * tiers" (the type total) followed by every tier and sub-tier of the scheme
  * in scheme order. With presentKeys, tiers missing from the snapshot are
- * dropped so each month shows only the tiers it actually has.
+ * dropped so each month shows only the tiers it actually has: a missing
+ * sub-tier is simply not listed while its parent stays (the parent's pie
+ * then blanks — see isPartitionScope — rather than drawing a partial pie).
  */
 export function typeTierOptions(
   typeGroup: "tablet" | "handheld",

@@ -27,6 +27,7 @@ import {
   priceTierAnnotation,
   resolveSnapshotScheme,
   scopeKeyForLabel,
+  tierDefinition,
 } from "@/lib/price-tier-scheme"
 import { formatSnapshotLabelMonthEnd, normalizeSnapshotDate } from "@/lib/snapshot-date"
 
@@ -102,8 +103,9 @@ type MixDedupeEntry = {
   fromDedicatedTab: boolean
 }
 
-// Tier tabs of every scheme (V1 "Handheld $75+" ... and V2 "Tablet $300+",
-// "Handheld $100-", ...) plus the type/grand totals are analysis tabs, never brands.
+// Tier tabs of every scheme (V1 "Handheld $75+" ... and V2 "Tablet $300-$400",
+// "Handheld $100-", ..., plus each tier's legacy wording) and the type/grand
+// totals are analysis tabs, never brands.
 const RESERVED_SHEETS = new Set(
   [
     "summary",
@@ -135,7 +137,8 @@ const FALLBACK_PRICE_TIERS = [
 ]
 
 // Formatted analysis tabs: legacy "<Type> Total" names, the raw summary's
-// "Total <Type>" names, and each tier/sub-tier tab of V1 and V2.
+// "Total <Type>" names, and each tier/sub-tier tab of V1 and V2 under its
+// current label and any legacy label (a relabel renames the tab).
 const KNOWN_TYPE_SHEETS = [
   "Tablet Total",
   "Total Tablet",
@@ -154,7 +157,9 @@ function typePricedLabels(typeGroup: "tablet" | "handheld") {
   for (const tier of [...PRICE_TIER_SCHEME_V1.tiers, ...PRICE_TIER_SCHEME_V2.tiers]) {
     if (tier.typeGroup !== typeGroup) continue
     if (tier.kind !== "tier" && tier.kind !== "subtier") continue
-    if (!labels.includes(tier.label)) labels.push(tier.label)
+    for (const label of [tier.label, ...tier.legacyLabels]) {
+      if (!labels.includes(label)) labels.push(label)
+    }
   }
   return labels
 }
@@ -1208,11 +1213,16 @@ function metricFromRow(header: string[], row: string[], label: string): TypeBrea
   const revenue = readMetricCell(header, row, ["revenuemo", "monthlyrevenue"])
   const avgPrice = readMetricCell(header, row, ["avgprice", "priceperunit"])
 
-  if (units === 0 && revenue === 0 && avgPrice === 0) {
+  const scopeKey = toScopeKey(label)
+  // All-zero rows are skipped, except a priced tier/sub-tier (label has a "$"):
+  // a zero-revenue sub-tier is a real 0% slice, and dropping it would make
+  // its parent's pie look incomplete. Type-total aliases ("Handheld") stay
+  // skipped so an empty section header never shadows the real total row.
+  const pricedKind = tierDefinition(scopeKey)?.kind
+  if (units === 0 && revenue === 0 && avgPrice === 0 && pricedKind !== "tier" && pricedKind !== "subtier") {
     return null
   }
 
-  const scopeKey = toScopeKey(label)
   return {
     scopeKey,
     label: prettyScopeLabel(label),

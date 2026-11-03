@@ -5,18 +5,23 @@
  *   All ASINs        -> the 7 parent-level slices of the snapshot's scheme
  *   Total Tablet     -> Tablet $800+ / $400-$800 / $400-
  *   Total Handheld   -> V1 $75+/$75-, V2 $100+/$100-
- *   Tablet $400-     -> (V2) Tablet $300+ / $200-$300 / $200-
- *   Handheld $100-   -> (V2) Handheld $65+ / $35-$65 / $35-
+ *   Tablet $400-     -> (V2) Tablet $300-$400 / $200-$300 / $200-
+ *   Handheld $100-   -> (V2) Handheld $65-$100 / $35-$65 / $35-
  *   Total Dongle / Total Other Tools -> the single total slice
- * A parent and its own sub-tiers never share a pie.
+ * A parent and its own sub-tiers never share a pie, and a partition scope
+ * (type total with tiers, V2 parent tier) with a missing slice row draws no
+ * pie at all rather than a partial one that does not add up to its row.
  */
 import type { SnapshotSummary, TypeBreakdownMetric } from "@/lib/competitor-data"
 import {
   dashboardScopeOptions,
+  isPartitionScope,
+  labelForKey,
   pieKeysForScope,
   resolveSnapshotScheme,
   type PriceTierScheme,
   type PriceTierScopeOption,
+  type SchemeLike,
 } from "@/lib/price-tier-scheme"
 
 export type PriceTierItem = {
@@ -57,7 +62,9 @@ export function buildPriceScopeOptions(snapshot: SnapshotLike | undefined): Pric
 function toPriceTierItem(metric: TypeBreakdownMetric): PriceTierItem {
   return {
     scopeKey: metric.scopeKey,
-    label: metric.label,
+    // Known keys render the module's current label, so rows stored under a
+    // tier's legacy wording still show today's label.
+    label: labelForKey(metric.scopeKey) ?? metric.label,
     units: metric.units,
     unitsShare: metric.unitsShare,
     unitsMoM: metric.unitsMoM,
@@ -84,10 +91,67 @@ function legacyPriceTierItems(snapshot: SnapshotLike): PriceTierItem[] {
   }))
 }
 
+/** Relative gap above which a partition's slices "do not add up" to its row. */
+export const PIE_SUM_TOLERANCE = 0.01
+
+export type PieCompleteness = {
+  /** The slices read as 100% of the scope's own row (see isPartitionScope). */
+  partition: boolean
+  /** Every expected slice row is present (zero-revenue rows count as present). */
+  complete: boolean
+  /** Expected slice keys with no row, in scheme order. */
+  missing: string[]
+  /** Revenue of the slice rows that are present. */
+  sumRevenue: number
+  /** Revenue of the scope's own row (partition scopes only; null when absent). */
+  parentRevenue: number | null
+  /** Complete partition whose slices differ from the parent row by > PIE_SUM_TOLERANCE. */
+  mismatch: boolean
+}
+
+type RevenueRow = Pick<TypeBreakdownMetric, "scopeKey" | "revenue">
+
 /**
- * Pie rows for a scope, in scheme order (callers sort for display). Snapshots
- * without type breakdowns (non-code categories, fallback months) keep the
- * label-based snapshot.priceTiers rows.
+ * Cheap completeness / sum check of a scope's pie against its rows. Used by
+ * the Dashboard card and the Types page so a partition with a missing slice
+ * never draws, and a complete one that disagrees with its parent row by more
+ * than 1% can say so.
+ */
+export function pieCompletenessForRows(
+  rows: readonly RevenueRow[],
+  scope: string,
+  scheme: SchemeLike
+): PieCompleteness {
+  const byKey = new Map(rows.map((row) => [row.scopeKey, row]))
+  const keys = pieKeysForScope(scope, scheme)
+  const missing = keys.filter((key) => !byKey.has(key))
+  const sumRevenue = keys.reduce((sum, key) => sum + (byKey.get(key)?.revenue ?? 0), 0)
+  const partition = isPartitionScope(scope, scheme)
+  const parentRevenue = partition ? (byKey.get(scope)?.revenue ?? null) : null
+  const complete = missing.length === 0
+  let mismatch = false
+  if (partition && complete && parentRevenue !== null) {
+    mismatch = parentRevenue > 0
+      ? Math.abs(sumRevenue - parentRevenue) / parentRevenue > PIE_SUM_TOLERANCE
+      : sumRevenue > 0
+  }
+  return { partition, complete, missing, sumRevenue, parentRevenue, mismatch }
+}
+
+export function pieCompleteness(snapshot: SnapshotLike | undefined, scope: string): PieCompleteness {
+  return pieCompletenessForRows(
+    snapshot?.typeBreakdowns?.allAsins ?? [],
+    scope,
+    schemeForSnapshot(snapshot)
+  )
+}
+
+/**
+ * Pie rows for a scope, in scheme order (callers sort for display). A
+ * partition scope missing any slice row returns [] (the card's empty state);
+ * All ASINs draws whatever parent-level rows exist. Snapshots without type
+ * breakdowns (non-code categories, fallback months) keep the label-based
+ * snapshot.priceTiers rows (parent level only, so levels never mix).
  */
 export function buildPriceTierItems(snapshot: SnapshotLike | undefined, scope: string): PriceTierItem[] {
   if (!snapshot) return []
@@ -95,9 +159,12 @@ export function buildPriceTierItems(snapshot: SnapshotLike | undefined, scope: s
   const metrics = snapshot.typeBreakdowns?.allAsins ?? []
   if (!metrics.length) return legacyPriceTierItems(snapshot)
 
+  const scheme = schemeForSnapshot(snapshot)
+  const completeness = pieCompletenessForRows(metrics, scope, scheme)
+  if (completeness.partition && !completeness.complete) return []
+
   const byKey = new Map(metrics.map((metric) => [metric.scopeKey, metric]))
-  const keys = pieKeysForScope(scope, schemeForSnapshot(snapshot))
-  const rows = keys.flatMap((key) => {
+  const rows = pieKeysForScope(scope, scheme).flatMap((key) => {
     const metric = byKey.get(key)
     return metric ? [toPriceTierItem(metric)] : []
   })

@@ -9,6 +9,7 @@ import {
   buildPriceScopeOptions,
   buildPriceTierItems,
   findPriceScopeMetric,
+  pieCompleteness,
 } from "../lib/price-tier-mix.ts"
 import {
   PRICE_TIER_SCHEME_V1,
@@ -56,15 +57,25 @@ const V2_VALUES: Record<string, [number, number]> = {
   total: [34_105_533, 312_408],
 }
 
-function v2Snapshot(): Snapshot {
+function v2Snapshot(
+  options: {
+    omit?: string[]
+    values?: Record<string, [number, number]>
+    /** Stored row labels by key (default: the scheme's current label). */
+    labels?: Record<string, string>
+  } = {}
+): Snapshot {
+  const values = { ...V2_VALUES, ...options.values }
   return {
     date: "2026-10-31",
     priceTiers: [],
     typeBreakdowns: {
-      allAsins: PRICE_TIER_SCHEME_V2.tiers.map((tier) => {
-        const [revenue, units] = V2_VALUES[tier.key]
-        return metric(tier.key, tier.label, revenue, units)
-      }),
+      allAsins: PRICE_TIER_SCHEME_V2.tiers
+        .filter((tier) => !options.omit?.includes(tier.key))
+        .map((tier) => {
+          const [revenue, units] = values[tier.key]
+          return metric(tier.key, options.labels?.[tier.key] ?? tier.label, revenue, units)
+        }),
       top50: [],
       categoryBrandMix: [],
       source: "summary",
@@ -102,6 +113,28 @@ test("V2 snapshot: card scopes add Tablet $400- and Handheld $100- after their t
       "Handheld $100-",
       "Total Dongle",
       "Total Other Tools",
+    ]
+  )
+})
+
+test("V2 snapshot: rows stored under the legacy sub-tier wording render the current labels", () => {
+  const snapshot = v2Snapshot({
+    labels: { tablet_300_400: "Tablet $300+", handheld_65_100: "Handheld $65+" },
+  })
+  assert.deepEqual(
+    buildPriceTierItems(snapshot, "tablet_under_400").map((row) => [row.scopeKey, row.label]),
+    [
+      ["tablet_300_400", "Tablet $300-$400"],
+      ["tablet_200_300", "Tablet $200-$300"],
+      ["tablet_under_200", "Tablet $200-"],
+    ]
+  )
+  assert.deepEqual(
+    buildPriceTierItems(snapshot, "handheld_under_100").map((row) => [row.scopeKey, row.label]),
+    [
+      ["handheld_65_100", "Handheld $65-$100"],
+      ["handheld_35_65", "Handheld $35-$65"],
+      ["handheld_under_35", "Handheld $35-"],
     ]
   )
 })
@@ -162,6 +195,84 @@ test("V2 snapshot: type totals keep their parent-level tiers, never a parent bes
     }
   }
   assert.equal(findPriceScopeMetric(snapshot, "all_asins", [])?.scopeKey, "total")
+})
+
+test("V2 snapshot missing one nonzero sub-tier: parent scope not offered, no partial pie", () => {
+  const snapshot = v2Snapshot({ omit: ["tablet_200_300"] })
+  const scopes = buildPriceScopeOptions(snapshot).map((option) => option.value)
+  assert.ok(!scopes.includes("tablet_under_400"))
+  assert.ok(scopes.includes("handheld_under_100"))
+  // Even if requested directly (stale selection), the parent draws nothing.
+  assert.deepEqual(buildPriceTierItems(snapshot, "tablet_under_400"), [])
+
+  const completeness = pieCompleteness(snapshot, "tablet_under_400")
+  assert.equal(completeness.partition, true)
+  assert.equal(completeness.complete, false)
+  assert.deepEqual(completeness.missing, ["tablet_200_300"])
+  assert.equal(completeness.mismatch, false)
+
+  // The type total and All ASINs are unaffected (their slice rows are all present).
+  assert.equal(buildPriceTierItems(snapshot, "total_tablet").length, 3)
+  assert.equal(buildPriceTierItems(snapshot, "all_asins").length, 7)
+})
+
+test("a type total missing one of its tiers draws no pie; All ASINs still draws what exists", () => {
+  const snapshot = v2Snapshot({ omit: ["handheld_100_plus"] })
+  assert.deepEqual(buildPriceTierItems(snapshot, "total_handheld"), [])
+  assert.deepEqual(pieCompleteness(snapshot, "total_handheld").missing, ["handheld_100_plus"])
+  const allRows = keysOf(buildPriceTierItems(snapshot, "all_asins"))
+  assert.equal(allRows.length, 6)
+  assert.ok(!allRows.includes("handheld_100_plus"))
+  assert.ok(allRows.every((key) => !parentOf(key)), "All ASINs never mixes levels")
+  assert.equal(pieCompleteness(snapshot, "all_asins").partition, false)
+})
+
+test("a zero-revenue sub-tier stays a 0% slice and the parent scope is offered", () => {
+  const snapshot = v2Snapshot({
+    values: {
+      handheld_35_65: [0, 0],
+      handheld_under_100: [746_990 + 1_892_900, 9_641 + 80_022],
+    },
+  })
+  assert.ok(buildPriceScopeOptions(snapshot).some((option) => option.value === "handheld_under_100"))
+  const rows = buildPriceTierItems(snapshot, "handheld_under_100")
+  assert.deepEqual(keysOf(rows), ["handheld_65_100", "handheld_35_65", "handheld_under_35"])
+  const zero = rows.find((row) => row.scopeKey === "handheld_35_65")
+  assert.equal(zero?.revenue, 0)
+  assert.equal(zero?.revenueShare, 0)
+  const completeness = pieCompleteness(snapshot, "handheld_under_100")
+  assert.equal(completeness.complete, true)
+  assert.equal(completeness.mismatch, false)
+  assert.equal(completeness.sumRevenue, completeness.parentRevenue)
+})
+
+test("pieCompleteness flags sub-tiers that do not sum to the parent row (> 1%)", () => {
+  const exact = pieCompleteness(v2Snapshot(), "tablet_under_400")
+  assert.deepEqual(exact, {
+    partition: true,
+    complete: true,
+    missing: [],
+    sumRevenue: V2_VALUES.tablet_under_400[0],
+    parentRevenue: V2_VALUES.tablet_under_400[0],
+    mismatch: false,
+  })
+
+  const [parentRevenue, parentUnits] = V2_VALUES.tablet_under_400
+  const off = v2Snapshot({ values: { tablet_under_400: [Math.round(parentRevenue * 1.05), parentUnits] } })
+  const mismatch = pieCompleteness(off, "tablet_under_400")
+  assert.equal(mismatch.complete, true)
+  assert.equal(mismatch.mismatch, true)
+  assert.equal(mismatch.sumRevenue, parentRevenue)
+  assert.equal(mismatch.parentRevenue, Math.round(parentRevenue * 1.05))
+  // Still complete, so the pie draws; the card adds the muted note.
+  assert.equal(buildPriceTierItems(off, "tablet_under_400").length, 3)
+
+  const withinTolerance = v2Snapshot({ values: { tablet_under_400: [Math.round(parentRevenue * 1.005), parentUnits] } })
+  assert.equal(pieCompleteness(withinTolerance, "tablet_under_400").mismatch, false)
+
+  // Non-partition scopes never report a mismatch.
+  assert.equal(pieCompleteness(off, "all_asins").mismatch, false)
+  assert.equal(pieCompleteness(off, "total_dongle").partition, false)
 })
 
 test("V1 snapshot: unchanged 5 scopes and the $75 handheld split", () => {
