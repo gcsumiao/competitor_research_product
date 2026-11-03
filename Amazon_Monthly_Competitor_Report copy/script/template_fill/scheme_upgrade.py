@@ -20,7 +20,11 @@ written:
 4. the Summary category table grows/shrinks to the scheme's row count (rows are
    inserted just above the grand "Total" row with every dependent range,
    formula and chart reference kept in step), and the Summary chart series are
-   re-pointed at their labelled rows.
+   re-pointed at their labelled rows;
+5. schemes with a FIXED brand block (V2+: all 16 labels on every brand tab)
+   grow each brand tab's overview block to that size (rows inserted just above
+   its "Total" row, same bookkeeping); the brand-tab charts are re-pointed by
+   label on every build (``fit_brand_chart_refs``), not here.
 
 A template that already matches the scheme is left untouched (idempotent).
 """
@@ -30,13 +34,15 @@ from copy import copy, deepcopy
 from dataclasses import dataclass, field
 
 from openpyxl.chart.pie_chart import DoughnutChart, PieChart, PieChart3D, ProjectedPieChart
+from openpyxl.formatting.formatting import ConditionalFormattingList
 from openpyxl.formula.tokenizer import Token, Tokenizer
 from openpyxl.utils import get_column_letter, quote_sheetname
 from openpyxl.utils.cell import range_boundaries
+from openpyxl.worksheet.cell_range import CellRange, MultiCellRange
 
 from price_tier_scheme import LEGACY_LABELS, SCHEMES
 
-from .config import KNOWN_TIER_LABELS, SUMMARY_FIRST_ROW, SchemeLayout, slug
+from .config import FIXED_BRANDS, KNOWN_TIER_LABELS, SUMMARY_FIRST_ROW, SchemeLayout, slug
 from .formula_map import sorted_tables
 from .sheet_ops import (
     chart_refs,
@@ -83,6 +89,7 @@ class UpgradeReport:
     summary_rows_after: int = 0
     summary_styles: dict[str, list] = field(default_factory=dict)
     summary_chart_plan: list = field(default_factory=list)
+    brand_rows_added: dict[str, int] = field(default_factory=dict)  # brand tab -> rows inserted
 
     @property
     def summary_resized(self) -> bool:
@@ -97,6 +104,7 @@ class UpgradeReport:
             or self.sections_removed
             or self.sections_added
             or self.summary_resized
+            or self.brand_rows_added
         )
 
     def describe(self) -> list[str]:
@@ -113,6 +121,8 @@ class UpgradeReport:
             lines.append(f"{tab}: added sections {titles}")
         if self.summary_resized:
             lines.append(f"Summary category table {self.summary_rows_before} -> {self.summary_rows_after} rows")
+        for tab, added in self.brand_rows_added.items():
+            lines.append(f"{tab}: brand overview block grew by {added} rows")
         return lines
 
 
@@ -124,6 +134,7 @@ def upgrade_template(wb, layout: SchemeLayout) -> UpgradeReport:
     _remove_stale_category_tabs(wb, layout, report)
     _ensure_parent_sections(wb, layout, report, block)
     _ensure_summary_rows(wb["Summary"], layout, report)
+    _ensure_brand_blocks(wb, layout, report)
     return report
 
 
@@ -575,3 +586,116 @@ def fit_overview_chart_refs(ws, first_row: int, total_row: int) -> None:
                 continue
             letter = get_column_letter(c1)
             ref.f = f"{sheet_ref(ws.title)}!${letter}${first_row}:${letter}${end}"
+
+
+# ------------------------------------------------------------ brand tabs
+
+
+def brand_block_labels(ws, first_row: int, max_rows: int = 40) -> list[str]:
+    """Labels of a brand tab's overview block: column A from ``first_row``
+    down to the first blank cell."""
+    labels = []
+    for row_idx in range(first_row, first_row + max_rows):
+        label = str(ws.cell(row_idx, 1).value or "").strip()
+        if not label:
+            break
+        labels.append(label)
+    return labels
+
+
+def _ensure_brand_blocks(wb, layout: SchemeLayout, report: UpgradeReport) -> None:
+    """Fixed brand blocks (V2+): grow every brand tab's overview block to the
+    scheme's row count. The rows go in just above the block's "Total" row, so
+    everything below (blank gap, charts, rank titles, tables, conditional
+    formats, formulas, chart references) moves down in step; the new rows take
+    the style of the block's first row. Conditional-format ranges that cover
+    the block from its first row are stretched to its new last row (some
+    hand-formatted tabs stop them above the Total row). A block that already
+    has the scheme's size is left untouched (idempotent). V1 (compacted 10-row
+    block) is never touched."""
+    if not layout.brand_block_fixed:
+        return
+    first, last = layout.brand_block_rows
+    size = layout.brand_block_capacity
+    for display, _key in FIXED_BRANDS:
+        if display not in wb.sheetnames:
+            continue  # validation reports the missing tab
+        ws = wb[display]
+        labels = brand_block_labels(ws, first)
+        if not labels or labels[-1].lower() != "total":
+            raise ValueError(
+                f"{display}: overview block at A{first} should end with a 'Total' row, got {labels}"
+            )
+        if len(labels) > size:
+            raise ValueError(f"{display}: overview block has {len(labels)} rows, more than the {size} of scheme {layout.name}")
+        delta = size - len(labels)
+        if delta == 0:
+            continue
+        total_row = first + len(labels) - 1
+        insert_rows(ws, total_row, delta)
+        source_height = ws.row_dimensions[first].height if first in ws.row_dimensions else None
+        for row_idx in range(total_row, total_row + delta):
+            for col in range(1, SECTION_WIDTH + 1):
+                src = ws.cell(first, col)
+                if src.has_style:
+                    ws.cell(row_idx, col)._style = copy(src._style)
+            if source_height is not None:
+                ws.row_dimensions[row_idx].height = source_height
+        _stretch_block_conditional_formats(ws, first, last)
+        report.brand_rows_added[display] = delta
+
+
+def _stretch_block_conditional_formats(ws, first: int, last: int) -> None:
+    old = ws.conditional_formatting
+    new = ConditionalFormattingList()
+    changed = False
+    for cf in old:
+        ranges = []
+        for rng in MultiCellRange(str(cf.sqref)).ranges:
+            if rng.min_row == first and first <= rng.max_row < last:
+                rng = CellRange(min_col=rng.min_col, min_row=first, max_col=rng.max_col, max_row=last)
+                changed = True
+            ranges.append(rng.coord)
+        for rule in cf.rules:
+            new.add(" ".join(ranges), rule)
+    if changed:
+        new.max_priority = max(getattr(old, "max_priority", 0), new.max_priority)
+        ws.conditional_formatting = new
+
+
+def fit_brand_chart_refs(ws, first_row: int, last_row: int) -> None:
+    """Re-point a brand tab's overview charts by row label (V2+, every
+    build): bar charts plot the whole block (first row .. "Total"), pies the
+    four family-total rows (Total Tablet / Handheld / Dongle / Other Tools).
+    Each reference keeps its own column; only single-column references that
+    start inside the block are touched (series titles on the header row are
+    not; a hand-drawn range that ran past the Total row is pulled back).
+    Also fixes templates whose compacted V1 blocks left the pies on the wrong
+    rows (October 2026 final: Foxwell, iCarsoft, TOPDON, LAUNCH, Thinkcar)."""
+    row_of = {}
+    for row_idx in range(first_row, last_row + 1):
+        label = str(ws.cell(row_idx, 1).value or "").strip()
+        if label:
+            row_of.setdefault(label, row_idx)
+    total_row = next((r for label, r in row_of.items() if label.lower() == "total"), None)
+    family_rows = sorted(r for label, r in row_of.items() if summary_row_kind(label, ()) == "subtotal")
+    if total_row is None or not family_rows:
+        raise ValueError(f"{ws.title}: overview block {first_row}-{last_row} has no Total / family-total rows")
+    sheet = sheet_ref(ws.title)
+    for chart in getattr(ws, "_charts", []):
+        rows = family_rows if isinstance(chart, PIE_TYPES) else list(range(first_row, total_row + 1))
+        for ref in chart_refs(chart):
+            areas = _ref_areas(ref.f or "")
+            if not areas or any(title.lower() != ws.title.lower() for title, *_ in areas):
+                continue
+            cols = {c1 for _t, c1, _r1, c2, _r2 in areas if c1 == c2}
+            if len(cols) != 1 or any(c1 != c2 for _t, c1, _r1, c2, _r2 in areas):
+                continue
+            if any(not (first_row <= r1 <= last_row) for _t, _c1, r1, _c2, r2 in areas):
+                continue  # not anchored in the block (a header cell, a table column)
+            letter = get_column_letter(cols.pop())
+            parts = [
+                f"{sheet}!${letter}${r1}" if r1 == r2 else f"{sheet}!${letter}${r1}:${letter}${r2}"
+                for r1, r2 in _runs(rows)
+            ]
+            ref.f = parts[0] if len(parts) == 1 else "(" + ",".join(parts) + ")"

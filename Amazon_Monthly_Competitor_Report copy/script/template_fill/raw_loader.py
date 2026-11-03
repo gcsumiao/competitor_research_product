@@ -316,3 +316,15 @@ def ordered_brand_summary(rows: list[Row], category_order: Iterable[str] | None 
     by_cat = {row[1]: row for row in rows}
     order = CATEGORY_ORDER if category_order is None else list(category_order)
     return [by_cat[c] for c in order if c in by_cat]
+
+
+def fixed_brand_summary(rows: list[Row], category_order: Iterable[str], brand: str) -> list[Row]:
+    """Brand overview rows for a FIXED block (scheme V2+): one row per label in
+    ``category_order``, zero rows included. A label the raw summary has no row
+    for is written as a zero row the way full_report_month writes one (blank
+    avg price and ratios, 0 units / revenue / shares)."""
+    by_cat = {row[1]: row for row in rows}
+    return [
+        by_cat.get(label) or [brand, label, None, None, None, 0, 0, None, None, 0, 0]
+        for label in category_order
+    ]

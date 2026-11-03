@@ -32,12 +32,14 @@ from .raw_loader import (
     REPORT_SUMMARY_HEADERS,
     SUMMARY_HEADERS,
     RawData,
+    fixed_brand_summary,
     ordered_brand_summary,
 )
 from .scheme_upgrade import (
     SUMMARY_WIDTH,
     UpgradeReport,
     apply_summary_chart_plan,
+    fit_brand_chart_refs,
     fit_overview_chart_refs,
     summary_row_kind,
     upgrade_template,
@@ -255,10 +257,7 @@ def _write_staging(wb, raw: RawData, layout: SchemeLayout) -> None:
 
     for display, key in FIXED_BRANDS:
         name = _short_stage_slug(display)
-        blocks[f"_stg_b_{name}_sum"] = (
-            SUMMARY_HEADERS,
-            ordered_brand_summary(raw.sheet1_by_brand(key), layout.category_order),
-        )
+        blocks[f"_stg_b_{name}_sum"] = (SUMMARY_HEADERS, _brand_overview_rows(raw, key, layout))
         rev_rows, unit_rows = raw.report_dual_blocks(key)
         blocks[f"_stg_b_{name}_rev"] = (BRAND_LISTING_HEADERS, rev_rows)
         blocks[f"_stg_b_{name}_unit"] = (BRAND_LISTING_HEADERS, unit_rows)
@@ -405,11 +404,16 @@ def _set_row_fill(
             cell.font = font
 
 
-def _format_brand_overview(ws, start_row: int, end_row: int) -> None:
+def _format_brand_overview(ws, start_row: int, end_row: int, subtier_labels=()) -> None:
     """Label-driven emphasis for the brand overview block. Fills and number
     formats used to be inherited from the template by position, so any month
     where a brand gained or lost a category row shifted every gray/purple
-    band (and left the relocated Total row unformatted)."""
+    band (and left the relocated Total row unformatted).
+
+    V2+ (``subtier_labels`` given): styled like the Summary table - sub-tier
+    labels indented one level (regular weight, no fill like every tier row),
+    family totals gray + bold, grand Total purple + bold."""
+    subtiers = {label.strip().lower() for label in subtier_labels}
     for row_idx in range(start_row, end_row + 1):
         label = str(ws.cell(row_idx, 1).value or "").strip().lower()
         if not label:
@@ -422,6 +426,8 @@ def _format_brand_overview(ws, start_row: int, end_row: int) -> None:
         else:
             _set_row_fill(ws, row_idx, NO_FILL, bold=False)
         _apply_overview_number_formats(ws, row_idx)
+        if label in subtiers:
+            ws.cell(row_idx, 1).alignment = Alignment(horizontal="left", vertical="center", indent=1)
 
 
 def _apply_overview_number_formats(ws, row_idx: int) -> None:
@@ -456,11 +462,24 @@ def _format_category_overview(ws, start_row: int, end_row: int, data_count: int,
         _set_row_fill(ws, row_idx, NO_FILL)
 
 
+def _brand_overview_rows(raw: RawData, key: str, layout: SchemeLayout) -> list[list[object]]:
+    """Raw Sheet1 rows of one brand's overview block. V1: parent-level rows,
+    zero rows dropped (compacted). V2+: every scheme label in order, zero rows
+    kept (fixed block, analyst decision 2026-11-03)."""
+    if layout.brand_block_fixed:
+        return fixed_brand_summary(raw.sheet1_by_brand(key, include_zero=True), layout.brand_tab_order, key)
+    return ordered_brand_summary(raw.sheet1_by_brand(key), layout.brand_tab_order)
+
+
 def _write_brand_tab(ws, raw: RawData, _display: str, key: str, layout: SchemeLayout) -> None:
-    # Brand tabs keep the 10-row parent-level table: sub-tiers are excluded.
-    rows = ordered_brand_summary(raw.sheet1_by_brand(key), layout.category_order)
-    _write_summary_overview(ws, 8, 17, rows, summary_sheet=False)
-    _format_brand_overview(ws, 8, 17)
+    first, last = layout.brand_block_rows
+    rows = _brand_overview_rows(raw, key, layout)
+    _write_summary_overview(ws, first, last, rows, summary_sheet=False)
+    if layout.brand_block_fixed:
+        _format_brand_overview(ws, first, last, subtier_labels=layout.subtier_labels)
+        fit_brand_chart_refs(ws, first, last)
+    else:
+        _format_brand_overview(ws, first, last)
     rev, units = raw.report_dual_blocks(key)
     tables = sorted_tables(ws)
     _write_listing_table(ws, tables[0], rev, style="brand_revenue")

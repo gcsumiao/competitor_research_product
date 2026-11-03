@@ -37,6 +37,8 @@ TOTAL_CATEGORY_TABS = {
 }
 
 SUMMARY_FIRST_ROW = 4  # first category row of the Summary table (row 3 = headers)
+BRAND_BLOCK_FIRST_ROW = 8  # first category row of a brand tab's overview block (row 7 = headers)
+V1_BRAND_BLOCK_CAPACITY = 10  # V1: parent-level rows only, compacted (zero rows dropped)
 
 
 @dataclass(frozen=True)
@@ -45,7 +47,7 @@ class SchemeLayout:
 
     Every structural table the filler and the validator need (tab order,
     category tabs, parent sections, child links, Summary rows, brand-tab
-    category rows) is derived from ``price_tier_scheme`` so a scheme change
+    category rows and block) is derived from ``price_tier_scheme`` so a scheme change
     never needs a hand-maintained list here.
 
     Tab order per family: "<Family> Total" first, then its tiers and
@@ -59,7 +61,10 @@ class SchemeLayout:
     name: str
     summary_labels: tuple[str, ...]  # Summary category rows, scheme order
     subtier_labels: tuple[str, ...]
-    category_order: tuple[str, ...]  # brand-tab overview rows (sub-tiers excluded)
+    category_order: tuple[str, ...]  # parent-level labels (sub-tiers excluded)
+    brand_tab_order: tuple[str, ...]  # brand-tab overview rows, in order
+    brand_block_rows: tuple[int, int]  # (first, last) row of the brand-tab overview block
+    brand_block_fixed: bool  # every label always written (zero rows kept) vs compacted
     category_tabs: dict[str, str]  # tab -> category label, in tab order
     listing_source_sheets: dict[str, str]  # tab -> raw summary sheet
     parent_sections: dict[str, tuple[str, ...]]  # tab -> section titles, in order
@@ -70,6 +75,11 @@ class SchemeLayout:
     @property
     def summary_last_row(self) -> int:
         return SUMMARY_FIRST_ROW + len(self.summary_labels) - 1
+
+    @property
+    def brand_block_capacity(self) -> int:
+        first, last = self.brand_block_rows
+        return last - first + 1
 
     @property
     def is_legacy(self) -> bool:
@@ -112,11 +122,29 @@ def layout_for(scheme_name: str) -> SchemeLayout:
                 child_links[t.label] = (parent_tab, t.label)
                 parent_sections[parent_tab] = parent_sections.get(parent_tab, ()) + (t.label,)
         pending = []
+    category_order = tuple(t.label for t in tiers if t.kind != "subtier")
+    if scheme_name == "v1":
+        # V1 (published months): parent-level rows only, compacted into the
+        # template's 10-row block (rows 8-17); a category the brand has no
+        # sales in is dropped and the rows below move up.
+        brand_tab_order = category_order
+        brand_block_rows = (BRAND_BLOCK_FIRST_ROW, BRAND_BLOCK_FIRST_ROW + V1_BRAND_BLOCK_CAPACITY - 1)
+        brand_block_fixed = False
+    else:
+        # V2+ (analyst decision 2026-11-03): the full breakdown, every tier,
+        # sub-tier and total in scheme order, one FIXED row per label (zero
+        # rows kept) so row positions and chart references are stable.
+        brand_tab_order = tuple(t.label for t in tiers)
+        brand_block_rows = (BRAND_BLOCK_FIRST_ROW, BRAND_BLOCK_FIRST_ROW + len(brand_tab_order) - 1)
+        brand_block_fixed = True
     return SchemeLayout(
         name=scheme_name,
         summary_labels=tuple(t.label for t in tiers),
         subtier_labels=tuple(t.label for t in tiers if t.kind == "subtier"),
-        category_order=tuple(t.label for t in tiers if t.kind != "subtier"),
+        category_order=category_order,
+        brand_tab_order=brand_tab_order,
+        brand_block_rows=brand_block_rows,
+        brand_block_fixed=brand_block_fixed,
         category_tabs=category_tabs,
         listing_source_sheets=dict(category_tabs),
         parent_sections=parent_sections,

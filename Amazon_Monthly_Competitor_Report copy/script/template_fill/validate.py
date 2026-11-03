@@ -61,7 +61,7 @@ def validate_workbook(wb: Workbook, month: str | None = None, tier_scheme: str =
     hyperlink_cells = [
         ("Top 50", "L42"),
         ("Tablet Total", "L47"),
-        ("Ancel", "L53"),
+        ("Ancel", "L53" if layout.is_legacy else _first_table_data_cell(wb["Ancel"], "L")),
     ]
     for sheet, coord in hyperlink_cells:
         value = wb[sheet][coord].value
@@ -75,9 +75,9 @@ def validate_workbook(wb: Workbook, month: str | None = None, tier_scheme: str =
     _validate_parent_section_total_links(wb, issues, layout)
     _validate_child_links(wb, issues, layout)
     _validate_listing_hyperlinks(wb, issues)
-    _validate_brand_tabs(wb, issues)
+    _validate_brand_tabs(wb, issues, layout)
     _validate_brand_logos(wb, issues)
-    _validate_brand_overview_fills(wb, issues)
+    _validate_brand_overview_fills(wb, issues, layout)
     _validate_parent_section_total_fills(wb, issues, layout)
     if not layout.is_legacy:
         # Scheme V2+ checks; V1 validation is unchanged.
@@ -85,6 +85,9 @@ def validate_workbook(wb: Workbook, month: str | None = None, tier_scheme: str =
         _validate_summary_charts(wb, issues, layout)
         _validate_category_tab_artifacts(wb, issues, layout)
         _validate_sections(wb, issues, layout)
+    if layout.brand_block_fixed:
+        _validate_brand_block_labels(wb, issues, layout)
+        _validate_brand_charts(wb, issues, layout)
 
     for ws in wb.worksheets:
         if ws.sheet_state != "visible":
@@ -481,12 +484,30 @@ def _fill_kind(cell) -> str:
     return "other"
 
 
-def _validate_brand_overview_fills(wb: Workbook, issues: list[str]) -> None:
+def _first_table_data_cell(ws, column: str) -> str:
+    tables = sorted_tables(ws)
+    if not tables:
+        return f"{column}1"
+    _min_col, header_row, _max_col, _max_row = table_bounds(tables[0])
+    return f"{column}{header_row + 1}"
+
+
+def _validate_brand_overview_fills(wb: Workbook, issues: list[str], layout: SchemeLayout) -> None:
+    first, last = layout.brand_block_rows
+    subtiers = {label.lower() for label in layout.subtier_labels} if layout.brand_block_fixed else set()
     for display, _key in FIXED_BRANDS:
         ws = wb[display]
-        for row_idx in range(8, 18):
+        for row_idx in range(first, last + 1):
             label = str(ws.cell(row_idx, 1).value or "").strip().lower()
             kind = _fill_kind(ws.cell(row_idx, 2))
+            if layout.brand_block_fixed and label:
+                indent = ws.cell(row_idx, 1).alignment.indent or 0
+                if label in subtiers and indent < 1:
+                    issues.append(f"{display}!A{row_idx} sub-tier row should be indented")
+                if label not in subtiers and indent:
+                    issues.append(f"{display}!A{row_idx} {label!r} should not be indented")
+                if not label.startswith("total") and (ws.cell(row_idx, 1).font.bold or ws.cell(row_idx, 2).font.bold):
+                    issues.append(f"{display}!A{row_idx} {label!r} should be regular weight")
             if label == "total":
                 if kind != "rgb:FFB5A7D7":
                     issues.append(f"{display}!B{row_idx} Total row should have the purple fill, got {kind}")
@@ -506,10 +527,13 @@ def _validate_brand_overview_fills(wb: Workbook, issues: list[str]) -> None:
                     issues.append(f"{display}!J{row_idx} should use the percent format")
 
 
-def _validate_brand_tabs(wb: Workbook, issues: list[str]) -> None:
+def _validate_brand_tabs(wb: Workbook, issues: list[str], layout: SchemeLayout) -> None:
+    first, last = layout.brand_block_rows
     for display, _key in FIXED_BRANDS:
         ws = wb[display]
-        for row_idx in range(8, 18):
+        for row_idx in range(first, last + 1):
+            if layout.brand_block_fixed:
+                break  # fixed block: zero rows are written on purpose
             label = ws.cell(row_idx, 1).value
             values = [ws.cell(row_idx, col).value for col in (5, 6, 9, 10)]
             if label not in (None, "") and all(value in (None, "", 0, 0.0) for value in values):
@@ -544,6 +568,60 @@ def _validate_brand_tabs(wb: Workbook, issues: list[str]) -> None:
                 value = ws.cell(total_row, col).value
                 if value not in (None, ""):
                     issues.append(f"{display}!{ws.cell(total_row, col).coordinate} should be blank on independent Total row")
+
+
+def _validate_brand_block_labels(wb: Workbook, issues: list[str], layout: SchemeLayout) -> None:
+    """Fixed brand block (V2+): every scheme label in order, rows first..last,
+    blank row below; zero rows carry 0 units / revenue / shares."""
+    first, last = layout.brand_block_rows
+    for display, _key in FIXED_BRANDS:
+        ws = wb[display]
+        actual = [str(ws.cell(row_idx, 1).value or "").strip() for row_idx in range(first, last + 1)]
+        if actual != list(layout.brand_tab_order):
+            issues.append(f"{display} rows {first}-{last} should be {list(layout.brand_tab_order)}, got {actual}")
+            continue
+        below = ws.cell(last + 1, 1).value
+        if below not in (None, ""):
+            issues.append(f"{display}!A{last + 1} should be blank below the overview block, got {below!r}")
+        for row_idx in range(first, last + 1):
+            for col in (5, 6, 9, 10):
+                value = ws.cell(row_idx, col).value
+                if not isinstance(value, (int, float)) or isinstance(value, bool):
+                    issues.append(f"{display}!{_col_letter(col)}{row_idx} should be a number (0 for no sales), got {value!r}")
+
+
+def _validate_brand_charts(wb: Workbook, issues: list[str], layout: SchemeLayout) -> None:
+    """Fixed brand block (V2+): pies plot the four family-total rows, bars the
+    whole block (first row .. Total)."""
+    first, last = layout.brand_block_rows
+    for display, _key in FIXED_BRANDS:
+        ws = wb[display]
+        labels_by_row = {r: str(ws.cell(r, 1).value or "").strip() for r in range(first, last + 1)}
+        family = {label for label in labels_by_row.values() if summary_row_kind(label, ()) == "subtotal"}
+        pies = bars = 0
+        for chart in getattr(ws, "_charts", []):
+            is_pie = isinstance(chart, PIE_TYPES)
+            is_bar = isinstance(chart, (BarChart, BarChart3D))
+            pies += is_pie
+            bars += is_bar
+            for ref in chart_refs(chart):
+                areas = _ref_areas(ref.f or "")
+                if not areas:
+                    continue
+                if any(sheet.lower() != display.lower() for sheet, *_rest in areas):
+                    issues.append(f"{display} chart reference {ref.f} points at another sheet")
+                    continue
+                rows = sorted({r for _t, _c1, r1, _c2, r2 in areas for r in range(r1, r2 + 1)})
+                if rows and rows[-1] < first:
+                    continue  # a header/title cell above the block
+                if is_pie:
+                    got = {labels_by_row.get(r, f"row {r}") for r in rows}
+                    if got != family or len(rows) != len(family):
+                        issues.append(f"{display} pie reference {ref.f} should plot {sorted(family)}")
+                if is_bar and rows != list(range(first, last + 1)):
+                    issues.append(f"{display} bar reference {ref.f} should cover rows {first}-{last}")
+        if not pies or not bars:
+            issues.append(f"{display} should keep its overview bar and pie charts (bars {bars}, pies {pies})")
 
 
 def _find_section_total_row(ws, title_row: int) -> int:
