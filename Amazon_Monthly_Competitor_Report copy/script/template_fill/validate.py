@@ -339,9 +339,15 @@ def _validate_parent_section_total_links(wb: Workbook, issues: list[str], layout
                 issues.append(f"{sheet_name}!L{total_row} should link to Summary!K{summary_row}")
             if _norm_ref(ws.cell(total_row, 13).value) != f"=Summary!L{summary_row}":
                 issues.append(f"{sheet_name}!M{total_row} should link to Summary!L{summary_row}")
+            # A section with no brand rows this month (title, header, Total)
+            # carries literal zeros instead of SUMs over no rows.
+            empty = total_row == title_row + 2
             for col in (5, 6, 9, 10):
                 value = ws.cell(total_row, col).value
-                if not (isinstance(value, str) and value.startswith(f"=SUM({_col_letter(col)}")):
+                if empty:
+                    if not (isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0):
+                        issues.append(f"{sheet_name}!{_col_letter(col)}{total_row} should be 0 (empty section)")
+                elif not (isinstance(value, str) and value.startswith(f"=SUM({_col_letter(col)}")):
                     issues.append(f"{sheet_name}!{_col_letter(col)}{total_row} should be a SUM formula")
 
 

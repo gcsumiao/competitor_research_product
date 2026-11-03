@@ -281,7 +281,13 @@ def _write_visible_values(wb, raw: RawData, layout: SchemeLayout, upgrade: Upgra
 def _write_summary(ws, raw: RawData, layout: SchemeLayout, upgrade: UpgradeReport) -> None:
     last_row = layout.summary_last_row
     offset = last_row - SUMMARY_V1_LAST_ROW
-    _write_summary_overview(ws, SUMMARY_FIRST_ROW, last_row, raw.sheet1_by_brand("Total"), summary_sheet=True)
+    # Every scheme row, zero rows included: a tier with no sales this month
+    # (e.g. a V2 sub-tier) keeps its labelled row, which its parent-section
+    # Total links to. Sheet1 "Total" rows are exactly the scheme labels
+    # (_require_raw_scheme), so the table never shifts.
+    _write_summary_overview(
+        ws, SUMMARY_FIRST_ROW, last_row, raw.sheet1_by_brand("Total", include_zero=True), summary_sheet=True
+    )
     if not layout.is_legacy or upgrade.summary_resized:
         _format_summary_category_rows(ws, layout, upgrade.summary_styles)
         apply_summary_chart_plan(ws, layout, upgrade.summary_chart_plan)
@@ -336,10 +342,21 @@ def _write_top50(ws, raw: RawData) -> None:
 def _write_category_tab(ws, raw: RawData, tab: str, category: str, layout: SchemeLayout) -> None:
     rows = raw.category_rows(category)
     total = raw.summary_total_for_category(category)
+    if not rows and total is None:
+        # Tier with no sales this month (e.g. a V2 sub-tier): the overview is
+        # just its zero Summary "Total" row.
+        total = raw.summary_total_for_category(category, include_zero=True)
     if total:
         rows = rows + [total]
     overview_start = 5
     overview_end = _find_last_metric_row(ws, overview_start)
+    capacity = overview_end - overview_start + 1
+    if len(rows) > capacity and capacity < 3:
+        # The template month had this tier empty (Total-only overview) or
+        # with a single brand: grow the block back instead of failing to fit
+        # (an "Other" row needs at least one brand row and the Total).
+        _grow_overview_rows(ws, overview_start, len(rows))
+        overview_end = overview_start + len(rows) - 1
     rows = _fit_category_overview_rows(category, rows, overview_end - overview_start + 1)
     _write_summary_overview(ws, overview_start, overview_end, rows, summary_sheet=False)
     _format_category_overview(ws, overview_start, overview_end, len(rows), has_total=bool(total))
@@ -567,11 +584,11 @@ def _set_overview_total_share_to_100(ws, start_row: int, end_row: int) -> None:
 
 
 def _write_parent_category_sections(ws, raw: RawData, tab: str, layout: SchemeLayout) -> None:
+    # A section with no non-zero brand rows this month (e.g. an empty V2
+    # sub-tier) is rendered as title + header + a zero Total row; a section
+    # title missing from the tab still raises (_find_row_by_label).
     for section_title in layout.parent_sections[tab]:
-        rows = raw.category_rows(section_title)
-        if not rows:
-            raise ValueError(f"Raw Category sheet has no non-zero rows for section {section_title!r}")
-        _write_parent_section(ws, section_title, rows)
+        _write_parent_section(ws, section_title, raw.category_rows(section_title))
 
 
 def _write_parent_section_summary_total_links(wb, layout: SchemeLayout, tabs: list[str] | None = None) -> None:
@@ -617,7 +634,16 @@ def _write_parent_section(ws, section_title: str, source_rows: list[list[object]
         ws.insert_rows(insert_at, count)
         shift_row_artifacts(ws, insert_at, count)
         _shift_tables(ws, insert_at, count)
-        _copy_row_style(ws, insert_at - 1, insert_at, count)
+        if current_body_count:
+            _copy_row_style(ws, insert_at - 1, insert_at, count)
+        else:
+            # The template section was empty (a month where this tier had no
+            # sales): take the body style from its Total row (borders, font
+            # size) rather than the header, un-bolded, at the default height.
+            _copy_row_style(ws, insert_at + count, insert_at, count)
+            _set_rows_bold(ws, insert_at, count, bold=False)
+            for row_idx in range(insert_at, insert_at + count):
+                ws.row_dimensions[row_idx].height = None
     elif target_body_count < current_body_count:
         delete_at = data_start + target_body_count
         count = current_body_count - target_body_count
@@ -665,6 +691,12 @@ def _write_parent_section_total_row(
         ws.cell(row_idx, 6, f"=SUM(F{data_start}:F{data_end})")
         ws.cell(row_idx, 9, f"=SUM(I{data_start}:I{data_end})")
         ws.cell(row_idx, 10, f"=SUM(J{data_start}:J{data_end})")
+    else:
+        # Empty section (no brand rows): zero units/revenue and 0% shares -
+        # what the SUMs give over no rows (the 100% override is only for the
+        # family-total tab overviews, _set_overview_total_share_to_100).
+        for col in (5, 6, 9, 10):
+            ws.cell(row_idx, col, 0)
 
 
 def _write_child_category_links(wb, layout: SchemeLayout, upgrade: UpgradeReport) -> None:
@@ -690,7 +722,10 @@ def _write_child_category_links(wb, layout: SchemeLayout, upgrade: UpgradeReport
             # The overview resize moved this tab's own sections; re-point
             # their Total rows (SUM ranges + Summary links) at the new rows.
             _write_parent_section_summary_total_links(wb, layout, tabs=[child_tab])
-        if child_tab in upgrade.cloned_tabs:
+        if child_tab in upgrade.cloned_tabs and len(source_rows) > 1:
+            # (an empty section has only its Total row: the cloned chart
+            # ranges are kept so the charts follow the overview once the tier
+            # has brand rows again)
             fit_overview_chart_refs(child_ws, 5, 5 + len(source_rows) - 1)
     # A3 = link to the parent section title, written once every overview has
     # its final size. V1 keeps the template's A3 (published months rebuild
@@ -881,6 +916,24 @@ def _resize_overview_rows(ws, start_row: int, target_count: int) -> None:
         ws.delete_rows(delete_at, count)
         shift_row_artifacts(ws, delete_at + count, -count)
         _shift_tables(ws, delete_at + count, -count)
+
+
+def _grow_overview_rows(ws, start_row: int, target_count: int) -> None:
+    """Insert rows below the overview block so it holds ``target_count`` rows
+    (they copy the block's last row style). The block is left un-bolded: the
+    caller re-applies banding, the bold Total fill and the number formats."""
+    _resize_overview_rows(ws, start_row, target_count)
+    _set_rows_bold(ws, start_row, target_count, bold=False)
+
+
+def _set_rows_bold(ws, start_row: int, count: int, bold: bool, max_col: int = 13) -> None:
+    for row_idx in range(start_row, start_row + count):
+        for col in range(1, max_col + 1):
+            cell = ws.cell(row_idx, col)
+            if bool(cell.font.bold) != bold:
+                font = copy(cell.font)
+                font.bold = bold
+                cell.font = font
 
 
 def _find_row_by_label(ws, label: str) -> int:

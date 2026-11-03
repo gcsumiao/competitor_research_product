@@ -163,6 +163,10 @@ workbook (`template_fill/`) use scheme V2:
 - Summary category table: 16 rows (sub-tiers directly under their parent);
   the charts and the brand Revenue/Units blocks sit 6 rows lower than in V1.
 - Brand tabs keep the 10 parent-level rows (no sub-tiers).
+- A sub-tier with no sales in a month still builds: its section is title +
+  header + a Total row (0 units/revenue, 0% shares, other columns linked to its
+  zero Summary row), its tab's overview is that Total row only and its ranking
+  tables are empty; the next month's build grows both back.
 
 **Self-upgrading template.** `automate_final_outputs.py` still uses last
 month's final as the template. Before filling, `template_fill/scheme_upgrade.py`

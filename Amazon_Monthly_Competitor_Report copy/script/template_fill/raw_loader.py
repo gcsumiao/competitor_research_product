@@ -116,8 +116,8 @@ class RawData:
         the price-tier scheme the raw summary was built with."""
         return [str(row[1] or "").strip() for row in self.sheet1_by_brand("Total", include_zero=True)]
 
-    def summary_total_for_category(self, category: str) -> Row | None:
-        for row in self.sheet1_by_brand("Total"):
+    def summary_total_for_category(self, category: str, include_zero: bool = False) -> Row | None:
+        for row in self.sheet1_by_brand("Total", include_zero=include_zero):
             if _norm(row[1]) == _norm(category):
                 return row
         return None

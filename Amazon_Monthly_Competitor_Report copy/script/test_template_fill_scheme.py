@@ -45,6 +45,7 @@ from template_fill.config import (
     layout_for,
     layout_for_month,
 )
+from template_fill.formula_map import sorted_tables, table_bounds
 from template_fill.main import _stage_names, build_monthly_output
 from template_fill.raw_loader import RawData
 from template_fill.scheme_upgrade import find_sections, summary_row_kind, upgrade_template
@@ -189,6 +190,36 @@ def _run_build(template: Path, raw_dir: Path, out_dir: Path, *, code_dir: Path =
 
 def _build(template: Path, raw_dir: Path, out_dir: Path, *, tier_scheme: str = "auto") -> Path:
     return _run_build(template, raw_dir, out_dir, scheme_kwargs=f", month={MONTH!r}, tier_scheme={tier_scheme!r}")
+
+
+def _empty_subtier_raw(source: Path, dest: Path, label: str) -> Path:
+    """Copy of a raw run in which tier ``label`` had no sales, written the
+    way full_report_month writes an empty bucket: its Sheet1 rows (every
+    brand) and Category rows keep their labels with zero units/revenue/shares
+    and blank ratios, and its per-category sheet holds only the two listing
+    header rows (revenue block at row 1, units block at row 6)."""
+    dest.mkdir(parents=True, exist_ok=True)
+    for name in RAW_NAMES:
+        shutil.copy2(source / name, dest / name)
+    zero = [None, None, None, 0, 0, None, None, 0, 0, None, None]  # columns C..M
+    wb = load_workbook(dest / RAW_NAMES[0])
+    try:
+        for sheet, label_col in (("Sheet1", 2), ("Category", 1)):
+            ws = wb[sheet]
+            for row_idx in range(2, ws.max_row + 1):
+                if ws.cell(row_idx, label_col).value == label:
+                    for col, value in enumerate(zero, start=3):
+                        ws.cell(row_idx, col).value = value
+        ws = wb[label]
+        header = [ws.cell(1, col).value for col in range(1, ws.max_column + 1)]
+        ws.delete_rows(1, ws.max_row)
+        for row_idx in (1, 6):
+            for col, value in enumerate(header, start=1):
+                ws.cell(row_idx, col).value = value
+        wb.save(dest / RAW_NAMES[0])
+    finally:
+        wb.close()
+    return dest
 
 
 def _zip_differences(a: Path, b: Path) -> list[str]:
@@ -556,6 +587,116 @@ class V2BuildTest(unittest.TestCase):
         # (pre-existing: every build appends one per visible tab).
         for part in _zip_differences(self.out, second):
             self.assertRegex(part, r"^xl/worksheets/sheet\d+\.xml$")
+
+
+class V2EmptySubtierTest(unittest.TestCase):
+    """A V2 sub-tier with no sales in the month ("Handheld $65+" zeroed out of
+    the September V2 raw summary) renders as an empty section instead of
+    aborting the build, and the next month grows it back."""
+
+    SUBTIER = "Handheld $65+"
+    PARENT = "Handheld $100-"
+    out: Path
+    wb = None
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        raw = _empty_subtier_raw(_Fixtures.v2_raw(), _Fixtures.work() / "raw_v2_empty_h65", cls.SUBTIER)
+        cls.raw = RawData.load(raw / RAW_NAMES[0], raw / RAW_NAMES[1])
+        cls.out = _build(_Fixtures.template(SEP_TEMPLATE), raw, _Fixtures.work() / "v2_empty_h65", tier_scheme="v2")
+        cls.wb = load_workbook(cls.out)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        if cls.wb is not None:
+            cls.wb.close()
+
+    def _summary_row(self, wb) -> int:
+        summary = wb["Summary"]
+        return next(r for r in range(4, 20) if summary.cell(r, 1).value == self.SUBTIER)
+
+    def _section(self, wb) -> tuple[int, int]:
+        return next((r, t) for s, r, t in find_sections(wb[self.PARENT]) if s == self.SUBTIER)
+
+    def test_fixture_has_no_rows_for_the_subtier(self) -> None:
+        self.assertEqual(self.raw.category_rows(self.SUBTIER), [])
+        self.assertIsNone(self.raw.summary_total_for_category(self.SUBTIER))
+        self.assertEqual(self.raw.summary_dual_listing_blocks(self.SUBTIER), ([], []))
+        self.assertEqual(self.raw.total_category_labels(), list(layout_for("v2").summary_labels))
+
+    def test_builds_and_validates(self) -> None:
+        self.assertEqual(validate_workbook(self.wb, month=MONTH, tier_scheme="v2"), [])
+        self.assertEqual([t for t, _r, _x in find_sections(self.wb[self.PARENT])], list(layout_for("v2").parent_sections[self.PARENT]))
+
+    def test_summary_keeps_the_zero_subtier_row(self) -> None:
+        summary = self.wb["Summary"]
+        self.assertEqual([summary.cell(r, 1).value for r in range(4, 20)], list(layout_for("v2").summary_labels))
+        row = self._summary_row(self.wb)
+        self.assertEqual([summary.cell(row, c).value for c in (5, 6, 9, 10)], [0, 0, 0, 0])
+
+    def test_empty_section_is_a_zero_total_linked_to_the_summary_row(self) -> None:
+        ws = self.wb[self.PARENT]
+        summary_row = self._summary_row(self.wb)
+        title_row, total_row = self._section(self.wb)
+        self.assertEqual(total_row, title_row + 2, "title, header, Total - no brand rows")
+        self.assertEqual(ws.cell(title_row + 1, 2).value, "Avg Price")
+        for col in (1, 2, 3, 4, 7, 8):
+            letter = "ABCDEFGH"[col - 1]
+            self.assertEqual(ws.cell(total_row, col).value, f"=Summary!{letter}{summary_row}")
+        self.assertEqual(ws.cell(total_row, 12).value, f"=Summary!K{summary_row}")
+        self.assertEqual(ws.cell(total_row, 13).value, f"=Summary!L{summary_row}")
+        self.assertEqual([ws.cell(total_row, c).value for c in (5, 6, 9, 10)], [0, 0, 0, 0])
+        self.assertEqual(_fill_kind(ws.cell(total_row, 2)), "rgb:FFB5A7D7")
+        # the sibling sections are untouched: SUM totals over their brand rows
+        for title, t_row, tot in find_sections(ws):
+            if title != self.SUBTIER:
+                self.assertGreater(tot, t_row + 2, title)
+                self.assertEqual(ws.cell(tot, 5).value, f"=SUM(E{t_row + 2}:E{tot - 1})", title)
+
+    def test_subtier_tab_shows_only_the_zero_total(self) -> None:
+        ws = self.wb[self.SUBTIER]
+        title_row, total_row = self._section(self.wb)
+        prefix = f"={quote_sheetname(self.PARENT)}!"
+        self.assertEqual(ws["A3"].value, f"{prefix}A{title_row}")
+        for letter in ("A", "B", "E", "F", "I", "J"):
+            self.assertEqual(ws[f"{letter}5"].value, f"{prefix}{letter}{total_row}")
+        self.assertIn(ws["A6"].value, (None, ""))
+        self.assertEqual(_fill_kind(ws["B5"]), "rgb:FFB5A7D7")
+        self.assertEqual(len(ws._charts), 6)
+        tables = sorted_tables(ws)
+        self.assertEqual(len(tables), 2)
+        for table in tables:
+            _min_col, header_row, _max_col, max_row = table_bounds(table)
+            for row_idx in range(header_row + 1, max_row + 1):
+                self.assertEqual([ws.cell(row_idx, c).value for c in range(1, 11)], [None] * 10, table.name)
+
+    def test_next_month_grows_the_empty_section_back(self) -> None:
+        # Carry-over: the empty month's output is the next build's template
+        # (its sub-tier overview is a single Total row, its section has no
+        # body); a month with sales fills both again.
+        template = _Fixtures.work() / "templates" / "v2_empty_h65_as_template.xlsx"
+        shutil.copy2(self.out, template)
+        raw = _Fixtures.v2_raw()
+        out = _build(template, raw, _Fixtures.work() / "v2_after_empty_h65", tier_scheme="v2")
+        wb = load_workbook(out)
+        try:
+            self.assertEqual(validate_workbook(wb, month=MONTH, tier_scheme="v2"), [])
+            expected = RawData.load(raw / RAW_NAMES[0], raw / RAW_NAMES[1]).category_rows(self.SUBTIER)
+            ws = wb[self.PARENT]
+            title_row, total_row = self._section(wb)
+            body = range(title_row + 2, total_row)
+            self.assertEqual([ws.cell(r, 1).value for r in body], [row[1] for row in expected])
+            self.assertEqual(ws.cell(total_row, 5).value, f"=SUM(E{title_row + 2}:E{total_row - 1})")
+            for r in body:
+                self.assertFalse(ws.cell(r, 2).font.bold, f"{self.PARENT}!B{r}")
+            child = wb[self.SUBTIER]
+            prefix = f"={quote_sheetname(self.PARENT)}!"
+            for offset, parent_row in enumerate(range(title_row + 2, total_row + 1)):
+                self.assertEqual(child.cell(5 + offset, 5).value, f"{prefix}E{parent_row}")
+            for r in range(5, 5 + len(expected)):
+                self.assertFalse(child.cell(r, 2).font.bold, f"{self.SUBTIER}!B{r}")
+        finally:
+            wb.close()
 
 
 class V2FromV1TemplateTest(unittest.TestCase):
