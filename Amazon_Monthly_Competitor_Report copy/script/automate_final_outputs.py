@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 
 from month_context import MONTHS, MONTH_TO_SHORT, MonthContext, infer_month_context
+from price_tier_scheme import SCHEME_CHOICES, describe_scheme
 from report_fill.main import build_report_output
 from template_fill.main import build_monthly_output
 
@@ -117,6 +118,7 @@ def build_final_outputs(
     date_tag: str,
     brand_header_dir: Path | None,
     overwrite_final: bool,
+    tier_scheme: str = "auto",
 ) -> tuple[Path, Path]:
     if not raw_report.exists():
         raise SystemExit(f"Missing raw report: {raw_report}")
@@ -146,6 +148,8 @@ def build_final_outputs(
     print(f"  template_report: {template_report}")
     print(f"  template_analysis: {template_analysis}")
     print(f"  out_dir: {out_dir}")
+    month_key = f"{context.year}{context.month:02d}"
+    print(f"  price tier scheme: {describe_scheme(month_key, tier_scheme)}")
 
     # Build analysis first because the chart XML patchers register namespaces process-wide.
     # Saving the chart-heavy analysis workbook before the report prevents namespace bleed
@@ -159,6 +163,8 @@ def build_final_outputs(
         raw_report=raw_report,
         out_dir=out_dir,
         brand_header_dir=brand_header_dir,
+        month=month_key,
+        tier_scheme=tier_scheme,
     )
     report_path = build_report_output(
         template=template_report,
@@ -185,6 +191,13 @@ def main() -> int:
     parser.add_argument("--run-date", default=None, help="Alias for --date-tag for older runbooks.")
     parser.add_argument("--brand-header-dir", type=Path, default=None)
     parser.add_argument(
+        "--tier-scheme",
+        choices=SCHEME_CHOICES,
+        default="auto",
+        help="Price-tier scheme of the Analysis workbook: auto (by month: v2 from 202610), or force v1/v2 "
+        "to match a raw summary built with full_report_month.py --tier-scheme.",
+    )
+    parser.add_argument(
         "--overwrite-final",
         action="store_true",
         help="Replace existing final workbook files. Default: fail if outputs already exist.",
@@ -204,6 +217,7 @@ def main() -> int:
         date_tag=_normalize_date_tag(args.date_tag or args.run_date),
         brand_header_dir=_resolve_path(args.brand_header_dir),
         overwrite_final=args.overwrite_final,
+        tier_scheme=args.tier_scheme,
     )
     print("[ok] Wrote final formatted outputs:")
     print(f"  - {report_path}")

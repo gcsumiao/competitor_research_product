@@ -7,6 +7,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from month_context import infer_month_context, validate_month_headers
+from price_tier_scheme import SCHEME_CHOICES, describe_scheme
 from report_fill.main import _read_workbook, validate_output_file as validate_report_file
 from report_fill.main import validate_report_workbook
 from template_fill.validate import validate_output_file as validate_analysis_file
@@ -55,12 +56,23 @@ def main() -> int:
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--analysis", type=Path, required=True)
     parser.add_argument("--raw-report", type=Path, required=True)
+    parser.add_argument("--month", default=None, help="Report month YYYYMM (price-tier scheme). Defaults to the raw report month.")
+    parser.add_argument(
+        "--tier-scheme",
+        choices=SCHEME_CHOICES,
+        default="auto",
+        help="Price-tier scheme the Analysis workbook must follow: auto (by month: v2 from 202610), or force v1/v2.",
+    )
     args = parser.parse_args()
 
     report_path = args.report.resolve()
     analysis_path = args.analysis.resolve()
     raw_report_path = args.raw_report.resolve()
     issues: list[str] = []
+    raw_context = infer_month_context(raw_report_path)
+    month = args.month or f"{raw_context.year}{raw_context.month:02d}"
+    if month != f"{raw_context.year}{raw_context.month:02d}":
+        raise SystemExit(f"--month {month} does not match the raw report month {raw_context.year}{raw_context.month:02d}")
 
     raw_wb = load_workbook(raw_report_path, read_only=False, data_only=True)
     report_wb = load_workbook(report_path, read_only=False, data_only=False)
@@ -76,7 +88,7 @@ def main() -> int:
 
     analysis_wb = load_workbook(analysis_path, read_only=False, data_only=False)
     try:
-        analysis_issues = validate_analysis_workbook(analysis_wb)
+        analysis_issues = validate_analysis_workbook(analysis_wb, month=month, tier_scheme=args.tier_scheme)
         validate_month_headers(analysis_wb, infer_month_context(raw_report_path), analysis_issues)
         issues.extend(f"analysis: {item}" for item in analysis_issues)
     finally:
@@ -103,6 +115,7 @@ def main() -> int:
         raise SystemExit("Post-Excel workbook QA failed:\n- " + "\n- ".join(issues))
 
     print("Post-Excel workbook QA passed")
+    print(f"analysis price tier scheme: {describe_scheme(month, args.tier_scheme)}")
     print(f"report formulas scanned: {scan_results['report']['formula_count']:,}")
     print(f"analysis formulas scanned: {scan_results['analysis']['formula_count']:,}")
     print(f"retained ASIN {KEPT_ASIN} locations: {len(scan_results['report']['hits'][KEPT_ASIN]):,}")

@@ -26,6 +26,7 @@ from pathlib import Path
 from openpyxl import Workbook, load_workbook
 
 from automate_final_outputs import build_final_outputs
+from price_tier_scheme import SCHEME_CHOICES
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RAW_REPORT = ROOT / "script output reports" / "Amazon Competitor Report.xlsx"
@@ -280,6 +281,12 @@ def main() -> int:
     parser.add_argument("--date-tag", default=None, help="Filename date tag; defaults to the golden file's tag")
     parser.add_argument("--skip-generate", action="store_true", help="Diff existing sandbox outputs without regenerating")
     parser.add_argument("--include-hidden", action="store_true", help="Also diff hidden (staging) sheets")
+    parser.add_argument(
+        "--tier-scheme",
+        choices=SCHEME_CHOICES,
+        default="auto",
+        help="Price-tier scheme for the regenerated Analysis workbook (default: by --month; v2 from 202610).",
+    )
     args = parser.parse_args()
 
     month = args.month.strip()
@@ -314,6 +321,7 @@ def main() -> int:
             date_tag=date_tag or "99-99-99",
             brand_header_dir=None,
             overwrite_final=True,
+            tier_scheme=args.tier_scheme,
         )
 
     gen_analysis = find_golden(out_dir, "analysis", month_name)
