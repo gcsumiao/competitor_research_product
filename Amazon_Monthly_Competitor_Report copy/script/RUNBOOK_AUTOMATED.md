@@ -172,7 +172,16 @@ workbook (`template_fill/`) use scheme V2:
   Total Market row stay whole-market.
 - Summary category table: 16 rows (sub-tiers directly under their parent);
   the charts and the brand Revenue/Units blocks sit 6 rows lower than in V1.
-- Brand tabs keep the 10 parent-level rows (no sub-tiers).
+- Brand tabs carry the full breakdown (analyst decision 2026-11-03): a FIXED
+  16-row category block on rows 8-23, every V2 label in scheme order, styled
+  like the Summary (sub-tiers indented/regular/unfilled, family totals gray
+  bold, grand Total purple bold). A category the brand has no sales in is a
+  zero row (0 units / $0 / 0% shares, blank avg price), not dropped. The
+  `_stg_b_<brand>_sum` staging sheets carry the same 16 rows. V1 months keep
+  the compacted 10-row parent-level block (rows 8-17).
+- Brand-tab charts are re-pointed by label on every V2 build: the four bars
+  over A8:A23 (series columns unchanged), the two pies over the four
+  family-total rows (Total Tablet / Handheld / Dongle / Other Tools).
 - A sub-tier with no sales in a month still builds: its section is title +
   header + a Total row (0 units/revenue, 0% shares, other columns linked to its
   zero Summary row), its tab's overview is that Total row only and its ranking
@@ -183,7 +192,10 @@ month's final as the template. Before filling, `template_fill/scheme_upgrade.py`
 reshapes it to the month's scheme: clones missing tier/sub-tier tabs (tables,
 6 charts, conditional formats re-pointed at the new tab), removes tier tabs of
 the other scheme, adds/replaces parent sections, grows the Summary table and
-re-points the Summary chart series by label. Each change is logged as
+re-points the Summary chart series by label, and grows each brand tab's
+category block to the fixed 16 rows (rows inserted above its Total row;
+charts, rank titles, tables, conditional formats and formulas move down; the
+block's conditional formats are stretched to row 23). Each change is logged as
 `[template-upgrade] ...`; an already-V2 template is left alone. No manual
 tab/row work is needed for October.
 
