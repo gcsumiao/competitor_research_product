@@ -71,6 +71,19 @@ import {
   truncateLabel,
 } from "@/lib/dashboard-format"
 import { REVENUE_CHART_COLOR, UNITS_CHART_COLOR } from "@/lib/chart-colors"
+import { schemeForSnapshot } from "@/lib/price-tier-mix"
+import {
+  breakdownKeysForScope,
+  labelForKey,
+  parentOf,
+  pieKeysForScope,
+  priceInTier,
+  priceTierColor,
+  tierDefinition,
+  typeTierOptions,
+  type PriceTierScheme,
+  type PriceTierScopeOption,
+} from "@/lib/price-tier-scheme"
 
 const SPEC_COLORS = ["#3b82f6", "#22c55e", "#8b5cf6", "#f97316", "#0ea5e9", "#14b8a6"]
 
@@ -81,13 +94,8 @@ type TypeScope =
   | "total_dongle"
   | "total_other_tools"
 
-type ResolvedTypeScope =
-  | TypeScope
-  | "tablet_800_plus"
-  | "tablet_400_800"
-  | "tablet_under_400"
-  | "handheld_75_plus"
-  | "handheld_under_75"
+/** A TypeScope or any price-tier key of the snapshot's scheme (V1 or V2). */
+type ResolvedTypeScope = string
 
 type MetricMode = "revenue" | "units"
 
@@ -99,64 +107,12 @@ const TYPE_SCOPE_OPTIONS: Array<{ value: TypeScope; label: string }> = [
   { value: "total_other_tools", label: "Total Other Tools" },
 ]
 
-const TABLET_TIER_OPTIONS: Array<{ value: ResolvedTypeScope; label: string }> = [
-  { value: "total_tablet", label: "All tablet tiers" },
-  { value: "tablet_800_plus", label: "Tablet $800+" },
-  { value: "tablet_400_800", label: "Tablet $400-$800" },
-  { value: "tablet_under_400", label: "Tablet $400-" },
-]
+// "Product type mix" bars for All ASINs: one bar per type total.
+const TYPE_TOTAL_KEYS = ["total_tablet", "total_handheld", "total_dongle", "total_other_tools"]
 
-const HANDHELD_TIER_OPTIONS: Array<{ value: ResolvedTypeScope; label: string }> = [
-  { value: "total_handheld", label: "All handheld tiers" },
-  { value: "handheld_75_plus", label: "Handheld $75+" },
-  { value: "handheld_under_75", label: "Handheld $75-" },
-]
-
-const TYPE_SCOPE_LABELS: Record<ResolvedTypeScope, string> = {
-  all_asins: "All ASINs",
-  total_tablet: "Total Tablet",
-  tablet_800_plus: "Tablet $800+",
-  tablet_400_800: "Tablet $400-$800",
-  tablet_under_400: "Tablet $400-",
-  total_handheld: "Total Handheld",
-  handheld_75_plus: "Handheld $75+",
-  handheld_under_75: "Handheld $75-",
-  total_dongle: "Total Dongle",
-  total_other_tools: "Total Other Tools",
-}
-
-const TYPE_SCOPE_ORDER: ResolvedTypeScope[] = [
-  "tablet_800_plus",
-  "tablet_400_800",
-  "tablet_under_400",
-  "total_tablet",
-  "handheld_75_plus",
-  "handheld_under_75",
-  "total_handheld",
-  "total_dongle",
-  "total_other_tools",
-]
-
-const ALL_SCOPE_BREAKDOWN_ORDER = [...TYPE_SCOPE_ORDER, "total"] as const
-
-const DETAILED_PRICE_TIER_KEYS = new Set<ResolvedTypeScope>([
-  "tablet_800_plus",
-  "tablet_400_800",
-  "tablet_under_400",
-  "handheld_75_plus",
-  "handheld_under_75",
-  "total_dongle",
-  "total_other_tools",
-])
-
-const PRICE_TIER_COLORS: Record<string, string> = {
-  tablet_800_plus: "var(--color-tier-tablet-800-plus)",
-  tablet_400_800: "var(--color-tier-tablet-400-800)",
-  tablet_under_400: "var(--color-tier-tablet-under-400)",
-  handheld_75_plus: "var(--color-tier-handheld-75-plus)",
-  handheld_under_75: "var(--color-tier-handheld-under-75)",
-  total_dongle: "var(--color-tier-total-dongle)",
-  total_other_tools: "var(--color-tier-total-other-tools)",
+function typeScopeLabel(scope: ResolvedTypeScope) {
+  if (scope === "all_asins") return "All ASINs"
+  return labelForKey(scope) ?? scope
 }
 
 type SpecsMetricCard = {
@@ -637,26 +593,48 @@ function CodeReaderTypesPage({
   const [brandRankMetric, setBrandRankMetric] = useState<MetricMode>("revenue")
   const [asinRankMetric, setAsinRankMetric] = useState<MetricMode>("revenue")
 
+  // Tier pickers are rebuilt per snapshot from its scheme and the rows it
+  // actually has (<= 202609 shows $75+/$75-, >= 202610 the $100 split plus
+  // sub-tiers). A tier the current snapshot lacks resolves to the type total.
+  const activeScheme = useMemo(() => schemeForSnapshot(activeSnapshot), [activeSnapshot])
+  const { tabletTierOptions, handheldTierOptions } = useMemo(() => {
+    const rows = activeSnapshot?.typeBreakdowns?.allAsins ?? []
+    const presentKeys = rows.length ? new Set(rows.map((row) => row.scopeKey)) : undefined
+    return {
+      tabletTierOptions: typeTierOptions("tablet", activeScheme, presentKeys),
+      handheldTierOptions: typeTierOptions("handheld", activeScheme, presentKeys),
+    }
+  }, [activeScheme, activeSnapshot])
+  const resolvedTabletTier = tabletTierOptions.some((option) => option.value === tabletTier)
+    ? tabletTier
+    : "total_tablet"
+  const resolvedHandheldTier = handheldTierOptions.some((option) => option.value === handheldTier)
+    ? handheldTier
+    : "total_handheld"
+
   const resolvedScope: ResolvedTypeScope =
     selectedScope === "total_tablet"
-      ? tabletTier
+      ? resolvedTabletTier
       : selectedScope === "total_handheld"
-        ? handheldTier
+        ? resolvedHandheldTier
         : selectedScope
-  const resolvedScopeLabel = TYPE_SCOPE_LABELS[resolvedScope]
+  const resolvedScopeLabel = typeScopeLabel(resolvedScope)
 
   const view = useMemo(() => {
     const rows = activeSnapshot?.typeBreakdowns?.allAsins ?? []
     const previousRows = previousSnapshot?.typeBreakdowns?.allAsins ?? []
-    const scopeRows = selectScopeRows(rows, resolvedScope)
+    const scopeRows = selectScopeRows(rows, resolvedScope, activeScheme)
     const scopeMetric = findPrimaryScopeMetric(rows, resolvedScope)
+    // Undefined when the previous month predates this tier (e.g. a V2 key
+    // before 202610): comparisons then read n/a instead of a fake drop.
     const previousScopeMetric = findPrimaryScopeMetric(previousRows, resolvedScope)
     const metricCards = buildCodeReaderMetricCards(
       resolvedScopeLabel,
       scopeMetric,
-      previousScopeMetric
+      previousScopeMetric,
+      Boolean(previousSnapshot)
     )
-    const productTypeRows = selectProductTypeRows(rows, resolvedScope)
+    const productTypeRows = selectProductTypeRows(rows, resolvedScope, activeScheme)
     const typeChartData = productTypeRows.map((row) => ({
       label: truncateLabel(row.label, 22),
       sales: row.units,
@@ -665,13 +643,13 @@ function CodeReaderTypesPage({
     // Pie slice order is fixed (revenue desc) regardless of the toggle so a
     // slice keeps its angular position and just tweens in size when switching
     // revenue <-> units; only the "Top tier" headline follows the metric.
-    const mixRows = selectPriceTierMixRows(rows, resolvedScope)
+    const mixRows = selectPriceTierMixRows(rows, resolvedScope, activeScheme)
       .slice()
       .sort((a, b) => b.revenue - a.revenue)
     const typeShareItems = mixRows.map((row, index) => ({
       label: row.label,
       value: typeMixMetric === "revenue" ? row.revenue : row.units,
-      color: PRICE_TIER_COLORS[row.scopeKey] ?? SPEC_COLORS[index % SPEC_COLORS.length],
+      color: priceTierColor(row.scopeKey) ?? SPEC_COLORS[index % SPEC_COLORS.length],
       revenueShare: row.revenueShare,
       unitsShare: row.unitsShare,
     }))
@@ -692,16 +670,18 @@ function CodeReaderTypesPage({
         image: product.imageUrl,
         url: product.url,
       }))
+    // Months without this scope's row (new V2 keys before 202610) are gaps,
+    // never zeros, and history is never spliced across the scheme switch.
     const trendRows = snapshots.map((snapshot) => ({
       label: formatSnapshotLabelMonthEnd(snapshot.date),
       value:
         findPrimaryScopeMetric(snapshot.typeBreakdowns?.allAsins ?? [], resolvedScope)?.[
           trendMetric
-        ] ?? 0,
+        ] ?? null,
     }))
     const currentTrendValue = findPrimaryScopeMetric(rows, resolvedScope)?.[trendMetric] ?? 0
     const previousTrendValue =
-      findPrimaryScopeMetric(previousRows, resolvedScope)?.[trendMetric] ?? 0
+      findPrimaryScopeMetric(previousRows, resolvedScope)?.[trendMetric] ?? null
     const summaryRankRows = (activeSnapshot?.summaryBrandRanks?.[brandRankMetric] ?? []).slice(
       0,
       15
@@ -734,18 +714,25 @@ function CodeReaderTypesPage({
         : `Monthly Summary - ${brandRankMetric === "revenue" ? "Revenue" : "Units"}`,
     }
   }, [
+    activeScheme,
     activeSnapshot,
     asinRankMetric,
     brandRankMetric,
     previousSnapshot,
     resolvedScope,
+    resolvedScopeLabel,
     snapshots,
     trendMetric,
     typeMixMetric,
   ])
 
   const scopeRevenue = view.scopeMetric?.revenue ?? 0
-  const previousScopeRevenue = view.previousScopeMetric?.revenue ?? 0
+  const scopeRevenueChange = view.previousScopeMetric
+    ? percentChange(scopeRevenue, view.previousScopeMetric.revenue)
+    : null
+  const trendChange = view.previousTrendValue === null
+    ? null
+    : percentChange(view.currentTrendValue, view.previousTrendValue)
   const trendFormatter = trendMetric === "revenue" ? formatCurrencyCompact : formatNumberCompact
   const mixFormatter = typeMixMetric === "revenue" ? formatCurrencyCompact : formatNumberCompact
 
@@ -782,15 +769,15 @@ function CodeReaderTypesPage({
 
           {selectedScope === "total_tablet" ? (
             <TierDropdown
-              value={tabletTier}
-              options={TABLET_TIER_OPTIONS}
+              value={resolvedTabletTier}
+              options={tabletTierOptions}
               onChange={setTabletTier}
             />
           ) : null}
           {selectedScope === "total_handheld" ? (
             <TierDropdown
-              value={handheldTier}
-              options={HANDHELD_TIER_OPTIONS}
+              value={resolvedHandheldTier}
+              options={handheldTierOptions}
               onChange={setHandheldTier}
             />
           ) : null}
@@ -856,7 +843,7 @@ function CodeReaderTypesPage({
           data={view.typeChartData}
           totalLabel="Product type mix"
           totalValue={formatCurrencyCompact(scopeRevenue)}
-          changeLabel={formatChangeLabel(percentChange(scopeRevenue, previousScopeRevenue))}
+          changeLabel={formatChangeLabel(scopeRevenueChange)}
           highlightIndex={0}
         />
         <SalesMap
@@ -918,9 +905,7 @@ function CodeReaderTypesPage({
               : `Current ${resolvedScopeLabel} units`
           }
           totalValue={trendFormatter(view.currentTrendValue)}
-          changeLabel={formatChangeLabel(
-            percentChange(view.currentTrendValue, view.previousTrendValue)
-          )}
+          changeLabel={formatChangeLabel(trendChange)}
           changeValueLabel=""
           data={view.trendRows}
           valueFormatter={trendFormatter}
@@ -962,7 +947,7 @@ function TierDropdown({
   onChange,
 }: {
   value: ResolvedTypeScope
-  options: Array<{ value: ResolvedTypeScope; label: string }>
+  options: PriceTierScopeOption[]
   onChange: (value: ResolvedTypeScope) => void
 }) {
   return (
@@ -973,12 +958,16 @@ function TierDropdown({
           "min-w-48 justify-between rounded-full border-2 border-[var(--color-accent)] bg-[var(--color-accent)]/30 px-4 shadow-sm hover:bg-[var(--color-accent)]/45"
         )}
       >
-        {options.find((option) => option.value === value)?.label ?? TYPE_SCOPE_LABELS[value]}
+        {options.find((option) => option.value === value)?.label ?? typeScopeLabel(value)}
         <ChevronDown className="w-4 h-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         {options.map((option) => (
-          <DropdownMenuItem key={option.value} onClick={() => onChange(option.value)}>
+          <DropdownMenuItem
+            key={option.value}
+            onClick={() => onChange(option.value)}
+            className={option.depth ? "pl-6" : undefined}
+          >
             {option.label}
           </DropdownMenuItem>
         ))}
@@ -1043,6 +1032,7 @@ function TypeScopeBreakdown({ rows }: { rows: TypeBreakdownMetric[] }) {
                   const key = row.label.trim().toLowerCase()
                   const isGrand = key === "total"
                   const isTotal = key.startsWith("total")
+                  const isSubtier = Boolean(parentOf(row.scopeKey))
 
                   return (
                     <tr
@@ -1054,7 +1044,9 @@ function TypeScopeBreakdown({ rows }: { rows: TypeBreakdownMetric[] }) {
                         isGrand && "bg-[var(--color-accent)]/45 font-semibold"
                       )}
                     >
-                      <td className="py-3 px-2 text-xs font-medium">{row.label}</td>
+                      <td className={cn("py-3 px-2 text-xs font-medium", isSubtier && "pl-6 text-muted-foreground")}>
+                        {row.label}
+                      </td>
                       <td className="py-3 px-2 text-xs text-right">{formatCurrency(row.avgPrice)}</td>
                       <td className="py-3 px-2 text-xs text-right">{formatNumberCompact(row.units)}</td>
                       <td className="py-3 px-2 text-xs text-right">{formatPercent(row.unitsShare)}</td>
@@ -1493,31 +1485,14 @@ function buildTargetMetricCards(params: {
   ]
 }
 
-function selectScopeRows(rows: TypeBreakdownMetric[], scope: ResolvedTypeScope) {
+/** "Type scope breakdown" table rows: scope rows in scheme order (sub-tiers under their parent). */
+function selectScopeRows(
+  rows: TypeBreakdownMetric[],
+  scope: ResolvedTypeScope,
+  scheme: PriceTierScheme
+) {
   if (!rows.length) return [] as TypeBreakdownMetric[]
-
-  if (scope === "all_asins") {
-    return rowsInScopeOrder(rows, ALL_SCOPE_BREAKDOWN_ORDER)
-  }
-
-  if (scope === "total_tablet") {
-    return rowsInScopeOrder(rows, [
-      "tablet_800_plus",
-      "tablet_400_800",
-      "tablet_under_400",
-      "total_tablet",
-    ])
-  }
-
-  if (scope === "total_handheld") {
-    return rowsInScopeOrder(rows, [
-      "handheld_75_plus",
-      "handheld_under_75",
-      "total_handheld",
-    ])
-  }
-
-  return rows.filter((row) => row.scopeKey === scope)
+  return rowsInScopeOrder(rows, breakdownKeysForScope(scope, scheme))
 }
 
 function rowsInScopeOrder(rows: TypeBreakdownMetric[], order: readonly string[]) {
@@ -1528,43 +1503,27 @@ function rowsInScopeOrder(rows: TypeBreakdownMetric[], order: readonly string[])
   })
 }
 
-function selectProductTypeRows(rows: TypeBreakdownMetric[], scope: ResolvedTypeScope) {
-  if (scope === "all_asins") {
-    return rowsInScopeOrder(rows, [
-      "total_tablet",
-      "total_handheld",
-      "total_dongle",
-      "total_other_tools",
-    ])
-  }
-  if (scope === "total_tablet") {
-    return rowsInScopeOrder(rows, [
-      "tablet_800_plus",
-      "tablet_400_800",
-      "tablet_under_400",
-    ])
-  }
-  if (scope === "total_handheld") {
-    return rowsInScopeOrder(rows, ["handheld_75_plus", "handheld_under_75"])
-  }
-  return rows.filter((row) => row.scopeKey === scope)
+/** "Product type mix" bars: type totals for All ASINs, otherwise the scope's pie rows. */
+function selectProductTypeRows(
+  rows: TypeBreakdownMetric[],
+  scope: ResolvedTypeScope,
+  scheme: PriceTierScheme
+) {
+  if (scope === "all_asins") return rowsInScopeOrder(rows, TYPE_TOTAL_KEYS)
+  return rowsInScopeOrder(rows, pieKeysForScope(scope, scheme))
 }
 
-function selectPriceTierMixRows(rows: TypeBreakdownMetric[], scope: ResolvedTypeScope) {
-  if (scope === "all_asins") {
-    return rows.filter((row) => DETAILED_PRICE_TIER_KEYS.has(row.scopeKey as ResolvedTypeScope))
-  }
-  if (scope === "total_tablet") {
-    return rowsInScopeOrder(rows, [
-      "tablet_800_plus",
-      "tablet_400_800",
-      "tablet_under_400",
-    ])
-  }
-  if (scope === "total_handheld") {
-    return rowsInScopeOrder(rows, ["handheld_75_plus", "handheld_under_75"])
-  }
-  return rows.filter((row) => row.scopeKey === scope)
+/**
+ * Price tier pie: All ASINs = the 7 parent-level slices, a type total = its
+ * top-level tiers, a V2 parent tier = its sub-tiers, a leaf = itself. A
+ * parent and its own sub-tiers never share the pie.
+ */
+function selectPriceTierMixRows(
+  rows: TypeBreakdownMetric[],
+  scope: ResolvedTypeScope,
+  scheme: PriceTierScheme
+) {
+  return rowsInScopeOrder(rows, pieKeysForScope(scope, scheme))
 }
 
 function findPrimaryScopeMetric(rows: TypeBreakdownMetric[], scope: ResolvedTypeScope) {
@@ -1586,15 +1545,17 @@ function productMatchesScope(
   const isHandheld = /handheld/i.test(type)
   const isDongle = /dongle/i.test(type)
 
-  if (scope === "total_tablet") return isTablet
-  if (scope === "tablet_800_plus") return isTablet && product.price >= 800
-  if (scope === "tablet_400_800") return isTablet && product.price >= 400 && product.price < 800
-  if (scope === "tablet_under_400") return isTablet && product.price < 400
-  if (scope === "total_handheld") return isHandheld
-  if (scope === "handheld_75_plus") return isHandheld && product.price >= 75
-  if (scope === "handheld_under_75") return isHandheld && product.price < 75
-  if (scope === "total_dongle") return isDongle
-  return !isTablet && !isHandheld && !isDongle
+  const definition = tierDefinition(scope)
+  switch (definition?.typeGroup) {
+    case "tablet":
+      return isTablet && (definition.kind === "total" || priceInTier(definition, product.price))
+    case "handheld":
+      return isHandheld && (definition.kind === "total" || priceInTier(definition, product.price))
+    case "dongle":
+      return isDongle
+    default:
+      return !isTablet && !isHandheld && !isDongle
+  }
 }
 
 function formatSummaryRankSource(date: string, metric: MetricMode) {
@@ -1625,7 +1586,8 @@ function formatNullableRating(value: number | null) {
 function buildCodeReaderMetricCards(
   scopeLabel: string,
   current: TypeBreakdownMetric | undefined,
-  previous: TypeBreakdownMetric | undefined
+  previous: TypeBreakdownMetric | undefined,
+  hasPreviousSnapshot: boolean
 ): SpecsMetricCard[] {
   const revenueChange = percentFromRatio(current?.revenueMoM)
   const unitsChange = percentFromRatio(current?.unitsMoM)
@@ -1652,7 +1614,12 @@ function buildCodeReaderMetricCards(
     {
       title: "Average Price",
       value: current ? formatCurrency(current.avgPrice) : "n/a",
-      secondaryValue: previous ? `Prev ${formatCurrency(previous.avgPrice)}` : undefined,
+      // The previous month may predate this tier (V2 keys before 202610).
+      secondaryValue: previous
+        ? `Prev ${formatCurrency(previous.avgPrice)}`
+        : hasPreviousSnapshot
+          ? "Prev n/a"
+          : undefined,
       change: formatChangeLabel(percentFromRatio(current?.avgPriceMoM)),
       changeSuffix: "MoM",
       isPositiveOutcome: true,

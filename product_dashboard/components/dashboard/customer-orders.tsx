@@ -9,7 +9,8 @@ import { REVENUE_CHART_COLOR } from "@/lib/chart-colors"
 
 export type CustomerOrdersDatum = {
   label: string
-  value: number
+  /** null = no value for this point (drawn as a gap, never as zero). */
+  value: number | null
 }
 
 interface CustomerOrdersProps {
@@ -45,6 +46,15 @@ export function CustomerOrders({
 }: CustomerOrdersProps) {
   const gradientId = `market-trend-${useId().replace(/:/g, "")}`
   const formatValue = valueFormatter ?? formatNumberCompact
+  // A point with gaps on both sides (e.g. the first month of a new price
+  // tier) has no segment to draw, so it gets a dot to stay visible.
+  const isolatedPoints = data.map(
+    (point, index) =>
+      point.value !== null &&
+      (data[index - 1]?.value ?? null) === null &&
+      (data[index + 1]?.value ?? null) === null
+  )
+  const hasIsolatedPoints = isolatedPoints.some(Boolean)
 
   return (
     <Card className="bg-card border-border h-full">
@@ -108,6 +118,25 @@ export function CustomerOrders({
                 stroke={color}
                 strokeWidth={2}
                 fill={`url(#${gradientId})`}
+                dot={
+                  hasIsolatedPoints
+                    ? (props: { cx?: number; cy?: number; index?: number }) =>
+                        isolatedPoints[props.index ?? -1] &&
+                        typeof props.cx === "number" &&
+                        typeof props.cy === "number" ? (
+                          <circle
+                            key={`dot-${props.index}`}
+                            cx={props.cx}
+                            cy={props.cy}
+                            r={3}
+                            fill={color}
+                            stroke={color}
+                          />
+                        ) : (
+                          <g key={`dot-${props.index}`} />
+                        )
+                    : false
+                }
               />
             </AreaChart>
           </ResponsiveContainer>

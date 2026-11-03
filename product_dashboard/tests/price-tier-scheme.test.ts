@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
+  breakdownKeysForScope,
   PRICE_TIER_SCHEME_V1,
   PRICE_TIER_SCHEME_V2,
   PRICE_TIER_V2_START_MONTH,
@@ -310,4 +311,30 @@ test("every drawable tier has a colour token; sub-tiers share the parent's famil
   assert.equal(priceTierColor("unknown_key"), undefined)
   const colours = new Set(PRICE_TIER_SCHEME_V2.tiers.map((tier) => tier.colorToken).filter(Boolean))
   assert.equal(colours.size, 13)
+})
+
+test("breakdownKeysForScope lists a type's tiers with sub-tiers under their parent", () => {
+  assert.deepEqual(breakdownKeysForScope("all_asins", "v1"), PRICE_TIER_SCHEME_V1.tiers.map((tier) => tier.key))
+  assert.deepEqual(breakdownKeysForScope("total_tablet", "v1"), [
+    "tablet_800_plus",
+    "tablet_400_800",
+    "tablet_under_400",
+    "total_tablet",
+  ])
+  assert.deepEqual(breakdownKeysForScope("total_handheld", "v2"), [
+    "handheld_100_plus",
+    "handheld_under_100",
+    "handheld_65_100",
+    "handheld_35_65",
+    "handheld_under_35",
+    "total_handheld",
+  ])
+  assert.deepEqual(breakdownKeysForScope("tablet_under_400", "v2"), [
+    "tablet_under_400",
+    "tablet_300_400",
+    "tablet_200_300",
+    "tablet_under_200",
+  ])
+  assert.deepEqual(breakdownKeysForScope("tablet_200_300", "v2"), ["tablet_200_300"])
+  assert.deepEqual(breakdownKeysForScope("total_dongle", "v2"), ["total_dongle"])
 })
