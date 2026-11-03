@@ -560,6 +560,10 @@ function derivePriceTiersFromProducts(
   marketRevenue: number,
   marketUnits: number
 ): NormalizedPriceTier[] {
+  // Market-wide price bands across ALL product types (also used by
+  // intent-calculators.ts / proactive.ts). Deliberately independent of the
+  // per-type summary tier scheme (lib/price-tier-scheme.ts; Handheld $75 split
+  // before 202610, $100 split after) so answers stay comparable across months.
   const tiers: Array<{ key: string; min: number; max: number }> = [
     { key: "<$75", min: 0, max: 75 },
     { key: "$75-$199", min: 75, max: 200 },

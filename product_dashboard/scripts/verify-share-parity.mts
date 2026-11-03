@@ -11,6 +11,11 @@ import { fileURLToPath } from "node:url"
 import * as XLSX from "xlsx"
 
 import { loadCodeReaderScannerSnapshotFromFiles } from "../lib/code-reader-scanner-data.ts"
+import {
+  PRICE_TIER_V2_START_MONTH,
+  parentLevelKeys,
+  schemeForMonth,
+} from "../lib/price-tier-scheme.ts"
 
 type CodeReaderManifest = {
   month?: string
@@ -184,6 +189,10 @@ async function main() {
         }
 
         checkBrandMixSums(monthViolations, month, typeBreakdowns.categoryBrandMix)
+        checkUniqueScopeKeys(monthViolations, month, typeBreakdowns)
+        if (month >= PRICE_TIER_V2_START_MONTH) {
+          printPriceTierSchemeSentinel(month, typeBreakdowns.allAsins)
+        }
 
         if (month === "202607") {
           printSentinel(
@@ -513,6 +522,54 @@ function checkRange(
     value,
     detail: `Expected a value within [${min}, ${max}].`,
   })
+}
+
+/**
+ * Two summary rows landing on one scope key means two price tiers were folded
+ * together (the pre-2026-11 normalizer turned "Handheld $100+" and
+ * "Handheld $100-" into one key), so every downstream sum double-counts.
+ */
+function checkUniqueScopeKeys(
+  violations: Violation[],
+  month: string,
+  typeBreakdowns: {
+    allAsins: Array<{ scopeKey: string; label: string }>
+    top50: Array<{ scopeKey: string; label: string }>
+  }
+) {
+  for (const collection of ["allAsins", "top50"] as const) {
+    const labelsByKey = new Map<string, string[]>()
+    for (const row of typeBreakdowns[collection]) {
+      labelsByKey.set(row.scopeKey, [...(labelsByKey.get(row.scopeKey) ?? []), row.label])
+    }
+    for (const [scopeKey, labels] of labelsByKey) {
+      if (labels.length < 2) continue
+      violations.push({
+        month,
+        scope: `typeBreakdowns.${collection}`,
+        label: scopeKey,
+        field: "scopeKey",
+        value: labels.join(" | "),
+        detail: `${labels.length} rows share scope key ${scopeKey} — tier label collision.`,
+      })
+    }
+  }
+}
+
+/** V2 months (>= 202610): print the parent-level tier keys found, warn on gaps. */
+function printPriceTierSchemeSentinel(month: string, allAsins: Array<{ scopeKey: string }>) {
+  const present = new Set(allAsins.map((row) => row.scopeKey))
+  const expected = parentLevelKeys(schemeForMonth(month))
+  const missing = expected.filter((key) => !present.has(key))
+  console.log(
+    `SENTINEL month=${month} scheme=${schemeForMonth(month).version} allAsinsKeys=${present.size} ` +
+      `parentLevelMissing=${missing.length ? missing.join(",") : "none"}`
+  )
+  if (missing.length) {
+    console.warn(
+      `WARNING month=${month} is scheme ${schemeForMonth(month).version} but allAsins lacks ${missing.join(", ")}`
+    )
+  }
 }
 
 function printSentinel(

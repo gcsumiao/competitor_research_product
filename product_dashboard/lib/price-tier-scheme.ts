@@ -347,6 +347,26 @@ export function leafKeys(scheme: SchemeLike): string[] {
 }
 
 /**
+ * The finest tier buckets among the keys present: known tiers/sub-tiers,
+ * minus any parent whose own sub-tiers are present. Rankings built on this
+ * never list "Tablet $400-" beside "Tablet $300+"; V1 snapshots keep their
+ * five tiers; a V2 parent whose sub-tier rows are missing stays in.
+ */
+export function finestPresentTierKeys(presentKeys: Iterable<string>, scheme: SchemeLike): Set<string> {
+  const present = new Set(presentKeys)
+  const resolved = resolveScheme(scheme)
+  const output = new Set<string>()
+  for (const key of present) {
+    const definition = DEFINITION_BY_KEY.get(key)
+    if (!definition) continue
+    if (definition.kind !== "tier" && definition.kind !== "subtier") continue
+    if (childrenOf(key, resolved).some((child) => present.has(child))) continue
+    output.add(key)
+  }
+  return output
+}
+
+/**
  * The 7 mutually exclusive slices of the "All ASINs" pie: top-level price tiers
  * plus the type totals that have no price tiers (Dongle, Other Tools). Never
  * includes a sub-tier, so parents and children never share a pie.

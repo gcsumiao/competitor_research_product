@@ -8,6 +8,7 @@ import {
   PRICE_TIER_V2_START_MONTH,
   childrenOf,
   dashboardScopeOptions,
+  finestPresentTierKeys,
   labelForKey,
   leafKeys,
   normalizeMonthKey,
@@ -337,4 +338,17 @@ test("breakdownKeysForScope lists a type's tiers with sub-tiers under their pare
   ])
   assert.deepEqual(breakdownKeysForScope("tablet_200_300", "v2"), ["tablet_200_300"])
   assert.deepEqual(breakdownKeysForScope("total_dongle", "v2"), ["total_dongle"])
+})
+
+test("finestPresentTierKeys drops a parent only when its own sub-tiers are present", () => {
+  const v2All = PRICE_TIER_SCHEME_V2.tiers.map((tier) => tier.key)
+  assert.deepEqual([...finestPresentTierKeys(v2All, "v2")].sort(), leafKeys("v2").sort())
+  const v1All = PRICE_TIER_SCHEME_V1.tiers.map((tier) => tier.key)
+  assert.deepEqual([...finestPresentTierKeys(v1All, "v1")].sort(), leafKeys("v1").sort())
+  // Sub-tier rows missing (e.g. all-zero rows dropped by the parser): keep the parent.
+  const partial = v2All.filter((key) => !["handheld_65_100", "handheld_35_65", "handheld_under_35"].includes(key))
+  const finest = finestPresentTierKeys(partial, "v2")
+  assert.ok(finest.has("handheld_under_100"))
+  assert.ok(!finest.has("tablet_under_400"))
+  assert.ok(!finest.has("total_tablet"))
 })
