@@ -22,6 +22,7 @@ except ImportError:
         "B078BHTCK1",
         "B000EVYH36",
         "B000EW0KJ0",
+        "B0BY8QJQ8S",  # Ford OBD1 reader + cable bundle (analyst directive 2026-11-03)
     }
 
 TOP50_EXCLUDED_ASINS_BY_MONTH = {"202604": {"B000EVYGV4"}}

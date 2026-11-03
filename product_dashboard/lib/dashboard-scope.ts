@@ -240,7 +240,9 @@ function getCachedEnvelopeProbeLoader(scope: DashboardScope, categoryId: Categor
         oversized: byteLength > MAX_CACHE_ENTRY_BYTES,
       }
     },
-    // v9: 2026-11-03 October 2026 (202610) ingest, first scheme-V2 month.
+    // v10: 2026-11-03 October re-ingest without the Innova OBD1 bundle
+    // (B0BY8QJQ8S added to NON_OBD2_ASINS). v9: the first October 2026
+    // (202610) ingest, first scheme-V2 month.
     // v8: price-tier scheme V2 (202610+): new tier scope keys and additive
     // { parentKey, kind } on typeBreakdowns rows. v7: cache-bust for the
     // 2026-10-05 September re-ingest (Ave Rating zero-exclusion
@@ -250,7 +252,7 @@ function getCachedEnvelopeProbeLoader(scope: DashboardScope, categoryId: Categor
     // the rolling-label re-ingest) — prod's /api/revalidate sits behind
     // Cloudflare JWT until the service token lands, so data fixes flush by
     // bumping this version instead.
-    ["dashboard-scope-envelope", "v9", scope, categoryId],
+    ["dashboard-scope-envelope", "v10", scope, categoryId],
     {
       tags: [DASHBOARD_DATA_TAG],
       revalidate: CACHE_REVALIDATE_SECONDS,
@@ -278,7 +280,7 @@ function getCachedCategoryLoader(scope: DashboardScope, categoryId: CategoryId) 
       }
       return entry
     },
-    ["dashboard-scope", "v9", scope, categoryId],
+    ["dashboard-scope", "v10", scope, categoryId],
     {
       tags: [DASHBOARD_DATA_TAG],
       revalidate: CACHE_REVALIDATE_SECONDS,
