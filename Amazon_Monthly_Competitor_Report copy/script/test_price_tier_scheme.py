@@ -17,6 +17,7 @@ from price_tier_scheme import (
     SCHEME_V1,
     SCHEME_V2,
     Tier,
+    categorized_share_basis,
     category_dict,
     children_of,
     describe_scheme,
@@ -72,6 +73,13 @@ def _summary(df: pd.DataFrame, category: dict) -> dict[str, tuple[float, float]]
     rows: list[list] = []
     append_summary_list(df, category, "Total", rows)
     return {row[1]: (row[2], row[4]) for row in rows}
+
+
+def _shares(df: pd.DataFrame, category: dict, tag: str, categorized: bool) -> dict[str, tuple[float, float]]:
+    """label -> (Qty by %, Revenue by %) of one append_summary_list call."""
+    rows: list[list] = []
+    append_summary_list(df, category, tag, rows, categorized_shares=categorized)
+    return {row[1]: (row[3], row[5]) for row in rows}
 
 
 def _listing(type_: str, price: float, units: int) -> dict:
@@ -337,6 +345,104 @@ class PriceTierSchemeBucketingTest(unittest.TestCase):
                 self.assertAlmostEqual(got["Total"][1], market["Monthly Revenue"].sum(), places=6)
 
 
+
+class CategoryShareBasisTest(unittest.TestCase):
+    """Sheet1 "Qty by %" / "Revenue by %" denominators (analyst decision
+    2026-11-03, option 2): V2+ divides by the frame's own "Total"-category
+    sums, so a market holding an OBD1 listing (a type in no category) still
+    has a Total row of exactly 100%; V1 keeps the whole-frame basis."""
+
+    def setUp(self) -> None:
+        self.market = pd.DataFrame(
+            [
+                {**_listing("Tablet", 900.0, 4), "Brand": "autel"},
+                {**_listing("Tablet", 350.0, 6), "Brand": "autel"},
+                {**_listing("Handheld", 80.0, 10), "Brand": "autel"},
+                {**_listing("OBD1", 45.0, 12), "Brand": "autel"},  # in no category
+                {**_listing("Handheld", 30.0, 20), "Brand": "innova"},
+                {**_listing("Dongle", 25.0, 8), "Brand": "innova"},
+                {**_listing("Key", 12.0, 5), "Brand": "other"},
+                {**_listing("OBD1", 60.0, 7), "Brand": "other"},  # in no category
+            ]
+        )
+        self.v2 = category_dict("202610", None)
+        self.v1 = category_dict("202609", None)
+        obd1 = self.market.Type.eq("OBD1")
+        self.cat_units = self.market.loc[~obd1, "Monthly Sales"].sum()
+        self.cat_rev = self.market.loc[~obd1, "Monthly Revenue"].sum()
+
+    def test_basis_follows_the_scheme(self) -> None:
+        self.assertFalse(categorized_share_basis("202609"))
+        self.assertTrue(categorized_share_basis("202610"))
+        self.assertTrue(categorized_share_basis("202609", "v2"))
+        self.assertFalse(categorized_share_basis("202610", "v1"))
+        self.assertFalse(categorized_share_basis(None))
+
+    def test_v2_total_row_is_exactly_100_percent_with_an_obd1_listing(self) -> None:
+        got = _shares(self.market, self.v2, "Total", categorized=True)
+        self.assertEqual(got["Total"], (1.0, 1.0))
+        rows: list[list] = []
+        append_summary_list(self.market, self.v2, "Total", rows, categorized_shares=True)
+        total = next(row for row in rows if row[1] == "Total")
+        self.assertEqual(total[2], self.cat_units)  # the amounts themselves are unchanged
+        self.assertAlmostEqual(total[4], self.cat_rev, places=6)
+
+    def test_v2_rows_are_shares_of_the_total_category(self) -> None:
+        got = _shares(self.market, self.v2, "Total", categorized=True)
+        amounts = _summary(self.market, self.v2)
+        for label, (units, rev) in amounts.items():
+            self.assertAlmostEqual(got[label][0], units / self.cat_units, places=12, msg=label)
+            self.assertAlmostEqual(got[label][1], rev / self.cat_rev, places=12, msg=label)
+        # sub-tiers still add up to their parent, families to the Total
+        for parent in ("Tablet $400-", "Handheld $100-"):
+            kids = children_of(parent, "v2")
+            self.assertAlmostEqual(sum(got[k][1] for k in kids), got[parent][1], places=12)
+        families = ("Total Tablet", "Total Handheld", "Total Dongle", "Total Other Tools")
+        self.assertAlmostEqual(sum(got[f][0] for f in families), 1.0, places=12)
+        self.assertAlmostEqual(sum(got[f][1] for f in families), 1.0, places=12)
+
+    def test_v2_brand_rows_divide_by_the_brands_categorized_sums(self) -> None:
+        # Each tag's own "Total"-category sums (the brand tab's Total row is
+        # 100% too): autel's OBD1 listing drops out of its denominator.
+        autel = self.market[self.market.Brand.eq("autel")]
+        got = _shares(autel, self.v2, "autel", categorized=True)
+        categorized = autel[~autel.Type.eq("OBD1")]
+        brand_rev = categorized["Monthly Revenue"].sum()
+        tablet_rev = categorized.loc[categorized.Type.eq("Tablet"), "Monthly Revenue"].sum()
+        self.assertEqual(got["Total"], (1.0, 1.0))
+        self.assertAlmostEqual(got["Total Tablet"][1], tablet_rev / brand_rev, places=12)
+        self.assertAlmostEqual(got["Total Tablet"][0], (4 + 6) / (4 + 6 + 10), places=12)
+        self.assertEqual(got["Total Dongle"], (0, 0))
+
+    def test_v2_lm_and_ly_frames_use_their_own_total_category(self) -> None:
+        last_month = self.market.assign(**{"Monthly Sales": self.market["Monthly Sales"] * 2})
+        last_month["Monthly Revenue"] = last_month["Price"] * last_month["Monthly Sales"]
+        got = _shares(last_month, self.v2, "Total", categorized=True)
+        self.assertEqual(got["Total"], (1.0, 1.0))
+        obd1 = last_month.Type.eq("OBD1")
+        dongle = last_month.Type.eq("Dongle")
+        self.assertAlmostEqual(
+            got["Total Dongle"][1],
+            last_month.loc[dongle, "Monthly Revenue"].sum() / last_month.loc[~obd1, "Monthly Revenue"].sum(),
+            places=12,
+        )
+
+    def test_v1_keeps_the_whole_market_basis(self) -> None:
+        got = _shares(self.market, self.v1, "Total", categorized=False)
+        rows: list[list] = []
+        append_summary_list(self.market, self.v1, "Total", rows)  # keyword default = V1 basis
+        self.assertEqual({row[1]: (row[3], row[5]) for row in rows}, got)
+        units, rev = self.market["Monthly Sales"].sum(), self.market["Monthly Revenue"].sum()
+        amounts = _summary(self.market, self.v1)
+        for label, (u, r) in amounts.items():
+            self.assertEqual(got[label], (u / units, r / rev), label)
+        self.assertLess(got["Total"][0], 1.0)
+        self.assertLess(got["Total"][1], 1.0)
+
+    def test_builder_gates_the_basis_on_the_resolved_scheme(self) -> None:
+        source = Path(full_report_month.__file__).read_text(encoding="utf-8")
+        self.assertIn("categorized_share_basis(month, args.tier_scheme)", source)
+        self.assertEqual(source.count("categorized_shares=categorized_shares"), 3)
 
 
 if __name__ == "__main__":

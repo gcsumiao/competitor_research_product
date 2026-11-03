@@ -34,6 +34,12 @@ workbook built with it can be upgraded in place. Scheme order is the row order
 of summary.xlsx Sheet1 / Category and the per-category sheet order, and each
 label is also a sheet name.
 
+Share denominators (summary.xlsx Sheet1 "Qty by %" / "Revenue by %"): V1
+divides every tag's rows by that tag's whole frame, listings outside every
+category (type OBD1) included, so a "Total" row reads e.g. 99.87%. From V2
+the denominator is the tag's own "Total"-category sums for the frame, so every
+"Total" row reads exactly 100% (``categorized_share_basis``).
+
 Stdlib + typing only so any script can import it without pandas.
 """
 from __future__ import annotations
@@ -222,3 +228,15 @@ def leaf_labels(scheme: SchemeLike) -> list[str]:
     tiers = _tiers(scheme)
     parents = {t.parent for t in tiers if t.parent is not None}
     return [t.label for t in tiers if t.kind in ("tier", "subtier") and t.label not in parents]
+
+
+def categorized_share_basis(month: str | int | None, scheme: str = "auto") -> bool:
+    """True when summary.xlsx share columns divide by the "Total" category.
+
+    V1 (published months): "Qty by %" / "Revenue by %" divide by the tag's
+    whole frame, listings outside every category (type OBD1) included. V2+:
+    they divide by the tag's own "Total"-category sums for that frame (current
+    month, LM, LY each their own), so the "Total" row reads exactly 100% and
+    the other rows are shares of the categorized market.
+    """
+    return resolve_scheme_name(month, scheme) != "v1"
