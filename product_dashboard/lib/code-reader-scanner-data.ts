@@ -892,6 +892,11 @@ async function readSummaryBrandCategoryMix(
  * bare ratios (Total row "Qty by %" = 1), so MoM/YoY spikes above 1 (55.5 =
  * +5550%) must not hit parseShare's bare-percent heuristic, and "N/A" is null.
  * A literal "%" (a formatted copy) still divides by 100.
+ *
+ * Entries are keyed by the exact Sheet1 brand text, not by `brandKey`: two
+ * distinct brands that normalise alike ("ACME-A" / "ACMEA") stay separate
+ * instead of being merged into one entry (the lookup then only trusts a
+ * normalised match when it is unique, see findBrandCategoryMix).
  */
 function addBrandCategoryMixRow(
   brandRows: Map<string, BrandCategoryMixEntry>,
@@ -903,10 +908,10 @@ function addBrandCategoryMixRow(
 ) {
   if (!brandKey || brandKey === "0") return
   const scopeKey = toScopeKey(label)
-  let entry = brandRows.get(brandKey)
+  let entry = brandRows.get(brand)
   if (!entry) {
     entry = { brand, brandKey, rows: [] }
-    brandRows.set(brandKey, entry)
+    brandRows.set(brand, entry)
   }
   if (entry.rows.some((existing) => existing.scopeKey === scopeKey)) return
 

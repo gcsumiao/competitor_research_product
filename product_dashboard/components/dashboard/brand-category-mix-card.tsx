@@ -12,6 +12,11 @@ import { cn } from "@/lib/utils"
 export const BRAND_CATEGORY_MIX_UNAVAILABLE =
   "Category mix is not available for this snapshot (ingested before the price-tier breakdown)"
 
+/** The month has per-brand rows, this brand has none (e.g. Innova 1P / 3P: the summary reports them under Innova). */
+export function brandCategoryMixNoRowsMessage(brand: string) {
+  return `No category rows for ${brand} in this month's report summary (brands the summary reports under another name have none of their own)`
+}
+
 const HEAD_CELL = "py-3 px-2 text-xs font-medium text-muted-foreground"
 
 /** The selected brand's own category mix: the per-brand rows of the raw summary.xlsx Sheet1. */
@@ -35,7 +40,9 @@ export function BrandCategoryMixCard({
       </CardHeader>
       <CardContent>
         {view.status === "unavailable" ? (
-          <p className="text-sm text-muted-foreground">{BRAND_CATEGORY_MIX_UNAVAILABLE}</p>
+          <p className="text-sm text-muted-foreground">
+            {view.reason === "brand" ? brandCategoryMixNoRowsMessage(brand) : BRAND_CATEGORY_MIX_UNAVAILABLE}
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">

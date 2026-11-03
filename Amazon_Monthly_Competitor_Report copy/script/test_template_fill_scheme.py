@@ -24,6 +24,7 @@ dir first - nothing under YY-MM-reports/ is ever written:
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,8 @@ from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.chart import BarChart, PieChart, Reference
+from openpyxl.chart.data_source import NumRef, StrRef
+from openpyxl.utils import column_index_from_string
 from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
 from openpyxl.formatting.rule import CellIsRule
 from openpyxl.utils import quote_sheetname
@@ -372,6 +375,35 @@ def _assert_brand_charts_on_labelled_rows(case: unittest.TestCase, wb) -> None:
                 case.assertRegex(f, rf"^{display}!\$[A-M]\$8:\$[A-M]\$23$", display)
         for chart in ws._charts:
             case.assertGreaterEqual(chart.anchor._from.row, 23, f"{display}: chart overlaps the block")  # 0-indexed
+        _assert_brand_chart_caches(case, ws, pies, bars)
+
+
+def _assert_brand_chart_caches(case: unittest.TestCase, ws, pies: list, bars: list) -> None:
+    """The SERIALIZED chart data (what Quick Look / previews draw) matches the
+    re-pointed references: every reference carries a cache with one point per
+    cell (4 for the pies, 16 for the bars) holding the block's own labels and
+    numbers, not the template's old 7-10 points."""
+    for chart in pies + bars:
+        rows = [14, 20, 21, 22] if chart in pies else list(range(8, 24))
+        for ref in chart_refs(chart):
+            where = f"{ws.title}: {ref.f}"
+            col = column_index_from_string(re.search(r"\$([A-Z]+)\$", ref.f).group(1))
+            values = [ws.cell(r, col).value for r in rows]
+            if isinstance(ref, StrRef):
+                cache = ref.strCache
+                case.assertIsNotNone(cache, where)
+                case.assertEqual(cache.ptCount, len(values), where)
+                case.assertEqual({pt.idx: pt.v for pt in cache.pt},
+                                 {i: str(v) for i, v in enumerate(values) if v not in (None, "")}, where)
+            else:
+                case.assertIsInstance(ref, NumRef, where)
+                cache = ref.numCache
+                case.assertIsNotNone(cache, where)
+                case.assertEqual(cache.ptCount, len(values), where)
+                expected = {i: float(v) for i, v in enumerate(values) if isinstance(v, (int, float))}
+                case.assertEqual(sorted(pt.idx for pt in cache.pt), sorted(expected), where)
+                for pt in cache.pt:
+                    case.assertAlmostEqual(float(pt.v), expected[pt.idx], places=6, msg=where)
 
 
 def _zip_differences(a: Path, b: Path) -> list[str]:

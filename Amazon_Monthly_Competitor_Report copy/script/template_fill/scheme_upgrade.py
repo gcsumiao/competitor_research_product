@@ -33,6 +33,7 @@ from __future__ import annotations
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
 
+from openpyxl.chart.data_source import MultiLevelStrRef, NumData, NumRef, NumVal, StrData, StrRef, StrVal
 from openpyxl.chart.pie_chart import DoughnutChart, PieChart, PieChart3D, ProjectedPieChart
 from openpyxl.formatting.formatting import ConditionalFormattingList
 from openpyxl.formula.tokenizer import Token, Tokenizer
@@ -663,6 +664,61 @@ def _stretch_block_conditional_formats(ws, first: int, last: int) -> None:
         ws.conditional_formatting = new
 
 
+def refresh_chart_caches(ws, chart) -> None:
+    """Rebuild the serialized caches (``c:strCache`` / ``c:numCache``) of every
+    reference of ``chart`` from the cells it points at. Excel re-reads the
+    cells on open, but viewers that draw the cache (macOS Quick Look, mail and
+    web previews) would otherwise show the TEMPLATE's points - after a brand
+    block grew from 7 to 16 rows the bar still cached 7 old points and the pie
+    3 (Codex review 2026-11-03). A reference whose cells hold formulas has no
+    computed value in openpyxl: its cache is dropped rather than left stale
+    (Excel rebuilds it); references into another workbook are left alone."""
+    sheets = {sheet.title.lower(): sheet for sheet in ws.parent.worksheets}
+    for ref in chart_refs(chart):
+        if isinstance(ref, MultiLevelStrRef):
+            continue
+        areas = _ref_areas(ref.f or "")
+        if not areas:
+            continue
+        values: list = []
+        literal: bool | None = True
+        for title, c1, r1, c2, r2 in areas:
+            sheet = sheets.get(title.lower())
+            if sheet is None:
+                literal = None
+                break
+            for row_idx in range(r1, r2 + 1):
+                for col in range(c1, c2 + 1):
+                    value = sheet.cell(row_idx, col).value
+                    if isinstance(value, str) and value.startswith("="):
+                        literal = False
+                    values.append(value)
+        if literal is None:
+            continue
+        if isinstance(ref, StrRef):
+            if not literal:
+                ref.strCache = None
+                continue
+            ref.strCache = StrData(
+                ptCount=len(values),
+                pt=[StrVal(idx=i, v=str(v)) for i, v in enumerate(values) if v is not None and v != ""],
+            )
+        elif isinstance(ref, NumRef):
+            if not literal:
+                ref.numCache = None
+                continue
+            fmt = ref.numCache.formatCode if ref.numCache is not None and ref.numCache.formatCode else "General"
+            ref.numCache = NumData(
+                formatCode=fmt,
+                ptCount=len(values),
+                pt=[
+                    NumVal(idx=i, v=float(v))
+                    for i, v in enumerate(values)
+                    if isinstance(v, (int, float)) and not isinstance(v, bool)
+                ],
+            )
+
+
 def fit_brand_chart_refs(ws, first_row: int, last_row: int) -> None:
     """Re-point a brand tab's overview charts by row label (V2+, every
     build): bar charts plot the whole block (first row .. "Total"), pies the
@@ -671,7 +727,9 @@ def fit_brand_chart_refs(ws, first_row: int, last_row: int) -> None:
     start inside the block are touched (series titles on the header row are
     not; a hand-drawn range that ran past the Total row is pulled back).
     Also fixes templates whose compacted V1 blocks left the pies on the wrong
-    rows (October 2026 final: Foxwell, iCarsoft, TOPDON, LAUNCH, Thinkcar)."""
+    rows (October 2026 final: Foxwell, iCarsoft, TOPDON, LAUNCH, Thinkcar).
+    Every chart's serialized caches are then rebuilt from the filled block
+    (``refresh_chart_caches``), so call this AFTER the block is written."""
     row_of = {}
     for row_idx in range(first_row, last_row + 1):
         label = str(ws.cell(row_idx, 1).value or "").strip()
@@ -699,3 +757,4 @@ def fit_brand_chart_refs(ws, first_row: int, last_row: int) -> None:
                 for r1, r2 in _runs(rows)
             ]
             ref.f = parts[0] if len(parts) == 1 else "(" + ",".join(parts) + ")"
+        refresh_chart_caches(ws, chart)

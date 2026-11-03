@@ -11,6 +11,7 @@ import * as XLSX from "xlsx"
 import {
   BRAND_CATEGORY_MIX_UNAVAILABLE,
   BrandCategoryMixCard,
+  brandCategoryMixNoRowsMessage,
 } from "../components/dashboard/brand-category-mix-card.tsx"
 import { buildBrandCategoryMixView, findBrandCategoryMix } from "../lib/brand-category-mix.ts"
 import { loadCodeReaderScannerSnapshotFromFiles } from "../lib/code-reader-scanner-data.ts"
@@ -202,12 +203,14 @@ test("old payloads without brandCategoryMix (or without the brand) render the no
     typeBreakdowns: { allAsins: [], top50: [], categoryBrandMix: [], source: "summary" as const },
   }
   for (const snapshot of [oldPayload, { date: "2026-09-30" }, undefined]) {
-    assert.equal(buildBrandCategoryMixView(snapshot, "autel").status, "unavailable")
+    assert.deepEqual(buildBrandCategoryMixView(snapshot, "autel"), { status: "unavailable", reason: "snapshot" })
     const html = renderToStaticMarkup(createElement(BrandCategoryMixCard, { snapshot, brand: "autel" }))
     assert.ok(html.includes(BRAND_CATEGORY_MIX_UNAVAILABLE))
     assert.ok(!html.includes("<table"))
   }
 
+  // The month has per-brand rows, the selected brand has none (Innova 1P / 3P
+  // in October: the summary reports them under "innova"): a different message.
   const otherBrand = {
     date: "2026-10-31",
     typeBreakdowns: {
@@ -215,7 +218,47 @@ test("old payloads without brandCategoryMix (or without the brand) render the no
       brandCategoryMix: [{ brand: "launch", brandKey: "launch", rows: [] }],
     },
   }
-  assert.equal(buildBrandCategoryMixView(otherBrand, "autel").status, "unavailable")
+  assert.deepEqual(buildBrandCategoryMixView(otherBrand, "Innova 1P"), { status: "unavailable", reason: "brand" })
+  const html = renderToStaticMarkup(createElement(BrandCategoryMixCard, { snapshot: otherBrand, brand: "Innova 1P" }))
+  assert.ok(html.includes("No category rows for Innova 1P"))
+  assert.ok(!html.includes(BRAND_CATEGORY_MIX_UNAVAILABLE))
+  assert.ok(!html.includes("<table"))
+  assert.equal(brandCategoryMixNoRowsMessage("Innova 1P").startsWith("No category rows for Innova 1P"), true)
+})
+
+test("brands that normalise alike stay separate and never answer for each other", async (t) => {
+  const sheet1 = [
+    ...V2_LABELS.map((label, index) => metricRow("Total", label, index)),
+    ...V2_LABELS.map((label, index) => metricRow("ACME-A", label, index)),
+    ...V2_LABELS.map((label, index) => metricRow("ACMEA", label, index + 100)),
+  ]
+  const snapshot = await loadFixture(t, { month: "202610", sheet1 })
+  const mix = snapshot.typeBreakdowns?.brandCategoryMix ?? []
+  // Both brands survive the parse with their own rows (one normalised key).
+  assert.deepEqual(mix.map((entry) => entry.brand), ["ACME-A", "ACMEA"])
+  assert.deepEqual(mix.map((entry) => entry.brandKey), ["acmea", "acmea"])
+  assert.equal(mix[0].rows.length, 16)
+  assert.equal(mix[1].rows.length, 16)
+  // Exact (case-insensitive) text wins ...
+  assert.equal(findBrandCategoryMix(snapshot, "acme-a")?.brand, "ACME-A")
+  assert.equal(findBrandCategoryMix(snapshot, "ACME-A")?.rows[0].units, 100)
+  assert.equal(findBrandCategoryMix(snapshot, " Acmea ")?.brand, "ACMEA")
+  assert.equal(findBrandCategoryMix(snapshot, "ACMEA")?.rows[0].units, 200)
+  // ... and a normalised-only match that is ambiguous answers for nobody.
+  assert.equal(findBrandCategoryMix(snapshot, "acme a"), null)
+  assert.equal(findBrandCategoryMix(snapshot, "ACME_A"), null)
+  assert.deepEqual(buildBrandCategoryMixView(snapshot, "acme a"), { status: "unavailable", reason: "brand" })
+
+  // A normalised match still resolves when it is unique ("BullyDog" <-> "bully dog").
+  const unique = await loadFixture(t, {
+    month: "202610",
+    sheet1: [
+      ...V2_LABELS.map((label, index) => metricRow("Total", label, index)),
+      ...V2_LABELS.map((label, index) => metricRow("bully dog", label, index)),
+    ],
+  })
+  assert.equal(findBrandCategoryMix(unique, "BullyDog")?.brand, "bully dog")
+  assert.equal(buildBrandCategoryMixView(unique, "Bully-Dog").status, "ok")
 })
 
 test("scope projection: brands keeps brandCategoryMix, types and overview drop it", () => {

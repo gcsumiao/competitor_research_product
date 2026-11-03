@@ -15,7 +15,9 @@ export type BrandCategoryMixRow = {
 }
 
 export type BrandCategoryMixView =
-  | { status: "unavailable" }
+  /** "snapshot": the payload has no per-brand rows at all (ingested before the
+   *  breakdown existed); "brand": the month has them, this brand has none. */
+  | { status: "unavailable"; reason: "snapshot" | "brand" }
   | { status: "ok"; brand: string; schemeVersion: PriceTierSchemeVersion; rows: BrandCategoryMixRow[] }
 
 const BRAND_KEY_PATTERN = /[^a-z0-9]/g
@@ -24,15 +26,26 @@ function brandKeyOf(value: string) {
   return value.trim().toLowerCase().replace(BRAND_KEY_PATTERN, "")
 }
 
-/** The brand's Sheet1 rows in this snapshot; null for old payloads (no field) or a brand not in Sheet1. */
+/**
+ * The brand's Sheet1 rows in this snapshot; null for old payloads (no field)
+ * or a brand not in Sheet1. The exact brand text wins (case/whitespace
+ * insensitive); the normalised key ("Bully Dog" -> "bullydog") is used only
+ * when it resolves to exactly one entry, so brands that normalise alike
+ * ("ACME-A" / "ACMEA") never answer for each other.
+ */
 export function findBrandCategoryMix(
   snapshot: Pick<SnapshotSummary, "typeBreakdowns"> | undefined,
   brand: string
 ): BrandCategoryMixEntry | null {
+  const wanted = brand.trim().toLowerCase()
+  if (!wanted) return null
+  const entries = snapshot?.typeBreakdowns?.brandCategoryMix ?? []
+  const exact = entries.find((entry) => entry.brand.trim().toLowerCase() === wanted)
+  if (exact) return exact
   const key = brandKeyOf(brand)
   if (!key) return null
-  const entries = snapshot?.typeBreakdowns?.brandCategoryMix ?? []
-  return entries.find((entry) => (entry.brandKey || brandKeyOf(entry.brand)) === key) ?? null
+  const loose = entries.filter((entry) => (entry.brandKey || brandKeyOf(entry.brand)) === key)
+  return loose.length === 1 ? loose[0] : null
 }
 
 /**
@@ -44,8 +57,9 @@ export function buildBrandCategoryMixView(
   snapshot: Pick<SnapshotSummary, "date" | "typeBreakdowns"> | undefined,
   brand: string
 ): BrandCategoryMixView {
+  if (!snapshot?.typeBreakdowns?.brandCategoryMix?.length) return { status: "unavailable", reason: "snapshot" }
   const entry = findBrandCategoryMix(snapshot, brand)
-  if (!snapshot || !entry?.rows.length) return { status: "unavailable" }
+  if (!entry?.rows.length) return { status: "unavailable", reason: "brand" }
 
   const byKey = new Map<string, TypeBreakdownMetric>()
   for (const row of entry.rows) {
@@ -65,7 +79,7 @@ export function buildBrandCategoryMixView(
       metric,
     })
   }
-  if (!rows.length) return { status: "unavailable" }
+  if (!rows.length) return { status: "unavailable", reason: "brand" }
 
   return { status: "ok", brand: entry.brand, schemeVersion: scheme.version, rows }
 }
