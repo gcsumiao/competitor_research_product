@@ -10,9 +10,12 @@ dir first - nothing under YY-MM-reports/ is ever written:
 - V2 raw outputs: $TEMPLATE_FILL_V2_RAW_DIR, else generated once into the work
   dir with ``full_report_month.py --month 202609 --tier-scheme v2`` (a few
   minutes; needs the 202609 inputs on this machine).
-- Templates: the August final (a V1 template, 26-08-reports/) and the
+- October raw outputs (202610, V2): $TEMPLATE_FILL_OCT_RAW_DIR, else
+  ``script output reports/`` while it still holds the 202610 run.
+- Templates: the August final (a V1 template, 26-08-reports/), the
   September final (26-09-reports/; hand-rebuilt Handheld $100+/- tabs, no
-  sub-tier tabs, 10-row Summary table).
+  sub-tier tabs, 10-row Summary table) and the October final (26-10-reports/;
+  first V2 month, compacted 7-10 row brand blocks).
 - Pre-change code for the V1 regression: ``git archive`` of
   $TEMPLATE_FILL_BASELINE_REF (default: the commit that started tracking the
   filler unchanged), run in a subprocess.
@@ -68,6 +71,9 @@ MONTH = "202609"
 BASELINE_REF = os.environ.get("TEMPLATE_FILL_BASELINE_REF", "4d05c75")
 V1_TEMPLATE = PACKAGE_DIR / "26-08-reports" / "26-09-03 Amazon Competitor Analysis August.xlsx"
 SEP_TEMPLATE = PACKAGE_DIR / "26-09-reports" / "26-11-01 Amazon Competitor Analysis September.xlsx"
+OCT_MONTH = "202610"
+OCT_TEMPLATE = PACKAGE_DIR / "26-10-reports" / "26-11-03 Amazon Competitor Analysis October.xlsx"
+BRAND_TABS = ("Ancel", "AUTEL", "Foxwell", "iCarsoft", "LAUNCH", "TOPDON", "Thinkcar", "XTOOL")
 BRAND_HEADERS = SCRIPT_DIR / "brand_header_assets" / "analysis"
 RAW_NAMES = ("summary.xlsx", "Amazon Competitor Report.xlsx")
 
@@ -99,6 +105,7 @@ class _Fixtures:
     _v2_raw: Path | None = None
     _v1_raw: Path | None = None
     _v2_sep_out: Path | None = None
+    _oct_raw: Path | None = None
 
     @classmethod
     def work(cls) -> Path:
@@ -172,6 +179,24 @@ class _Fixtures:
                 raise unittest.SkipTest(f"{dest} is not a {MONTH} V2 raw run")
             cls._v2_raw = dest
         return cls._v2_raw
+
+    @classmethod
+    def oct_raw(cls) -> Path:
+        """The October 2026 (202610, V2) raw outputs: $TEMPLATE_FILL_OCT_RAW_DIR,
+        else ``script output reports/`` while it still holds the 202610 run."""
+        if cls._oct_raw is None:
+            source = Path(os.environ.get("TEMPLATE_FILL_OCT_RAW_DIR", PACKAGE_DIR / "script output reports"))
+            if not all((source / name).exists() for name in RAW_NAMES):
+                raise unittest.SkipTest(f"October raw outputs not found in {source}")
+            month, labels = cls._raw_month_and_labels(source)
+            if month != OCT_MONTH or labels != list(layout_for("v2").summary_labels):
+                raise unittest.SkipTest(f"{source} no longer holds the {OCT_MONTH} V2 raw run (month {month})")
+            dest = cls.work() / "raw_oct"
+            dest.mkdir(parents=True, exist_ok=True)
+            for name in RAW_NAMES:
+                shutil.copy2(source / name, dest / name)
+            cls._oct_raw = dest
+        return cls._oct_raw
 
     @classmethod
     def v2_sep_output(cls) -> Path:
@@ -266,6 +291,87 @@ def _legacy_label_template(source: Path, dest: Path) -> Path:
     return dest
 
 
+def _brand_block_labels(ws) -> list[str]:
+    labels = []
+    row = 8
+    while ws.cell(row, 1).value not in (None, ""):
+        labels.append(ws.cell(row, 1).value)
+        row += 1
+    return labels
+
+
+def _assert_full_brand_breakdown(case: unittest.TestCase, wb, raw: RawData) -> None:
+    """Every brand tab: the 16 V2 labels in scheme order on rows 8-23 (blank
+    row 24), zero rows written (0 units / revenue / shares, blank avg price),
+    sub-tiers indented / regular / unfilled, family totals gray + bold, the
+    grand Total purple + bold; values equal the raw Sheet1 rows."""
+    v2 = layout_for("v2")
+    subtiers = set(v2.subtier_labels)
+    zero_rows = 0
+    for display in BRAND_TABS:
+        ws = wb[display]
+        labels = [ws.cell(r, 1).value for r in range(8, 24)]
+        case.assertEqual(labels, list(v2.summary_labels), display)
+        case.assertIn(ws["A24"].value, (None, ""), display)
+        key = display.lower()
+        raw_rows = {row[1]: row for row in raw.sheet1_by_brand(key, include_zero=True)}
+        for r, label in zip(range(8, 24), labels):
+            where = f"{display}!A{r} {label}"
+            row = raw_rows.get(label)
+            units, revenue = ws.cell(r, 5).value, ws.cell(r, 9).value
+            if row is None or not (row[5] or row[9]):
+                zero_rows += 1
+                case.assertEqual([units, ws.cell(r, 6).value, revenue, ws.cell(r, 10).value], [0, 0, 0, 0], where)
+                case.assertIsNone(ws.cell(r, 2).value, where)
+            else:
+                case.assertEqual(units, row[5], where)
+                case.assertAlmostEqual(revenue, row[9], places=6, msg=where)
+            indent = ws.cell(r, 1).alignment.indent or 0
+            kind = summary_row_kind(label, subtiers)
+            if kind == "subtier":
+                case.assertGreaterEqual(indent, 1, where)
+            else:
+                case.assertEqual(indent, 0, where)
+            if kind in ("tier", "subtier"):
+                case.assertEqual(_fill_kind(ws.cell(r, 2)), "none", where)
+                case.assertFalse(ws.cell(r, 1).font.bold or ws.cell(r, 2).font.bold, where)
+            elif kind == "subtotal":
+                case.assertEqual(_fill_kind(ws.cell(r, 2)), "theme0:-0.25", where)
+                case.assertTrue(ws.cell(r, 2).font.bold, where)
+            else:
+                case.assertEqual(_fill_kind(ws.cell(r, 2)), "rgb:FFB5A7D7", where)
+                case.assertTrue(ws.cell(r, 2).font.bold, where)
+            case.assertEqual(ws.cell(r, 2).number_format, '"$"#,##0.00', where)
+            case.assertEqual(ws.cell(r, 10).number_format, "0%", where)
+    case.assertGreater(zero_rows, 0, "fixture should have at least one zero brand row")
+
+
+def _assert_brand_charts_on_labelled_rows(case: unittest.TestCase, wb) -> None:
+    """Brand-tab charts: bars over the whole block A8:A23, pies over the four
+    family-total rows (Total Tablet 14, Total Handheld 20, Total Dongle 21,
+    Total Other Tools 22) - category AND values references - and every chart
+    anchored below the block."""
+    for display in BRAND_TABS:
+        ws = wb[display]
+        case.assertEqual([ws.cell(r, 1).value for r in (14, 20, 21, 22)],
+                         ["Total Tablet", "Total Handheld", "Total Dongle", "Total Other Tools"], display)
+        pies = [c for c in ws._charts if isinstance(c, PieChart)]
+        bars = [c for c in ws._charts if isinstance(c, BarChart)]
+        case.assertEqual((len(pies), len(bars)), (2, 4), display)
+        for pie in pies:
+            refs = [ref.f for ref in chart_refs(pie)]
+            case.assertEqual(len(refs), 2, display)
+            for f in refs:
+                case.assertRegex(f, rf"^\({display}!\$[A-M]\$14,{display}!\$[A-M]\$20:\$[A-M]\$22\)$", display)
+        for bar in bars:
+            refs = [ref.f for ref in chart_refs(bar)]
+            case.assertEqual(len(refs), 2, display)
+            for f in refs:
+                case.assertRegex(f, rf"^{display}!\$[A-M]\$8:\$[A-M]\$23$", display)
+        for chart in ws._charts:
+            case.assertGreaterEqual(chart.anchor._from.row, 23, f"{display}: chart overlaps the block")  # 0-indexed
+
+
 def _zip_differences(a: Path, b: Path) -> list[str]:
     with zipfile.ZipFile(a) as za, zipfile.ZipFile(b) as zb:
         names_a, names_b = set(za.namelist()), set(zb.namelist())
@@ -303,6 +409,10 @@ class SchemeLayoutTest(unittest.TestCase):
         )
         self.assertEqual(v1.summary_last_row, 13)
         self.assertTrue(v1.is_legacy)
+        # brand tabs: compacted 10-row parent-level block (unchanged)
+        self.assertEqual(list(v1.brand_tab_order), CATEGORY_ORDER)
+        self.assertEqual(v1.brand_block_rows, (8, 17))
+        self.assertFalse(v1.brand_block_fixed)
 
     def test_v2_tab_order_sections_and_links(self) -> None:
         v2 = layout_for("v2")
@@ -342,6 +452,11 @@ class SchemeLayoutTest(unittest.TestCase):
         )
         self.assertEqual(v2.total_tabs, {"Tablet Total", "Handheld Total", "Dongle", "Other Tools"})
         self.assertFalse(v2.is_legacy)
+        # brand tabs: the full breakdown, a fixed 16-row block (rows 8-23)
+        self.assertEqual(v2.brand_tab_order, v2.summary_labels)
+        self.assertEqual(v2.brand_block_rows, (8, 23))
+        self.assertEqual(v2.brand_block_capacity, 16)
+        self.assertTrue(v2.brand_block_fixed)
 
     def test_layout_follows_the_month(self) -> None:
         self.assertEqual(layout_for_month("202609").name, "v1")
@@ -629,26 +744,33 @@ class V2BuildTest(unittest.TestCase):
             kids = [summary.cell(summary_row[k], 5).value for k in v2.parent_sections[parent]]
             self.assertEqual(sum(kids), summary.cell(summary_row[parent], 5).value, parent)
 
-    def test_brand_tabs_keep_the_ten_parent_level_rows(self) -> None:
-        allowed = set(layout_for("v2").category_order)
-        for display in ("Ancel", "AUTEL", "Foxwell", "iCarsoft", "LAUNCH", "TOPDON", "Thinkcar", "XTOOL"):
-            ws = self.wb[display]
-            labels = [ws.cell(r, 1).value for r in range(8, 18) if ws.cell(r, 1).value]
-            self.assertTrue(set(labels) <= allowed, (display, labels))
-            self.assertEqual(labels[-1], "Total", display)
+    def test_brand_tabs_carry_the_full_v2_breakdown(self) -> None:
+        # analyst decision 2026-11-03 (supersedes the 10-row parent-level table)
+        _assert_full_brand_breakdown(self, self.wb, self.raw)
+        for display in BRAND_TABS:
+            stage = self.wb[f"_stg_b_{display.lower()[:14]}_sum"]
+            self.assertEqual([stage.cell(r, 2).value for r in range(2, 18)], list(layout_for("v2").summary_labels), display)
+
+    def test_brand_charts_point_at_labelled_rows(self) -> None:
+        _assert_brand_charts_on_labelled_rows(self, self.wb)
 
     def test_rebuilding_from_the_v2_output_is_a_no_op_upgrade(self) -> None:
         template = _Fixtures.work() / "templates" / "v2_output_as_template.xlsx"
         shutil.copy2(self.out, template)
         wb = load_workbook(template)
         try:
-            self.assertFalse(upgrade_template(wb, layout_for("v2")).changed)
+            report = upgrade_template(wb, layout_for("v2"))
+            self.assertEqual(report.brand_rows_added, {})
+            self.assertFalse(report.changed)
         finally:
             wb.close()
         second = _build(template, _Fixtures.v2_raw(), _Fixtures.work() / "v2_sep_again", tier_scheme="v2")
         wb2 = load_workbook(second)
         try:
             self.assertEqual(wb2.sheetnames, self.wb.sheetnames)
+            for display in BRAND_TABS:  # the 16-row block does not grow again
+                self.assertEqual(_brand_block_labels(wb2[display]), list(layout_for("v2").summary_labels), display)
+                self.assertEqual(wb2[display].max_row, self.wb[display].max_row, display)
             for ws in self.wb.worksheets:
                 if ws.sheet_state != "visible":
                     continue
@@ -672,6 +794,87 @@ class V2BuildTest(unittest.TestCase):
         # (pre-existing: every build appends one per visible tab).
         for part in _zip_differences(self.out, second):
             self.assertRegex(part, r"^xl/worksheets/sheet\d+\.xml$")
+
+
+class V2OctoberBrandTabsTest(unittest.TestCase):
+    """October 2026 (202610) built from the October final - the template the
+    November run will start from. Its brand blocks are compacted 7-10 row
+    V1-style tables whose pies drifted (Foxwell/iCarsoft/TOPDON/LAUNCH/
+    Thinkcar); the build grows every block to the fixed 16 rows and re-points
+    the charts by label."""
+
+    out: Path
+    wb = None
+    template_wb = None
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        raw = _Fixtures.oct_raw()
+        cls.template = _Fixtures.template(OCT_TEMPLATE)
+        cls.raw = RawData.load(raw / RAW_NAMES[0], raw / RAW_NAMES[1])
+        cls.out = _run_build(cls.template, raw, _Fixtures.work() / "v2_oct", scheme_kwargs=f", month={OCT_MONTH!r}")
+        cls.wb = load_workbook(cls.out)
+        cls.template_wb = load_workbook(cls.template)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        for wb in (cls.wb, cls.template_wb):
+            if wb is not None:
+                wb.close()
+
+    def test_validates(self) -> None:
+        self.assertEqual(validate_workbook(self.wb, month=OCT_MONTH), [])
+
+    def test_brand_tabs_carry_the_full_v2_breakdown(self) -> None:
+        _assert_full_brand_breakdown(self, self.wb, self.raw)
+
+    def test_brand_charts_point_at_labelled_rows(self) -> None:
+        _assert_brand_charts_on_labelled_rows(self, self.wb)
+
+    def test_block_growth_shifts_everything_below(self) -> None:
+        for display in BRAND_TABS:
+            old, new = self.template_wb[display], self.wb[display]
+            delta = 16 - len(_brand_block_labels(old))
+            self.assertGreater(delta, 0, display)
+            old_tables = {t.name: table_bounds(t) for t in old.tables.values()}
+            new_tables = {t.name: table_bounds(t) for t in new.tables.values()}
+            self.assertEqual(set(old_tables), set(new_tables), display)
+            for name, (c1, r1, _c2, _r2) in old_tables.items():
+                self.assertEqual(new_tables[name][:2], (c1, r1 + delta), f"{display} {name}")
+            old_anchors = sorted(c.anchor._from.row for c in old._charts)
+            self.assertEqual(sorted(c.anchor._from.row for c in new._charts), [a + delta for a in old_anchors], display)
+            old_titles = sorted(m.min_row for m in old.merged_cells.ranges if m.min_row > 7)
+            new_titles = sorted(m.min_row for m in new.merged_cells.ranges if m.min_row > 7)
+            self.assertEqual(new_titles, [r + delta for r in old_titles], display)
+            self.assertEqual(sorted(str(m) for m in new.merged_cells.ranges if m.max_row <= 5), ["A1:M5"], display)
+        # the conditional formats over the block now cover rows 8-23
+        cf = lambda ws: {str(rng.sqref) for rng in ws.conditional_formatting}
+        self.assertIn("C8:J23 L8:M23", cf(self.wb["AUTEL"]))
+        self.assertIn("C8:M23", cf(self.wb["Foxwell"]))
+
+    def test_rebuilding_from_the_october_output_adds_no_rows(self) -> None:
+        template = _Fixtures.work() / "templates" / "v2_oct_output_as_template.xlsx"
+        shutil.copy2(self.out, template)
+        second = _run_build(template, _Fixtures.oct_raw(), _Fixtures.work() / "v2_oct_again", scheme_kwargs=f", month={OCT_MONTH!r}")
+        wb2 = load_workbook(second)
+        try:
+            for display in BRAND_TABS:
+                ws, twin = self.wb[display], wb2[display]
+                self.assertEqual(twin.max_row, ws.max_row, display)
+                self.assertEqual({t.name: t.ref for t in twin.tables.values()}, {t.name: t.ref for t in ws.tables.values()}, display)
+                self.assertEqual(
+                    [sorted(r.f for r in chart_refs(c)) for c in twin._charts],
+                    [sorted(r.f for r in chart_refs(c)) for c in ws._charts],
+                    display,
+                )
+                self.assertEqual(
+                    [c.anchor._from.row for c in twin._charts], [c.anchor._from.row for c in ws._charts], display
+                )
+                for row in ws.iter_rows(max_row=30):
+                    for cell in row:
+                        self.assertEqual(twin[cell.coordinate].value, cell.value, f"{display}!{cell.coordinate}")
+        finally:
+            wb2.close()
 
 
 class V2EmptySubtierTest(unittest.TestCase):
