@@ -514,7 +514,10 @@ def _validate_brand_overview_fills(wb: Workbook, issues: list[str], layout: Sche
                 if not ws.cell(row_idx, 2).font.bold:
                     issues.append(f"{display}!B{row_idx} Total row should be bold")
             elif label.startswith("total"):
-                if kind != "theme0:-0.25":
+                expect_unshaded = layout.brand_block_fixed and label == "total dongle"
+                if expect_unshaded and kind != "none":
+                    issues.append(f"{display}!B{row_idx} Total Dongle row should have no fill in V2, got {kind}")
+                if not expect_unshaded and kind != "theme0:-0.25":
                     issues.append(f"{display}!B{row_idx} subtotal row should have the gray fill, got {kind}")
                 if not ws.cell(row_idx, 2).font.bold:
                     issues.append(f"{display}!B{row_idx} subtotal row should be bold")

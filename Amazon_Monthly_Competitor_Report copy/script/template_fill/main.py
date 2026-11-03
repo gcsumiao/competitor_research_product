@@ -404,7 +404,7 @@ def _set_row_fill(
             cell.font = font
 
 
-def _format_brand_overview(ws, start_row: int, end_row: int, subtier_labels=()) -> None:
+def _format_brand_overview(ws, start_row: int, end_row: int, subtier_labels=(), unshaded_labels=()) -> None:
     """Label-driven emphasis for the brand overview block. Fills and number
     formats used to be inherited from the template by position, so any month
     where a brand gained or lost a category row shifted every gray/purple
@@ -412,8 +412,11 @@ def _format_brand_overview(ws, start_row: int, end_row: int, subtier_labels=()) 
 
     V2+ (``subtier_labels`` given): styled like the Summary table - sub-tier
     labels indented one level (regular weight, no fill like every tier row),
-    family totals gray + bold, grand Total purple + bold."""
+    family totals gray + bold, grand Total purple + bold. ``unshaded_labels``
+    (V2: "Total Dongle") stay bold but get NO fill, as on the Summary table
+    (analyst decision 2026-11-03)."""
     subtiers = {label.strip().lower() for label in subtier_labels}
+    unshaded = {label.strip().lower() for label in unshaded_labels}
     for row_idx in range(start_row, end_row + 1):
         label = str(ws.cell(row_idx, 1).value or "").strip().lower()
         if not label:
@@ -422,7 +425,7 @@ def _format_brand_overview(ws, start_row: int, end_row: int, subtier_labels=()) 
         if label == "total":
             _set_row_fill(ws, row_idx, _overview_total_fill(), bold=True)
         elif label.startswith("total"):
-            _set_row_fill(ws, row_idx, _overview_subtotal_fill(), bold=True)
+            _set_row_fill(ws, row_idx, NO_FILL if label in unshaded else _overview_subtotal_fill(), bold=True)
         else:
             _set_row_fill(ws, row_idx, NO_FILL, bold=False)
         _apply_overview_number_formats(ws, row_idx)
@@ -476,7 +479,7 @@ def _write_brand_tab(ws, raw: RawData, _display: str, key: str, layout: SchemeLa
     rows = _brand_overview_rows(raw, key, layout)
     _write_summary_overview(ws, first, last, rows, summary_sheet=False)
     if layout.brand_block_fixed:
-        _format_brand_overview(ws, first, last, subtier_labels=layout.subtier_labels)
+        _format_brand_overview(ws, first, last, subtier_labels=layout.subtier_labels, unshaded_labels=("Total Dongle",))
         fit_brand_chart_refs(ws, first, last)
     else:
         _format_brand_overview(ws, first, last)

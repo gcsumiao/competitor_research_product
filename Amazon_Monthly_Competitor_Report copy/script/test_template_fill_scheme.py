@@ -336,7 +336,9 @@ def _assert_full_brand_breakdown(case: unittest.TestCase, wb, raw: RawData) -> N
                 case.assertEqual(_fill_kind(ws.cell(r, 2)), "none", where)
                 case.assertFalse(ws.cell(r, 1).font.bold or ws.cell(r, 2).font.bold, where)
             elif kind == "subtotal":
-                case.assertEqual(_fill_kind(ws.cell(r, 2)), "theme0:-0.25", where)
+                # V2 brand tabs: "Total Dongle" is bold but unshaded, like the Summary
+                expected = "none" if label.strip().lower() == "total dongle" else "theme0:-0.25"
+                case.assertEqual(_fill_kind(ws.cell(r, 2)), expected, where)
                 case.assertTrue(ws.cell(r, 2).font.bold, where)
             else:
                 case.assertEqual(_fill_kind(ws.cell(r, 2)), "rgb:FFB5A7D7", where)
