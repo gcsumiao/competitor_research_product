@@ -37,6 +37,7 @@ from openpyxl.formatting.rule import CellIsRule
 from openpyxl.utils import quote_sheetname
 from openpyxl.worksheet.table import Table
 
+from price_tier_scheme import LEGACY_LABELS, subtier_labels
 from template_fill.config import (
     CATEGORY_ORDER,
     CATEGORY_TABS,
@@ -48,7 +49,14 @@ from template_fill.config import (
 from template_fill.formula_map import sorted_tables, table_bounds
 from template_fill.main import _stage_names, build_monthly_output
 from template_fill.raw_loader import RawData
-from template_fill.scheme_upgrade import find_sections, summary_row_kind, upgrade_template
+from template_fill.scheme_upgrade import (
+    find_sections,
+    remove_sections,
+    rename_tab,
+    summary_row_kind,
+    summary_table,
+    upgrade_template,
+)
 from template_fill.sheet_ops import chart_refs, delete_rows, insert_rows, shift_formula, RowShift
 from template_fill.validate import validate_workbook
 
@@ -66,17 +74,17 @@ RAW_NAMES = ("summary.xlsx", "Amazon Competitor Report.xlsx")
 V2_TABS = [
     "Summary", "Top 50",
     "Tablet Total", "Tablet $800+", "Tablet $400-$800", "Tablet $400-",
-    "Tablet $300+", "Tablet $200-$300", "Tablet $200-",
+    "Tablet $300-$400", "Tablet $200-$300", "Tablet $200-",
     "Handheld Total", "Handheld $100+", "Handheld $100-",
-    "Handheld $65+", "Handheld $35-$65", "Handheld $35-",
+    "Handheld $65-$100", "Handheld $35-$65", "Handheld $35-",
     "Dongle", "Other Tools",
     "Ancel", "AUTEL", "Foxwell", "iCarsoft", "LAUNCH", "TOPDON", "Thinkcar", "XTOOL",
 ]
 NEW_TABS = {
-    "Tablet $300+": "Tablet $400-",
+    "Tablet $300-$400": "Tablet $400-",
     "Tablet $200-$300": "Tablet $400-",
     "Tablet $200-": "Tablet $400-",
-    "Handheld $65+": "Handheld $100-",
+    "Handheld $65-$100": "Handheld $100-",
     "Handheld $35-$65": "Handheld $100-",
     "Handheld $35-": "Handheld $100-",
 }
@@ -90,6 +98,7 @@ class _Fixtures:
     _temp: tempfile.TemporaryDirectory | None = None
     _v2_raw: Path | None = None
     _v1_raw: Path | None = None
+    _v2_sep_out: Path | None = None
 
     @classmethod
     def work(cls) -> Path:
@@ -164,6 +173,13 @@ class _Fixtures:
             cls._v2_raw = dest
         return cls._v2_raw
 
+    @classmethod
+    def v2_sep_output(cls) -> Path:
+        """September data built with V2 from the September final (cached)."""
+        if cls._v2_sep_out is None:
+            cls._v2_sep_out = _build(cls.template(SEP_TEMPLATE), cls.v2_raw(), cls.work() / "v2_sep", tier_scheme="v2")
+        return cls._v2_sep_out
+
 
 def _run_build(template: Path, raw_dir: Path, out_dir: Path, *, code_dir: Path = SCRIPT_DIR, scheme_kwargs: str = "") -> Path:
     """One filler build in a fresh interpreter: the filler's chart-XML patcher
@@ -222,6 +238,34 @@ def _empty_subtier_raw(source: Path, dest: Path, label: str) -> Path:
     return dest
 
 
+def _legacy_label_template(source: Path, dest: Path) -> Path:
+    """Copy of a V2 Analysis workbook in the shape of the first V2 preview
+    (2026-11-03): the $300-$400 / $65-$100 sub-tiers carry the superseded
+    wording ("Tablet $300+" / "Handheld $65+") on their tab, their parent-tab
+    section and their Summary row, and the family Total tabs hold only the
+    tier sections."""
+    wb = load_workbook(source)
+    try:
+        for old, new in LEGACY_LABELS.items():
+            rename_tab(wb, new, old)
+            for ws in wb.worksheets:
+                for title, title_row, _total in find_sections(ws):
+                    if title == new:
+                        ws.cell(title_row, 1).value = old
+            summary = wb["Summary"]
+            for offset, label in enumerate(summary_table(summary)):
+                if label == new:
+                    summary.cell(4 + offset, 1).value = old
+        subtiers = set(subtier_labels("v2")) | set(LEGACY_LABELS)
+        for tab in ("Tablet Total", "Handheld Total"):
+            ws = wb[tab]
+            remove_sections(ws, [section for section in find_sections(ws) if section[0] in subtiers])
+        wb.save(dest)
+    finally:
+        wb.close()
+    return dest
+
+
 def _zip_differences(a: Path, b: Path) -> list[str]:
     with zipfile.ZipFile(a) as za, zipfile.ZipFile(b) as zb:
         names_a, names_b = set(za.namelist()), set(zb.namelist())
@@ -267,9 +311,9 @@ class SchemeLayoutTest(unittest.TestCase):
             v2.parent_sections,
             {
                 "Tablet Total": ("Tablet $800+", "Tablet $400-$800", "Tablet $400-"),
-                "Tablet $400-": ("Tablet $300+", "Tablet $200-$300", "Tablet $200-"),
+                "Tablet $400-": ("Tablet $300-$400", "Tablet $200-$300", "Tablet $200-"),
                 "Handheld Total": ("Handheld $100+", "Handheld $100-"),
-                "Handheld $100-": ("Handheld $65+", "Handheld $35-$65", "Handheld $35-"),
+                "Handheld $100-": ("Handheld $65-$100", "Handheld $35-$65", "Handheld $35-"),
             },
         )
         for child, parent in NEW_TABS.items():
@@ -278,8 +322,8 @@ class SchemeLayoutTest(unittest.TestCase):
         self.assertEqual(v2.child_section_links["Handheld $100+"], ("Handheld Total", "Handheld $100+"))
         # parents are linked before their sub-tiers
         order = list(v2.child_section_links)
-        self.assertLess(order.index("Tablet $400-"), order.index("Tablet $300+"))
-        self.assertLess(order.index("Handheld $100-"), order.index("Handheld $65+"))
+        self.assertLess(order.index("Tablet $400-"), order.index("Tablet $300-$400"))
+        self.assertLess(order.index("Handheld $100-"), order.index("Handheld $65-$100"))
         self.assertEqual(len(v2.summary_labels), 16)
         self.assertEqual(v2.summary_last_row, 19)
         self.assertEqual(
@@ -446,7 +490,7 @@ class V2BuildTest(unittest.TestCase):
         raw = _Fixtures.v2_raw()
         template = _Fixtures.template(SEP_TEMPLATE)
         cls.raw = RawData.load(raw / RAW_NAMES[0], raw / RAW_NAMES[1])
-        cls.out = _build(template, raw, _Fixtures.work() / "v2_sep", tier_scheme="v2")
+        cls.out = _Fixtures.v2_sep_output()
         cls.wb = load_workbook(cls.out)
 
     @classmethod
@@ -590,11 +634,11 @@ class V2BuildTest(unittest.TestCase):
 
 
 class V2EmptySubtierTest(unittest.TestCase):
-    """A V2 sub-tier with no sales in the month ("Handheld $65+" zeroed out of
+    """A V2 sub-tier with no sales in the month ("Handheld $65-$100" zeroed out of
     the September V2 raw summary) renders as an empty section instead of
     aborting the build, and the next month grows it back."""
 
-    SUBTIER = "Handheld $65+"
+    SUBTIER = "Handheld $65-$100"
     PARENT = "Handheld $100-"
     out: Path
     wb = None
@@ -697,6 +741,75 @@ class V2EmptySubtierTest(unittest.TestCase):
                 self.assertFalse(child.cell(r, 2).font.bold, f"{self.SUBTIER}!B{r}")
         finally:
             wb.close()
+
+
+class V2LegacyLabelTemplateTest(unittest.TestCase):
+    """A template built with the superseded sub-tier wording (the first V2
+    preview: "Tablet $300+" / "Handheld $65+") is renamed in place - no
+    duplicate tabs, nothing re-cloned - and builds a valid V2 workbook."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.template = _legacy_label_template(
+            _Fixtures.v2_sep_output(), _Fixtures.work() / "templates" / "v2_legacy_labels_as_template.xlsx"
+        )
+
+    def test_fixture_carries_the_old_wording(self) -> None:
+        wb = load_workbook(self.template)
+        try:
+            for old, new in LEGACY_LABELS.items():
+                self.assertIn(old, wb.sheetnames)
+                self.assertNotIn(new, wb.sheetnames)
+            self.assertIn("Tablet $300+", summary_table(wb["Summary"]))
+            self.assertIn("Tablet $300+", [t for t, _r, _x in find_sections(wb["Tablet $400-"])])
+        finally:
+            wb.close()
+
+    def test_upgrade_renames_in_place(self) -> None:
+        wb = load_workbook(self.template)
+        try:
+            charts = {old: len(wb[old]._charts) for old in LEGACY_LABELS}
+            tables = {old: sorted(t.name for t in wb[old].tables.values()) for old in LEGACY_LABELS}
+            report = upgrade_template(wb, layout_for("v2"))
+            self.assertEqual(report.cloned_tabs, {})
+            self.assertEqual(report.removed_tabs, [])
+            self.assertEqual(report.summary_rows_before, report.summary_rows_after)
+            self.assertEqual(len(report.renamed_labels), 2)
+            lowered = [name.lower() for name in wb.sheetnames]
+            self.assertEqual(len(lowered), len(set(lowered)))
+            for old, new in LEGACY_LABELS.items():
+                self.assertNotIn(old, wb.sheetnames)
+                ws = wb[new]
+                self.assertEqual(ws["A1"].value, f"{new} Monthly Summary")
+                self.assertEqual(len(ws._charts), charts[old])
+                self.assertEqual(sorted(t.name for t in ws.tables.values()), tables[old])
+                for chart in ws._charts:
+                    for ref in chart_refs(chart):
+                        self.assertIn(quote_sheetname(new), ref.f)
+            self.assertEqual(summary_table(wb["Summary"]), list(layout_for("v2").summary_labels))
+            for tab, titles in layout_for("v2").parent_sections.items():
+                self.assertEqual([t for t, _r, _x in find_sections(wb[tab])], list(titles), tab)
+            self.assertFalse(upgrade_template(wb, layout_for("v2")).changed)
+        finally:
+            wb.close()
+
+    def test_build_from_the_old_wording_validates(self) -> None:
+        out = _build(self.template, _Fixtures.v2_raw(), _Fixtures.work() / "v2_from_legacy_labels", tier_scheme="v2")
+        wb = load_workbook(out)
+        expected = load_workbook(_Fixtures.v2_sep_output())
+        try:
+            self.assertEqual(validate_workbook(wb, month=MONTH, tier_scheme="v2"), [])
+            visible = [ws.title for ws in wb.worksheets if ws.sheet_state == "visible"]
+            self.assertEqual(visible, V2_TABS)
+            for old in LEGACY_LABELS:
+                self.assertNotIn(old, wb.sheetnames)
+            for tab in V2_TABS:
+                for row in expected[tab].iter_rows():
+                    for cell in row:
+                        self.assertEqual(wb[tab][cell.coordinate].value, cell.value, f"{tab}!{cell.coordinate}")
+        finally:
+            wb.close()
+            expected.close()
 
 
 class V2FromV1TemplateTest(unittest.TestCase):

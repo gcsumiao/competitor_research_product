@@ -12,6 +12,7 @@ import pandas as pd
 import full_report_month
 from full_report_month import append_summary_list
 from price_tier_scheme import (
+    LEGACY_LABELS,
     PRICE_TIER_V2_START_MONTH,
     SCHEME_V1,
     SCHEME_V2,
@@ -51,13 +52,13 @@ V2_EXPECTED = [
     ("Tablet $800+", ["Tablet"], 800, math.inf),
     ("Tablet $400-$800", ["Tablet"], 400, 800),
     ("Tablet $400-", ["Tablet"], 0, 400),
-    ("Tablet $300+", ["Tablet"], 300, 400),
+    ("Tablet $300-$400", ["Tablet"], 300, 400),
     ("Tablet $200-$300", ["Tablet"], 200, 300),
     ("Tablet $200-", ["Tablet"], 0, 200),
     ("Total Tablet", ["Tablet"], 0, math.inf),
     ("Handheld $100+", ["Handheld"], 100, math.inf),
     ("Handheld $100-", ["Handheld"], 0, 100),
-    ("Handheld $65+", ["Handheld"], 65, 100),
+    ("Handheld $65-$100", ["Handheld"], 65, 100),
     ("Handheld $35-$65", ["Handheld"], 35, 65),
     ("Handheld $35-", ["Handheld"], 0, 35),
     ("Total Handheld", ["Handheld"], 0, math.inf),
@@ -153,6 +154,18 @@ class PriceTierSchemeDictTest(unittest.TestCase):
             [(0, 35), (35, 65), (65, 100)],
         )
 
+    def test_legacy_labels_map_the_superseded_v2_wording(self) -> None:
+        # Analyst relabel 2026-11-03: same ranges, explicit upper bound.
+        self.assertEqual(LEGACY_LABELS, {"Tablet $300+": "Tablet $300-$400", "Handheld $65+": "Handheld $65-$100"})
+        labels = tier_labels("v2")
+        for old, new in LEGACY_LABELS.items():
+            self.assertIn(new, labels)
+            self.assertNotIn(old, labels)
+            self.assertNotIn(old, tier_labels("v1"))
+        by_label = {t.label: t for t in SCHEME_V2}
+        self.assertEqual((by_label["Tablet $300-$400"].low, by_label["Tablet $300-$400"].high), (300, 400))
+        self.assertEqual((by_label["Handheld $65-$100"].low, by_label["Handheld $65-$100"].high), (65, 100))
+
     def test_tier_dataclass_is_frozen(self) -> None:
         with self.assertRaises(Exception):
             SCHEME_V2[0].low = 1  # type: ignore[misc]
@@ -173,7 +186,7 @@ class PriceTierSchemeHelpersTest(unittest.TestCase):
         self.assertEqual(subtier_labels("v1"), [])
         self.assertEqual(
             subtier_labels("v2"),
-            ["Tablet $300+", "Tablet $200-$300", "Tablet $200-", "Handheld $65+", "Handheld $35-$65", "Handheld $35-"],
+            ["Tablet $300-$400", "Tablet $200-$300", "Tablet $200-", "Handheld $65-$100", "Handheld $35-$65", "Handheld $35-"],
         )
         expected_totals = ["Total Tablet", "Total Handheld", "Total Dongle", "Total Other Tools", "Total"]
         self.assertEqual(total_labels("v1"), expected_totals)
@@ -189,27 +202,27 @@ class PriceTierSchemeHelpersTest(unittest.TestCase):
             [
                 "Tablet $800+",
                 "Tablet $400-$800",
-                "Tablet $300+",
+                "Tablet $300-$400",
                 "Tablet $200-$300",
                 "Tablet $200-",
                 "Handheld $100+",
-                "Handheld $65+",
+                "Handheld $65-$100",
                 "Handheld $35-$65",
                 "Handheld $35-",
             ],
         )
-        self.assertEqual(parent_of("Tablet $300+", "v2"), "Tablet $400-")
+        self.assertEqual(parent_of("Tablet $300-$400", "v2"), "Tablet $400-")
         self.assertEqual(parent_of("Handheld $35-", "v2"), "Handheld $100-")
         self.assertIsNone(parent_of("Tablet $400-", "v2"))
         self.assertIsNone(parent_of("Total", "v2"))
-        self.assertEqual(children_of("Tablet $400-", "v2"), ["Tablet $300+", "Tablet $200-$300", "Tablet $200-"])
-        self.assertEqual(children_of("Handheld $100-", "v2"), ["Handheld $65+", "Handheld $35-$65", "Handheld $35-"])
+        self.assertEqual(children_of("Tablet $400-", "v2"), ["Tablet $300-$400", "Tablet $200-$300", "Tablet $200-"])
+        self.assertEqual(children_of("Handheld $100-", "v2"), ["Handheld $65-$100", "Handheld $35-$65", "Handheld $35-"])
         self.assertEqual(children_of("Tablet $800+", "v2"), [])
         self.assertEqual(children_of("Tablet $400-", "v1"), [])
         with self.assertRaises(KeyError):
             parent_of("Handheld $75+", "v2")
         with self.assertRaises(KeyError):
-            children_of("Tablet $300+", "v1")
+            children_of("Tablet $300-$400", "v1")
         with self.assertRaises(ValueError):
             tier_labels("auto")
 
@@ -221,10 +234,10 @@ class PriceTierSchemeBucketingTest(unittest.TestCase):
         # (Type, price, the V2 leaf it must land in, the parent tier if any)
         ("Tablet", 800.0, "Tablet $800+", None),
         ("Tablet", 400.0, "Tablet $400-$800", None),
-        ("Tablet", 300.0, "Tablet $300+", "Tablet $400-"),
+        ("Tablet", 300.0, "Tablet $300-$400", "Tablet $400-"),
         ("Tablet", 200.0, "Tablet $200-$300", "Tablet $400-"),
         ("Handheld", 100.0, "Handheld $100+", None),
-        ("Handheld", 65.0, "Handheld $65+", "Handheld $100-"),
+        ("Handheld", 65.0, "Handheld $65-$100", "Handheld $100-"),
         ("Handheld", 35.0, "Handheld $35-$65", "Handheld $100-"),
     ]
 
@@ -322,6 +335,8 @@ class PriceTierSchemeBucketingTest(unittest.TestCase):
                 self.assertEqual(got["Total Tablet"][0], 3 + 5 + 7)
                 self.assertEqual(got["Total"][0], total_units)
                 self.assertAlmostEqual(got["Total"][1], market["Monthly Revenue"].sum(), places=6)
+
+
 
 
 if __name__ == "__main__":

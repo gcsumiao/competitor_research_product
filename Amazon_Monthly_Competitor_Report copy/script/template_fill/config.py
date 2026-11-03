@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from price_tier_scheme import SCHEMES, resolve_scheme_name
+from price_tier_scheme import LEGACY_LABELS, SCHEMES, resolve_scheme_name
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -28,7 +28,7 @@ FIXED_BRANDS = [
 ZERO_SENTINELS = {0, 0.0, None, ""}
 
 # Category tab name for each family total; tier and sub-tier tabs are named
-# after their scheme label verbatim (e.g. "Tablet $300+").
+# after their scheme label verbatim (e.g. "Tablet $300-$400").
 TOTAL_CATEGORY_TABS = {
     "Total Tablet": "Tablet Total",
     "Total Handheld": "Handheld Total",
@@ -129,9 +129,11 @@ def layout_for_month(month: str | int | None, tier_scheme: str = "auto") -> Sche
     return layout_for(resolve_scheme_name(month, tier_scheme))
 
 
+# Tier/sub-tier labels of every scheme, plus the superseded V2 wording
+# ("Tablet $300+") so a template built with it is recognised (and renamed).
 KNOWN_TIER_LABELS = frozenset(
     t.label for tiers in SCHEMES.values() for t in tiers if t.kind in ("tier", "subtier")
-)
+) | frozenset(LEGACY_LABELS)
 
 # Scheme V1 (report months before 202610) - kept as module constants for
 # existing callers (setup_staging, tests). Derived, so they cannot drift.

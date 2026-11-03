@@ -6,6 +6,10 @@ sub-tier rows/tabs) last month's workbook no longer has the structure the new
 month needs, so ``upgrade_template`` reshapes it in place before any value is
 written:
 
+0. tabs, section titles and Summary rows that carry superseded wording of a
+   current label (``price_tier_scheme.LEGACY_LABELS``, e.g. "Tablet $300+" ->
+   "Tablet $300-$400" in the first V2 preview) are renamed in place, sheet
+   references in formulas and charts included;
 1. missing category tabs are cloned (sub-tiers from their parent tier tab,
    before that parent receives its new sections, so clones carry none);
 2. category tabs of another scheme (e.g. "Handheld $75+" in a V2 build) are
@@ -29,7 +33,7 @@ from openpyxl.formula.tokenizer import Token, Tokenizer
 from openpyxl.utils import get_column_letter, quote_sheetname
 from openpyxl.utils.cell import range_boundaries
 
-from price_tier_scheme import SCHEMES
+from price_tier_scheme import LEGACY_LABELS, SCHEMES
 
 from .config import KNOWN_TIER_LABELS, SUMMARY_FIRST_ROW, SchemeLayout, slug
 from .formula_map import sorted_tables
@@ -49,6 +53,7 @@ OVERVIEW_FIRST_ROW = 5
 SECTION_SOURCE_PREFERENCE = ("Tablet Total", "Handheld Total")
 PIE_TYPES = (PieChart, PieChart3D, DoughnutChart, ProjectedPieChart)
 _TIERS = {t.label: t for tiers in SCHEMES.values() for t in tiers}
+_TIERS.update({old: _TIERS[new] for old, new in LEGACY_LABELS.items()})
 _MAX_SUMMARY_ROWS = 60
 
 
@@ -68,6 +73,7 @@ class SectionBlock:
 @dataclass
 class UpgradeReport:
     scheme: str
+    renamed_labels: dict[str, list[str]] = field(default_factory=dict)  # "old -> new" -> where
     cloned_tabs: dict[str, str] = field(default_factory=dict)  # new tab -> source tab
     removed_tabs: list[str] = field(default_factory=list)
     sections_removed: dict[str, list[str]] = field(default_factory=dict)
@@ -84,11 +90,18 @@ class UpgradeReport:
     @property
     def changed(self) -> bool:
         return bool(
-            self.cloned_tabs or self.removed_tabs or self.sections_removed or self.sections_added or self.summary_resized
+            self.renamed_labels
+            or self.cloned_tabs
+            or self.removed_tabs
+            or self.sections_removed
+            or self.sections_added
+            or self.summary_resized
         )
 
     def describe(self) -> list[str]:
         lines = []
+        for rename, places in self.renamed_labels.items():
+            lines.append(f"renamed {rename} in place: {', '.join(places)}")
         for tab, source in self.cloned_tabs.items():
             lines.append(f"cloned tab {tab!r} from {source!r}")
         for tab in self.removed_tabs:
@@ -104,12 +117,75 @@ class UpgradeReport:
 
 def upgrade_template(wb, layout: SchemeLayout) -> UpgradeReport:
     report = UpgradeReport(layout.name)
+    _rename_legacy_labels(wb, layout, report)
     block = capture_section_block(wb, layout)
     _ensure_category_tabs(wb, layout, report)
     _remove_stale_category_tabs(wb, layout, report)
     _ensure_parent_sections(wb, layout, report, block)
     _ensure_summary_rows(wb["Summary"], layout, report)
     return report
+
+
+# ---------------------------------------------------------------- renames
+
+
+def _rename_legacy_labels(wb, layout: SchemeLayout, report: UpgradeReport) -> None:
+    """Rename superseded wording of a current label in place: the tab (with
+    every formula / chart / defined-name reference to it and its A1 title),
+    parent-tab section titles and the Summary category row. A template that
+    has BOTH the old and the new tab keeps the new one; the old tab is then
+    dropped as a stale tier tab."""
+    wanted = set(layout.summary_labels)
+    renames = {old: new for old, new in LEGACY_LABELS.items() if new in wanted}
+    if not renames:
+        return
+    for old, new in renames.items():
+        if old in wb.sheetnames and new not in wb.sheetnames:
+            rename_tab(wb, old, new)
+            report.renamed_labels.setdefault(f"{old!r} -> {new!r}", []).append("tab")
+    for ws in wb.worksheets:
+        if ws.title.startswith("_stg_"):
+            continue  # staging sheets are rebuilt from the raw summary
+        for title, title_row, _total_row in find_sections(ws):
+            if title in renames:
+                ws.cell(title_row, 1).value = renames[title]
+                report.renamed_labels.setdefault(f"{title!r} -> {renames[title]!r}", []).append(
+                    f"{ws.title}!A{title_row}"
+                )
+    if "Summary" in wb.sheetnames:
+        summary = wb["Summary"]
+        for offset, label in enumerate(summary_table(summary)):
+            if label in renames:
+                row_idx = SUMMARY_FIRST_ROW + offset
+                summary.cell(row_idx, 1).value = renames[label]
+                report.renamed_labels.setdefault(f"{label!r} -> {renames[label]!r}", []).append(f"Summary!A{row_idx}")
+
+
+def rename_tab(wb, old: str, new: str) -> None:
+    """``wb[old].title = new`` plus what openpyxl does not follow: formulas
+    and hyperlink targets on every sheet, chart references, defined names and
+    the tab's own "<label> Monthly Summary" title."""
+    ws = wb[old]
+    ws.title = new
+    for sheet in wb.worksheets:
+        for chart in getattr(sheet, "_charts", []):
+            retarget_chart_sheet(chart, old, new)
+        for row in sheet.iter_rows():
+            for cell in row:
+                value = cell.value
+                if isinstance(value, str) and value.startswith("=") and old.lower() in value.lower():
+                    cell.value = rename_sheet_in_formula(value, old, new)
+                link = cell.hyperlink
+                if link is not None and link.location and old.lower() in link.location.lower():
+                    link.location = rename_sheet_in_formula(link.location, old, new)
+    holders = [wb.defined_names] + [getattr(sheet, "defined_names", {}) for sheet in wb.worksheets]
+    for holder in holders:
+        for defined_name in holder.values():
+            text = getattr(defined_name, "attr_text", None)
+            if isinstance(text, str) and old.lower() in text.lower():
+                defined_name.attr_text = rename_sheet_in_formula(text, old, new)
+    if str(ws["A1"].value or "").strip() == f"{old} Monthly Summary":
+        ws["A1"] = f"{new} Monthly Summary"
 
 
 # ------------------------------------------------------------------- tabs

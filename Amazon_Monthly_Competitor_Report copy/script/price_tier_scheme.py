@@ -18,18 +18,21 @@ reproduce exactly):
 
 Scheme V2 (report month 202610 onward, analyst decision 2026-11-03):
     Tablet $800+ | Tablet $400-$800 | Tablet $400- |
-        Tablet $300+ ($300-$400) | Tablet $200-$300 | Tablet $200- |
+        Tablet $300-$400 | Tablet $200-$300 | Tablet $200- |
     Total Tablet |
     Handheld $100+ | Handheld $100- |
-        Handheld $65+ ($65-$100) | Handheld $35-$65 | Handheld $35- |
+        Handheld $65-$100 | Handheld $35-$65 | Handheld $35- |
     Total Handheld |
     Total Dongle | Total Other Tools | Total
 
 Sub-tiers (``kind="subtier"``) partition their parent tier exactly and carry
-``parent`` = the parent tier label. Labels are verbatim analyst wording
-("Tablet $300+" means $300-$400, "Handheld $65+" means $65-$100). Scheme order
-is the row order of summary.xlsx Sheet1 / Category and the per-category sheet
-order, and each label is also a sheet name.
+``parent`` = the parent tier label. Labels are verbatim analyst wording. The
+first V2 preview (2026-11-03) used "Tablet $300+" / "Handheld $65+" for the
+$300-$400 / $65-$100 sub-tiers; the analyst relabelled them the same day
+(ranges unchanged). ``LEGACY_LABELS`` maps the old wording to the new so a
+workbook built with it can be upgraded in place. Scheme order is the row order
+of summary.xlsx Sheet1 / Category and the per-category sheet order, and each
+label is also a sheet name.
 
 Stdlib + typing only so any script can import it without pandas.
 """
@@ -85,13 +88,13 @@ SCHEME_V2: tuple[Tier, ...] = (
     Tier("Tablet $800+", TABLET_TYPES, 800, None, None, "tier"),
     Tier("Tablet $400-$800", TABLET_TYPES, 400, 800, None, "tier"),
     Tier("Tablet $400-", TABLET_TYPES, 0, 400, None, "tier"),
-    Tier("Tablet $300+", TABLET_TYPES, 300, 400, "Tablet $400-", "subtier"),
+    Tier("Tablet $300-$400", TABLET_TYPES, 300, 400, "Tablet $400-", "subtier"),
     Tier("Tablet $200-$300", TABLET_TYPES, 200, 300, "Tablet $400-", "subtier"),
     Tier("Tablet $200-", TABLET_TYPES, 0, 200, "Tablet $400-", "subtier"),
     _TOTAL_TABLET,
     Tier("Handheld $100+", HANDHELD_TYPES, 100, None, None, "tier"),
     Tier("Handheld $100-", HANDHELD_TYPES, 0, 100, None, "tier"),
-    Tier("Handheld $65+", HANDHELD_TYPES, 65, 100, "Handheld $100-", "subtier"),
+    Tier("Handheld $65-$100", HANDHELD_TYPES, 65, 100, "Handheld $100-", "subtier"),
     Tier("Handheld $35-$65", HANDHELD_TYPES, 35, 65, "Handheld $100-", "subtier"),
     Tier("Handheld $35-", HANDHELD_TYPES, 0, 35, "Handheld $100-", "subtier"),
     _TOTAL_HANDHELD,
@@ -101,6 +104,10 @@ SCHEME_V2: tuple[Tier, ...] = (
 )
 
 SCHEMES: dict[str, tuple[Tier, ...]] = {"v1": SCHEME_V1, "v2": SCHEME_V2}
+
+# Superseded V2 sub-tier wording (first preview, 2026-11-03) -> current label.
+LEGACY_LABELS: dict[str, str] = {"Tablet $300+": "Tablet $300-$400", "Handheld $65+": "Handheld $65-$100"}
+
 SCHEME_CHOICES: tuple[str, ...] = ("auto", "v1", "v2")
 
 SchemeLike = Union[str, Sequence[Tier]]
@@ -209,8 +216,8 @@ def leaf_labels(scheme: SchemeLike) -> list[str]:
     """Finest non-overlapping price buckets: tiers/sub-tiers that are not a parent.
 
     V1: Tablet $800+, Tablet $400-$800, Tablet $400-, Handheld $75+, Handheld $75-.
-    V2: Tablet $800+, Tablet $400-$800, Tablet $300+, Tablet $200-$300,
-        Tablet $200-, Handheld $100+, Handheld $65+, Handheld $35-$65, Handheld $35-.
+    V2: Tablet $800+, Tablet $400-$800, Tablet $300-$400, Tablet $200-$300,
+        Tablet $200-, Handheld $100+, Handheld $65-$100, Handheld $35-$65, Handheld $35-.
     """
     tiers = _tiers(scheme)
     parents = {t.parent for t in tiers if t.parent is not None}
