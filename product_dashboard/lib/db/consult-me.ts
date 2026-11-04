@@ -43,7 +43,7 @@ export async function loadConsultMeHistoryRecordsFromDb() {
     `
   )
 
-  const records = recordsResult.rows.map((row) => ({
+  const records: ConsultMeHistoryRecord[] = recordsResult.rows.map((row) => ({
     taskId: row.task_id,
     companyKey: row.company_key,
     companyLabel: row.company_label,

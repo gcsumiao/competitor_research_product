@@ -2,8 +2,10 @@ import { access, readFile, stat } from "fs/promises"
 import path from "path"
 
 import type {
+  BriefAssetKind,
   DeliverableFile,
   DeliverableType,
+  ResearchBrief,
   ResearchSource,
 } from "@/lib/consult-me/types"
 import { resolveAppRoot } from "@/lib/dashboard-runtime"
@@ -22,6 +24,11 @@ type SeedReportConfig = {
   // rewritten by git checkout on deploy, so the stamp must be pinned here.
   createdAt: string
   deliverables: Partial<Record<DeliverableType, string>>
+  brief?: SeedBriefConfig
+}
+
+type SeedBriefConfig = Omit<ResearchBrief, "seedId" | "assets"> & {
+  files: Partial<Record<BriefAssetKind, string>>
 }
 
 export type SeedReport = {
@@ -33,6 +40,7 @@ export type SeedReport = {
   sourcesFound: number
   sources: ResearchSource[]
   deliverables: DeliverableFile[]
+  brief?: ResearchBrief
   updatedAt: string
   createdAt: string
   completedAt: string
@@ -81,6 +89,25 @@ const SEED_REPORTS: SeedReportConfig[] = [
       docx: "xtool/xtool - Executive Summary.docx",
       pptx: "xtool/xtool - Executive Presentation Deck.pptx",
     },
+    // Innova's own synthesis (Valyu report + NA brief + monthly Amazon reports + web review).
+    // Highlights are pinned to the brief's October 2026 numbers; refresh them with the files.
+    brief: {
+      title: "XTOOL: how big a threat, and what Innova should learn",
+      summary:
+        "Out-sold Innova in 6 of the last 12 months; its growth comes from sub-$200 bidirectional tools, not AI.",
+      threatLevel: "high",
+      dataThrough: "2026-10-31",
+      publishedAt: "2026-11-04T22:00:00.000Z",
+      highlights: [
+        { label: "October revenue", value: "$1.93M", note: "Innova $1.41M" },
+        { label: "Rolling 12 gap", value: "−$596K", note: "flips around the Dec report" },
+        { label: "Sub-$200 share", value: "42%", note: "from 28% a year earlier" },
+      ],
+      files: {
+        html: "xtool/xtool_innova_threat_brief.html",
+        pdf: "xtool/xtool_innova_threat_brief.pdf",
+      },
+    },
   },
 ]
 
@@ -90,6 +117,7 @@ export async function listSeedReports() {
     const deliverables = await resolveSeedDeliverables(seed)
     if (!deliverables.length) continue
     const sources = await readSeedSources(seed.companyKey)
+    const brief = await resolveSeedBrief(seed)
     const stamp = seed.createdAt
     outputs.push({
       taskId: seed.seedId,
@@ -100,6 +128,7 @@ export async function listSeedReports() {
       sourcesFound: seed.sourcesFound,
       sources,
       deliverables,
+      brief,
       createdAt: stamp,
       updatedAt: stamp,
       completedAt: stamp,
@@ -138,6 +167,29 @@ export async function resolveSeedDeliverable(seedId: string, type: DeliverableTy
     sizeBytes: meta.size,
     modifiedAt: meta.mtime.toISOString(),
   }
+}
+
+async function resolveSeedBrief(seed: SeedReportConfig): Promise<ResearchBrief | undefined> {
+  if (!seed.brief) return undefined
+  const { files, ...meta } = seed.brief
+  const assets: BriefAssetKind[] = []
+  for (const kind of ["html", "pdf"] as const) {
+    const relPath = files[kind]
+    if (relPath && (await fileExists(path.resolve(SEED_ROOT, relPath)))) assets.push(kind)
+  }
+  if (!assets.length) return undefined
+  return { ...meta, seedId: seed.seedId, assets }
+}
+
+/** Local file for one of a seed's brief assets, or null when unknown / missing. */
+export async function resolveSeedBriefAsset(seedId: string, kind: BriefAssetKind) {
+  const normalized = seedId.trim().toLowerCase()
+  const config = SEED_REPORTS.find((item) => item.seedId === normalized)
+  const relPath = config?.brief?.files[kind]
+  if (!relPath) return null
+  const absolute = path.resolve(SEED_ROOT, relPath)
+  if (!(await fileExists(absolute))) return null
+  return { kind, localPath: absolute, fileName: path.basename(absolute) }
 }
 
 async function resolveSeedDeliverables(seed: SeedReportConfig) {

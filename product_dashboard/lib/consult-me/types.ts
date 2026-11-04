@@ -79,6 +79,32 @@ export type CreateResearchResponse = {
   warning?: string
 }
 
+/**
+ * An analyst brief: Innova's own synthesis on top of a seed's source research
+ * (e.g. the XTOOL threat brief). Shown as the lead item ahead of the deliverables.
+ */
+export type BriefAssetKind = "html" | "pdf"
+export type BriefThreatLevel = "high" | "medium" | "low"
+
+export type ResearchBriefHighlight = {
+  label: string
+  value: string
+  note: string
+}
+
+export type ResearchBrief = {
+  seedId: string
+  title: string
+  summary: string
+  threatLevel: BriefThreatLevel
+  /** Last Amazon snapshot the brief's numbers come from (YYYY-MM-DD). */
+  dataThrough: string
+  publishedAt: string
+  highlights: ResearchBriefHighlight[]
+  /** Brief files that exist on disk; the UI only offers these. */
+  assets: BriefAssetKind[]
+}
+
 export type ResearchStatusResponse = {
   taskId: string
   status: ResearchTaskStatus
@@ -96,6 +122,7 @@ export type ResearchStatusResponse = {
   csvPreview?: CsvPreview
   deliverables: DeliverableFile[]
   sources: ResearchSource[]
+  brief?: ResearchBrief
   usage?: ResearchUsage
   warning?: string
   error?: string
@@ -109,6 +136,7 @@ export type ConsultMeHistoryRecord = {
   researchSubject: string
   status: ResearchTaskStatus
   hasReport: boolean
+  hasBrief?: boolean
   deliverables: DeliverableFile[]
   createdAt: string
   updatedAt: string
@@ -126,6 +154,7 @@ export type ConsultMeCompanyHistory = {
   availableUpdatedAt?: string
   reportCount: number
   availableDeliverableTypes: DeliverableType[]
+  hasBrief?: boolean
 }
 
 export type ConsultMeHistoryResponse = {
