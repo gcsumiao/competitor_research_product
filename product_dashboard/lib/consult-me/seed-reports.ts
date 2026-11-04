@@ -94,7 +94,7 @@ const SEED_REPORTS: SeedReportConfig[] = [
     brief: {
       title: "XTOOL: how big a threat, and what Innova should learn",
       summary:
-        "Out-sold Innova in 6 of the last 12 months; its growth comes from sub-$200 bidirectional tools, not AI.",
+        "Out-sold Innova in 6 of the last 12 months on OBD2, with growth from sub-$200 bidirectional tools, not AI. Outside OBD2 it is the #2 TPMS tool brand.",
       threatLevel: "high",
       dataThrough: "2026-10-31",
       publishedAt: "2026-11-04T22:00:00.000Z",
