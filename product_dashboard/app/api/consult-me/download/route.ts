@@ -2,8 +2,8 @@ import path from "path"
 import { readFile } from "fs/promises"
 import { NextResponse } from "next/server"
 
-import { resolveSeedDeliverable } from "@/lib/consult-me/seed-reports"
-import type { DeliverableType } from "@/lib/consult-me/types"
+import { resolveSeedBriefAsset, resolveSeedDeliverable } from "@/lib/consult-me/seed-reports"
+import type { BriefAssetKind, DeliverableType } from "@/lib/consult-me/types"
 
 const ALLOWED_EXTENSIONS = new Set([".pdf", ".docx", ".csv", ".pptx"])
 const DEFAULT_ALLOWED_REMOTE_HOSTS = ["valyu.ai", "platform.valyu.ai", "api.valyu.ai"]
@@ -28,6 +28,14 @@ export async function GET(request: Request) {
   const type = normalizeType(searchParams.get("type"))
   const dispositionParam = searchParams.get("disposition")?.trim().toLowerCase()
   const disposition = dispositionParam === "inline" ? "inline" : "attachment"
+  const briefParam = searchParams.get("brief")?.trim().toLowerCase()
+
+  if (seedId && briefParam) {
+    if (briefParam !== "html" && briefParam !== "pdf") {
+      return NextResponse.json({ error: "Invalid brief asset" }, { status: 400 })
+    }
+    return downloadSeedBrief(seedId, briefParam, disposition)
+  }
 
   if (seedId) {
     if (!type) {
@@ -68,6 +76,38 @@ async function downloadSeededFile(
     })
   } catch {
     return NextResponse.json({ error: "Failed to read seeded deliverable" }, { status: 500 })
+  }
+}
+
+// The brief HTML runs its own small script (chart tooltips). Served with a CSP sandbox it
+// gets an opaque origin, so even opened directly in a tab it cannot read dashboard cookies
+// or storage; popups are allowed so its source links can open in a new tab.
+const BRIEF_HTML_CSP = "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox"
+
+async function downloadSeedBrief(
+  seedId: string,
+  kind: BriefAssetKind,
+  disposition: "inline" | "attachment"
+) {
+  const asset = await resolveSeedBriefAsset(seedId, kind)
+  if (!asset) {
+    return NextResponse.json({ error: "Brief not found" }, { status: 404 })
+  }
+  try {
+    const bytes = await readFile(asset.localPath)
+    const headers: Record<string, string> = {
+      "Content-Disposition": `${disposition}; filename="${asset.fileName}"`,
+      "X-Content-Type-Options": "nosniff",
+    }
+    if (kind === "html") {
+      headers["Content-Type"] = "text/html; charset=utf-8"
+      headers["Content-Security-Policy"] = BRIEF_HTML_CSP
+    } else {
+      headers["Content-Type"] = CONTENT_TYPES[".pdf"]
+    }
+    return new NextResponse(bytes, { headers })
+  } catch {
+    return NextResponse.json({ error: "Failed to read brief" }, { status: 500 })
   }
 }
 

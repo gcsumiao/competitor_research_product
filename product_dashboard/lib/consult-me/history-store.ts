@@ -107,6 +107,7 @@ export async function listConsultMeHistory(): Promise<ConsultMeHistoryResponse> 
       researchSubject: item.researchSubject,
       status: "completed",
       hasReport: item.deliverables.length > 0,
+      hasBrief: Boolean(item.brief),
       deliverables: item.deliverables,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
@@ -251,9 +252,12 @@ function summarizeCompanies(records: ConsultMeHistoryRecord[]): ConsultMeCompany
         availableDeliverableTypes: record.hasReport
           ? collectDeliverableTypes(record.deliverables)
           : [],
+        hasBrief: Boolean(record.hasBrief),
       })
       continue
     }
+
+    if (record.hasBrief) current.hasBrief = true
 
     if (record.hasReport) {
       current.reportCount += 1

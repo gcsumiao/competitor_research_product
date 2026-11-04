@@ -63,6 +63,7 @@ export async function getResearchTaskStatus(taskId: string): Promise<ResearchSta
       csvPreview: undefined,
       deliverables: seedReport.deliverables,
       sources: seedReport.sources,
+      brief: seedReport.brief,
     }
   }
 

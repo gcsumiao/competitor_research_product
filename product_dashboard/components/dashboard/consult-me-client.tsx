@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { CheckCircle2, Clock3, FileSearch, Trash2, XCircle } from "lucide-react"
+import { CheckCircle2, Clock3, FileSearch, Sparkles, Trash2, XCircle } from "lucide-react"
 
 import { BrandLauncher } from "@/components/consult-me/brand-launcher"
 import { ResearchConsole } from "@/components/consult-me/research-console"
@@ -85,6 +85,7 @@ export function ConsultMeClient({
   const [historyLoading, setHistoryLoading] = useState(false)
   const [deletingHistoryKey, setDeletingHistoryKey] = useState("")
   const queryTaskId = searchParams.get("taskId")?.trim() ?? ""
+  const queryView = searchParams.get("view")?.trim().toLowerCase() === "brief" ? "brief" : undefined
 
   const filteredBrands = (() => {
     const query = searchQuery.trim().toLowerCase()
@@ -297,6 +298,7 @@ export function ConsultMeClient({
           snapshotDate={selectedSnapshot.date}
           externalTaskIdToLoad={externalTaskIdToLoad}
           onExternalTaskLoaded={() => setExternalTaskIdToLoad("")}
+          initialView={queryView}
         />
       </div>
     </>
@@ -364,6 +366,12 @@ function ConsultMeHistorySidebar({
                       <p className="truncate text-sm font-medium text-foreground">{item.companyLabel}</p>
                       <StatusPill status={status} />
                     </div>
+                    {item.hasBrief ? (
+                      <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-[var(--color-accent)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-accent-foreground)]">
+                        <Sparkles className="h-3 w-3" aria-hidden="true" />
+                        Threat brief
+                      </span>
+                    ) : null}
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       {`Updated ${formatDateTime(item.latestUpdatedAt)}`}
                     </p>
@@ -410,7 +418,7 @@ function ConsultMeHistorySidebar({
                     >
                       <p className="truncate text-xs font-medium text-foreground">{record.companyLabel}</p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {`Completed ${formatDateTime(record.updatedAt)}`}
+                        {`Completed ${formatDateTime(record.updatedAt)}${record.hasBrief ? " · Brief + research" : ""}`}
                       </p>
                     </button>
                     <button
@@ -494,6 +502,7 @@ function ConsultMeSession({
   snapshotDate,
   externalTaskIdToLoad,
   onExternalTaskLoaded,
+  initialView,
 }: {
   selectedBrand: string
   brands: RankedBrand[]
@@ -522,6 +531,7 @@ function ConsultMeSession({
   snapshotDate: string
   externalTaskIdToLoad: string
   onExternalTaskLoaded: () => void
+  initialView?: "brief"
 }) {
   function clearPersistedTask() {
     onTaskStatusChange(null)
@@ -755,6 +765,8 @@ function ConsultMeSession({
         sourcesFound={taskStatus?.sourcesFound ?? 0}
         activityFeed={taskStatus?.activityFeed ?? []}
         onStartNewResearch={startNewResearch}
+        snapshotDate={snapshotDate}
+        initialView={initialView}
       />
     </div>
   )
