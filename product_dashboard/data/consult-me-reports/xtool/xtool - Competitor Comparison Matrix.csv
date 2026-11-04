@@ -1,0 +1,136 @@
+Entity,Metric,Value,Unit,Period,Sources,Note
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Headcount reported by Tracxn,40,employees,"Aug 31, 2026",[1],Contested across sources; unestablished.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Headcount identified by ContactOut directory,36,employees,Jul 2026,[25],Last verified Jul 2026; company marketing copy claims more than 500 employees.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Estimated annual revenue listed by ContactOut,195,USD k,2026,[25],Inconsistent with claimed scale and uncorroborated elsewhere.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",R&D engineering staff claimed by company,200,engineers,2026,[3],Company claim of 200+ engineers.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",End users claimed by company,550000,users,2026,[3],"Claimed 550,000+ end users."
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Qualified distributors claimed by company,360,distributors,2026,[3],Claimed 360+ qualified distributors.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Channel partners claimed by company,800,partners,2026,[3],Claimed 800+ channel partners.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Geographic footprint / countries claimed by company,75,countries,2026,[3],Claimed 75+ business-covering countries.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Channel partner country reach claimed by company,100,countries,2026,[3],Claimed across 100+ countries.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Production workshop facility area,10000,sqm,2026,[3],"Claimed 10,000 sqm production workshop."
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Patents held claimed by company,360,patents,2026,[4],Claimed 360+ patents.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",OEM relationships claimed by company,50,OEMs,2026,[4],Claimed trusted by 50+ OEMs.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Global vehicle compatibility rate claimed,98,%,2026,[3],Claimed compatible with 98% of global vehicles.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Mainstream global vehicle coverage claimed in X-IDS 3.0,99,%,2026,[4],Claimed 99% mainstream global vehicle coverage.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Industry awards received,20,awards,2026,[4],Claimed 20+ industry awards.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Tracxn competitor rank among active competitors,6,rank,2026,[1],Ranked 6th among 60 active competitors by Tracxn.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Tracxn competitor funding rank,6,rank,2026,[1],Ranked 6th in terms of total funding among active competitors.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Institutional investors count reported by Tracxn,1,investors,2026,[1],Lingzhong Capital.
+"Shenzhen Xtooltech Intelligent Co., Ltd.",Investments made count reported by Tracxn,1,investments,2026,[1],Soda Car; 0 acquisitions.
+"Shenzhen Xtooltech Intelligent Co., Ltd. (xtoolglobal.com)",Trustpilot TrustScore rating,2.1,score out of 5,2026,[13],Based on 11 reviews.
+"Shenzhen Xtooltech Intelligent Co., Ltd. (xtoolglobal.com)",Trustpilot review count,11,reviews,2026,[13],Low review count signal.
+"XTOOL D-Series Top Performers (D7, D7W, D9S PRO)",E-commerce conversion rate range low,1,%,2025,[20],From Alibaba smartbuy guide.
+"XTOOL D-Series Top Performers (D7, D7W, D9S PRO)",E-commerce conversion rate range high,1.5,%,2025,[20],From Alibaba smartbuy guide.
+"XTOOL D-Series Top Performers (D7, D7W, D9S PRO)",Average order value range low,275,USD,2025,[20],From Alibaba smartbuy guide.
+"XTOOL D-Series Top Performers (D7, D7W, D9S PRO)",Average order value range high,300,USD,2025,[20],From Alibaba smartbuy guide.
+ANCEL,Amazon US OBD2 scanner sales volume market share,30,%,Nov 2025,[11],Over 30% of Amazon US OBD2 sales volume; market volume leader.
+Autel MaxiSys MS906 Pro,Retail price range low,1500,USD,2026,[11] [26],Premium tier competitor benchmark.
+Autel MaxiSys MS906 Pro,Retail price range high,2000,USD,2026,[11] [26],Premium tier competitor benchmark.
+Launch X431 PAD V,Starting retail price,1800,USD,2026,[11] [26],Flagship tier starting price.
+AD20 Pro,Retail price low (eBay),34.99,USD,2026,[14] [15],"OBD2 dongle; includes CAN FD, all-system scan, lifetime free updates."
+AD20 Pro,Retail price high (eBay),49.99,USD,2026,[14] [15],"OBD2 dongle; includes CAN FD, all-system scan, lifetime free updates."
+D8S,Price,529,USD,2026,[26] [7],"Tablet; Android 10, quad-core 1.8GHz, 4GB RAM, 64GB storage, 5000mAh, 8-inch screen."
+D8S,Service resets,42,resets,2026,[26],42+ service resets.
+D8S,Bidirectional active tests,4000,tests,2026,[26],"4,000+ bidirectional active tests."
+D9S Pro,Price,1099,USD,2026,[26] [7],"Tablet; Android 10, quad-core 1.8GHz, 4GB RAM, 128GB ROM, 9.7-inch, 6400mAh 7.4V."
+D9S,Free software update period,3,years,2026,[29] [7],Followed by annual paid renewals.
+D9S,Annual renewal price,258,USD/year,2026,[29] [7],Renewal after 3-year free period.
+D9 MAX,Price (eBay),1399,USD,2026,[30] [29],"Tablet; J2534 ECU programming, 9.7-inch screen, 6400mAh 7.2V."
+D9 MAX,Service functions,42,services,2026,[30],42+ special services.
+IP919 Pro,RAM capacity,8,GB,2026,[26],"8-core Qualcomm processor, 128GB storage."
+IP919 Pro,Screen size,10.1,inches,2026,[26],1920x1200 sunlight-readable display.
+IP919 Pro,Service functions,51,services,2026,[26],51+ service functions.
+IP919 Pro,Bidirectional active tests,4000,tests,2026,[26],"4,000+ bidirectional tests."
+IP919 MAX,Price low (eBay),1799,USD,2026,[8] [9],Flagship tablet with J2534 programming.
+IP919 MAX,Price high (eBay),1899,USD,2026,[8] [9],Flagship tablet with J2534 programming.
+IP919 MAX,Free software update period,3,years,2026,[8] [9],Includes 2-year warranty.
+IP919 MAX,Warranty period,2,years,2026,[8] [9],2-year manufacturer warranty.
+IP919 MAX,Service functions,51,services,2026,[8] [9],51 services.
+IP919 MAX,Bidirectional active tests,4000,tests,2026,[8] [9],"4,000+ bidirectional tests."
+Prodigy,Screen size,13.3,inches,2025,[12] [6],Flagship ecosystem tablet; Identifix not supported in US.
+XT90,Price (eBay),1211.41,USD,2026,[31] [16],"9.7-inch touchscreen, ECU coding, 42 special functions."
+XT90,Special service functions,42,functions,2026,[31],42 special functions.
+XT70 / XT70W,1-yr special,180,USD,Oct 2026,[16],Special renewal price.
+XT70 / XT70W,1-yr list,224,USD,Oct 2026,[16],List renewal price.
+XT70 / XT70W,2-yr special,252,USD,Oct 2026,[16],Two-year special renewal price.
+XT70 / XT70W,2-yr list,328,USD,Oct 2026,[16],Two-year list renewal price.
+XT80,1-yr special,368,USD,Oct 2026,[16],Special renewal price.
+XT80,1-yr list,448,USD,Oct 2026,[16],List renewal price.
+XT80,2-yr special,515,USD,Oct 2026,[16],Two-year special renewal price.
+XT80,2-yr list,670,USD,Oct 2026,[16],Two-year list renewal price.
+XT80W,1-yr special,358,USD,Oct 2026,[16],Special renewal price.
+XT80W,1-yr list,448,USD,Oct 2026,[16],List renewal price.
+XT80W,2-yr special,501,USD,Oct 2026,[16],Two-year special renewal price.
+XT80W,2-yr list,652,USD,Oct 2026,[16],Two-year list renewal price.
+XT90,1-yr special,648,USD,Oct 2026,[16],Special renewal price.
+XT90,1-yr list,808,USD,Oct 2026,[16],List renewal price.
+XT90,2-yr special,907,USD,Oct 2026,[16],Two-year special renewal price.
+XT90,2-yr list,1179,USD,Oct 2026,[16],Two-year list renewal price.
+IP819TP / IP819,1-yr special,298,USD,Oct 2026,[16],Special renewal price.
+IP819TP / IP819,1-yr list,380,USD,Oct 2026,[16],List renewal price.
+IP819TP / IP819,2-yr special,417,USD,Oct 2026,[16],Two-year special renewal price.
+IP819TP / IP819,2-yr list,542,USD,Oct 2026,[16],Two-year list renewal price.
+D7 Series,1-yr special,180,USD,Oct 2026,[16],Special renewal price.
+D7 Series,1-yr list,224,USD,Oct 2026,[16],List renewal price.
+D7 Series,2-yr special,252,USD,Oct 2026,[16],Two-year special renewal price.
+D7 Series,2-yr list,328,USD,Oct 2026,[16],Two-year list renewal price.
+D8 Series,1-yr special,368,USD,Oct 2026,[16],Special renewal price.
+D8 Series,1-yr list,448,USD,Oct 2026,[16],List renewal price.
+D8 Series,2-yr special,515,USD,Oct 2026,[16],Two-year special renewal price.
+D8 Series,2-yr list,670,USD,Oct 2026,[16],Two-year list renewal price.
+D9 Pro / D9S PRO,1-yr special,648,USD,Oct 2026,[16],Special renewal price.
+D9 Pro / D9S PRO,1-yr list,808,USD,Oct 2026,[16],List renewal price.
+D9 Pro / D9S PRO,2-yr special,907,USD,Oct 2026,[16],Two-year special renewal price.
+D9 Pro / D9S PRO,2-yr list,1179,USD,Oct 2026,[16],Two-year list renewal price.
+D9HD,1-yr special,648,USD,Oct 2026,[16],Special renewal price.
+D9HD,1-yr list,808,USD,Oct 2026,[16],List renewal price.
+D9HD,2-yr special,907,USD,Oct 2026,[16],Two-year special renewal price.
+D9HD,2-yr list,1179,USD,Oct 2026,[16],Two-year list renewal price.
+H6W 2,1-yr special,368,USD,Oct 2026,[16],Special renewal price.
+H6W 2,1-yr list,448,USD,Oct 2026,[16],List renewal price.
+H6W 2,2-yr special,515,USD,Oct 2026,[16],Two-year special renewal price.
+H6W 2,2-yr list,670,USD,Oct 2026,[16],Two-year list renewal price.
+H6Elite 2,1-yr special,368,USD,Oct 2026,[16],Special renewal price.
+H6Elite 2,1-yr list,448,USD,Oct 2026,[16],List renewal price.
+H6Elite 2,2-yr special,515,USD,Oct 2026,[16],Two-year special renewal price.
+H6Elite 2,2-yr list,670,USD,Oct 2026,[16],Two-year list renewal price.
+H6PRO 3,1-yr special,819,USD,Oct 2026,[16],Special renewal price.
+H6PRO 3,1-yr list,1029,USD,Oct 2026,[16],List renewal price.
+H6PRO 3,2-yr special,1147,USD,Oct 2026,[16],Two-year special renewal price.
+H6PRO 3,2-yr list,1491,USD,Oct 2026,[16],Two-year list renewal price.
+Compass,1-yr special,868,USD,Oct 2026,[16],Special renewal price.
+Compass,1-yr list,1128,USD,Oct 2026,[16],List renewal price.
+Compass,2-yr special,1215,USD,Oct 2026,[16],Two-year special renewal price.
+Compass,2-yr list,1580,USD,Oct 2026,[16],Two-year list renewal price.
+Compass Master,1-yr special,868,USD,Oct 2026,[16],Special renewal price.
+Compass Master,1-yr list,1128,USD,Oct 2026,[16],List renewal price.
+Compass Master,2-yr special,1215,USD,Oct 2026,[16],Two-year special renewal price.
+Compass Master,2-yr list,1580,USD,Oct 2026,[16],Two-year list renewal price.
+Prodigy,1-yr special,1220,USD,Oct 2026,[16],Special renewal price.
+Prodigy,1-yr list,1570,USD,Oct 2026,[16],List renewal price.
+Prodigy,2-yr special,1708,USD,Oct 2026,[16],Two-year special renewal price.
+Prodigy,2-yr list,2220,USD,Oct 2026,[16],Two-year list renewal price.
+N9EV 2,1-yr special,1050,USD,Oct 2026,[16],Special renewal price.
+N9EV 2,1-yr list,1350,USD,Oct 2026,[16],List renewal price.
+N9EV 2,2-yr special,1470,USD,Oct 2026,[16],Two-year special renewal price.
+N9EV 2,2-yr list,1911,USD,Oct 2026,[16],Two-year list renewal price.
+N9EV,1-yr special,1050,USD,Oct 2026,[16],Special renewal price.
+N9EV,1-yr list,1350,USD,Oct 2026,[16],List renewal price.
+N9EV,2-yr special,1470,USD,Oct 2026,[16],Two-year special renewal price.
+N9EV,2-yr list,1911,USD,Oct 2026,[16],Two-year list renewal price.
+E2S,1-yr special,1050,USD,Oct 2026,[16],Special renewal price.
+E2S,1-yr list,1350,USD,Oct 2026,[16],List renewal price.
+E2S,2-yr special,1470,USD,Oct 2026,[16],Two-year special renewal price.
+E2S,2-yr list,1911,USD,Oct 2026,[16],Two-year list renewal price.
+E2Pro,1-yr special,1208,USD,Oct 2026,[16],Special renewal price.
+E2Pro,1-yr list,1568,USD,Oct 2026,[16],List renewal price.
+E2Pro,2-yr special,1691,USD,Oct 2026,[16],Two-year special renewal price.
+E2Pro,2-yr list,2199,USD,Oct 2026,[16],Two-year list renewal price.
+IK618,1-yr special,518,USD,Oct 2026,[16],Special renewal price.
+IK618,1-yr list,673,USD,Oct 2026,[16],List renewal price.
+X100PADS,1-yr special,350,USD,Oct 2026,[16],Special renewal price.
+X100PADS,1-yr list,450,USD,Oct 2026,[16],List renewal price.
+X100PAD Elite SE,1-yr special,700,USD,Oct 2026,[16],Special renewal price.
+X100PAD Elite SE,1-yr list,900,USD,Oct 2026,[16],List renewal price.
+xTool (Makeblock laser-engraving company - separate entity),Reported revenue benchmarked against Glowforge/BossLaser,3.9,USD m,Aug 2025,[20],"Laser cutter business, not Shenzhen Xtooltech Intelligent automotive diagnostic co."
