@@ -66,6 +66,22 @@ const SEED_REPORTS: SeedReportConfig[] = [
       docx: "topdon/topdon - Executive Summary one-page due diligence.docx",
     },
   },
+  {
+    seedId: "seed:xtool",
+    companyKey: "xtool",
+    companyLabel: "XTOOL",
+    researchSubject: "XTOOL vehicle diagnostic",
+    sourcesFound: 31,
+    createdAt: "2026-11-04T18:39:06.000Z",
+    // Renamed from Valyu's "Shenzhen Xtooltech Intelligent Co Ltd XTOOL - …" exports:
+    // the U+2026 ellipsis is not a valid ByteString in the Content-Disposition header.
+    deliverables: {
+      pdf: "xtool/xtool_research-report.pdf",
+      csv: "xtool/xtool - Competitor Comparison Matrix.csv",
+      docx: "xtool/xtool - Executive Summary.docx",
+      pptx: "xtool/xtool - Executive Presentation Deck.pptx",
+    },
+  },
 ]
 
 export async function listSeedReports() {
