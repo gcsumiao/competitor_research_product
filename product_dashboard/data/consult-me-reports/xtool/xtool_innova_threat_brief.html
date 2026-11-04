@@ -118,6 +118,9 @@ tr:last-child td{border-bottom:0}
 table.wrap th{white-space:normal}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 details{margin:6px 0}
+details.fold{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 14px;margin:14px 0}
+details.fold > summary{font-size:14px;font-weight:600;color:var(--ink)}
+details.fold[open] > summary{margin-bottom:6px}
 details summary{cursor:pointer;font-size:13px;color:var(--ink-2)}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .callout{border-radius:8px;padding:12px 14px;margin:12px 0;background:var(--surface);border:1px solid var(--line)}
@@ -155,6 +158,9 @@ footer{font-size:12px;color:var(--ink-3);margin-top:18px}
   section > h2{break-after:avoid}
   .fig,.tile,.callout,tr,.verdict{break-inside:avoid}
   details{display:block} details > summary{display:none}
+  details.fold{border:0;background:none;padding:0}
+  details.fold > summary{display:block;list-style:none;font-size:13px;font-weight:600;color:var(--ink);margin:8px 0 4px}
+  details.fold > summary::-webkit-details-marker{display:none}
   details > *{display:block}
   html{zoom:.86}
   .tw{overflow:visible}
@@ -178,16 +184,15 @@ footer{font-size:12px;color:var(--ink-3);margin-top:18px}
 <h1>XTOOL: how big a threat, and what Innova should learn</h1>
 <p class="sub">A synthesis of the Valyu deep-research report on Shenzhen Xtooltech (4 Nov 2026), the internal North America brief (4 Nov 2026), sixteen months of Innova's Amazon code-reader reports (Jul 2025 – Oct 2026), and a review of XTOOL's own sites — en.xtooltech.com, xtoolglobal.com and xtooltech.us — on 4 November 2026.</p>
 <nav class="toc">
-<a href="#company">1 · Company</a><a href="#amazon">2 · Amazon performance</a><a href="#growth">3 · Growth drivers</a><a href="#shelf">4 · Where it meets Innova</a><a href="#beyond">5 · Beyond OBD2</a><a href="#ai">6 · AI: claims vs evidence</a><a href="#pricing">7 · Pricing &amp; updates</a><a href="#channels">8 · Channels &amp; brand</a><a href="#threats">9 · Threats</a><a href="#actions">10 · Lessons &amp; actions</a><a href="#method">11 · Method &amp; sources</a>
+<a href="#findings-obd2">Findings: OBD2</a><a href="#findings-nonobd2">Findings: non-OBD2</a><a href="#company">1 · Company</a><a href="#amazon">2 · Amazon performance</a><a href="#growth">3 · Growth drivers</a><a href="#shelf">4 · Where it meets Innova</a><a href="#beyond">5 · Beyond OBD2</a><a href="#ai">6 · AI: claims vs evidence</a><a href="#pricing">7 · Pricing &amp; updates</a><a href="#channels">8 · Channels &amp; brand</a><a href="#threats">9 · Threats</a><a href="#actions">10 · Lessons &amp; actions</a><a href="#method">11 · Method &amp; sources</a>
 </nav>
 </header>
 <div class="verdict"><div class="k">Bottom line</div>
 <p><b>OBD2:</b> XTOOL is now a direct and growing threat to Innova on Amazon. It out-sold Innova in 6 of the last 12 months, including October by 37%, and is on course to pass Innova on rolling-12 revenue around the turn of the year. The threat is <b>price-to-feature hardware moving down into Innova's $90–$300 zone</b>, not AI.<br>
-<b>Non-OBD2:</b> XTOOL is no threat to Innova's current non-OBD lineup (meters, test lights, timing lights, thermal camera, inspection cameras). It is, however, the <b>#2 brand in TPMS tools</b>, the category Innova plans to enter with the HT35.</p></div>
+<b>Non-OBD2:</b> XTOOL is the <b>#2 brand in TPMS tools</b>, the category Innova plans to enter with the HT35. In Innova's other non-OBD categories it has no DIY product on Amazon today, but it is building a pro workshop ecosystem whose gaps (scope module, 12V battery tester, thermal camera) sit in Innova's lines.</p></div>
 <div class="tiles"><div class="tile"><div class="l">October Amazon revenue</div><div class="v">$1.93M</div><div class="d">+4.3% vs Sep · Innova $1.41M</div></div><div class="tile"><div class="l">Rolling 12-month revenue</div><div class="v">$19.74M</div><div class="d">#7 brand · Innova $20.34M (#6)</div></div><div class="tile"><div class="l">Growth, last 6 vs prior 6 months</div><div class="v">+14.8%</div><div class="d">Innova −7.4% · market +7.1%</div></div><div class="tile"><div class="l">XTOOL revenue from listings under $200</div><div class="v">42%</div><div class="d">Aug–Oct 2026, up from 28% a year earlier</div></div><div class="tile"><div class="l">XTOOL revenue with 'AI' in the title</div><div class="v">52%</div><div class="d">June 2026, the #1 'AI'-labelled brand on Amazon ($931K)</div></div><div class="tile"><div class="l">XTOOL share of TPMS programmers</div><div class="v">21%</div><div class="d">Non-OBD: #2 behind Autel; the HT35's category</div></div></div>
-<section id="summary"><div class="num">Key findings</div>
-<h2>What we found, by product family</h2>
-<h3>OBD2 tools: Innova's core business</h3>
+<section id="findings-obd2"><div class="num">Key findings · OBD2 tools</div>
+<h2>OBD2 tools: Innova's core business</h2>
 <ol class="tk">
 <li><b>Scale:</b> $19.74M on Amazon US over the last 12 months (#7 brand), 2.9% behind Innova (#6). Its last six months grew +14.8% while Innova fell 7.4%.</li>
 <li><b>Growth is low-priced:</b> all of XTOOL's net growth came from sub-$200 models (A30M/A30D phone dongles, D5/D5S tablets, IP500 make-specific tablets). Sub-$200 models now make up 42% of its revenue, up from 28%, and its average selling price fell from $275 to $223.</li>
@@ -196,19 +201,18 @@ footer{font-size:12px;color:var(--ink-3);margin-top:18px}
 <li><b>The "AI" label is everywhere but is not driving sales:</b> in June 52% of XTOOL's Amazon revenue carried "AI" in the title, more than any other brand, but its AI-first D7 and D8 families are flat year over year. Category-wide, AI-titled revenue grew from 1.1% to 5.7% (Jul 2025 – Jun 2026). MUCAR is the most AI-dependent brand (about 2.9× growth in a year).</li>
 <li><b>Innova's opening:</b> no-subscription ownership, US-built verified repair data (RepairSolutions2) and US support. XTOOL charges renewals from the D7 up, its apps rate 2.4–2.9★ (vs RS2 4.8★), it has no US store retail, and its US repair-data coverage is unclear.</li>
 </ol>
-<h3>Non-OBD2 tools: Innova's other lines and planned categories</h3>
+</section>
+<section id="findings-nonobd2"><div class="num">Key findings · Non-OBD2 tools</div>
+<h2>Non-OBD2 tools: Innova's other lines and planned categories</h2>
 <ol class="tk">
 <li><b>XTOOL's footprint outside OBD2 is narrow:</b> in every Amazon pull behind Innova's category research, XTOOL appears only in TPMS tools and, with one listing, in borescopes. Its other non-OBD lines (key programming, EV/battery service, ADAS, J2534) are professional tools sold mainly through dealers.</li>
-<li><b>No threat today to Innova's current non-OBD lineup:</b> XTOOL has no DIY multimeter, test light, circuit tester, timing light, thermal camera, gauge or OBD1 reader. Its only meter is the V1000, a 1000 V EV insulation tester for shops with no US retail listing. In inspection cameras its XV200 ($2K/mo, rank #76) is a token presence next to Innova's 3380/3381, and it is a tablet accessory mostly sold in bundles.</li>
 <li><b>TPMS is the exception, and it is where Innova is heading:</b> XTOOL holds 21% of dedicated TPMS programmer revenue (#2; Autel 57%). Its TP150 is the price-setting best seller at $143–159. The March 2026 TP300/TP380 already combine TPMS with OBD2 codes ($219–268 on Amazon), the HT35's intended differentiator, and every XTOOL tool programs only XTOOL's own $19–25 sensors.</li>
 <li><b>What to watch:</b> XTOOL is building a pro workshop ecosystem (EV battery service, ADAS frames, key/ECU programming, tablet add-ons). Its gaps against Autel and Launch are a scope module, a 12V battery tester and a thermal camera; filling them would put it in Innova's meter, tester and thermal lines. Also watch its phone-programmed TS100 NFC sensors, which could make a DIY TPMS tool unnecessary.</li>
 </ol>
-<div class="tw"><table class="wrap"><thead><tr><th>Innova non-OBD2 line</th><th>Innova models (innova.com price)</th><th>XTOOL on Amazon</th><th>Threat</th><th>Basis</th></tr></thead><tbody><tr><td>Multimeters + amp probe</td><td>3300a $23.52 · 3306 $28.22 · 3340 $129 · 3347 probe $94.11</td><td>No DIY meter. Its only meter is the V1000 1000 V EV insulation multimeter (pro, no price, no US retail listing)</td><td><span class="pill none">None</span></td><td class="muted">DMM pull, Mar 2026; XTOOL site</td></tr><tr><td>Test lights + circuit testers</td><td>3410 $23.52 · 3420 $39.40 · 3430 $47.05 · 5420 PowerCheck $99.99</td><td>No listing</td><td><span class="pill none">None</span></td><td class="muted">Power-circuit-tester pull, Oct 2026</td></tr><tr><td>Timing lights</td><td>3551 $58.81 · 3555 $70.58 · 3568 $117.64 · 5568a $141.16</td><td>No listing</td><td><span class="pill none">None</span></td><td class="muted">Timing-light pull, Oct 2026</td></tr><tr><td>Inspection cameras</td><td>3380 / 3381 $99.99</td><td>XV200 USB-C camera that runs inside XTOOL's tablet app, $69.99: $2K/mo, rank #76 of a $5.1M/mo category. Mostly sold as a bundle with D7, D8S, D9S Pro, IP919 PRO and XT80/XT90</td><td><span class="pill low">Low</span></td><td class="muted">Borescope pull, Sep 2026</td></tr><tr><td>Thermal camera</td><td>3360 $200</td><td>No listing</td><td><span class="pill none">None</span></td><td class="muted">Thermal-imager pull, Apr 2026</td></tr><tr><td>Mechanical testers</td><td>3601 tire gauge $7.05 · 3620 fuel-pressure tester $29.40</td><td>No listing</td><td><span class="pill none">None</span></td><td class="muted">Tire-gauge pull, Oct 2026 (fuel-pressure not researched)</td></tr><tr><td>OBD1 code readers + adapters</td><td>3123 · 3145 · 3165 · 3170RS · OBD1 kits</td><td>No OBD1 code reader; OBD1 only via adapters on the pro H6 PRO 3 tablet</td><td><span class="pill none">None</span></td><td class="muted">XTOOL catalogs, 4 Nov 2026</td></tr><tr><td><b>Planned: TPMS tool (HT35)</b></td><td>Not yet sold (proposed $159.99 online / $179.99 AutoZone)</td><td>#2 brand, 21% of dedicated-programmer revenue. TP150 is the price setter at $143–159; the 2026 TP300/TP380 TPMS + OBD2 combos sell at $219–268. Programs only its own TS100 sensors</td><td><span class="pill med">Medium–high</span></td><td class="muted">TPMS pull, Oct 2026</td></tr><tr><td>Other categories under research</td><td>12V battery tester / monitor, oscilloscope, cooling-system kit, smoke machine, jump starter, tire inflator, NVH, misfire kit</td><td>No product. XTOOL has no scope module, 12V battery tester or thermal camera, the add-ons Autel and Launch offer</td><td><span class="pill none">None</span></td><td class="muted">Latest pulls, Mar–Oct 2026; XTOOL catalogs</td></tr></tbody></table></div>
+<details class="fold"><summary>Threat table: every Innova non-OBD2 line vs XTOOL</summary><div class="tw"><table class="wrap"><thead><tr><th>Innova non-OBD2 line</th><th>Innova models (innova.com price)</th><th>XTOOL on Amazon</th><th>Threat</th><th>Basis</th></tr></thead><tbody><tr><td>Multimeters + amp probe</td><td>3300a $23.52 · 3306 $28.22 · 3340 $129 · 3347 probe $94.11</td><td>No DIY meter. Its only meter is the V1000 1000 V EV insulation multimeter (pro, no price, no US retail listing)</td><td><span class="pill none">None</span></td><td class="muted">DMM pull, Mar 2026; XTOOL site</td></tr><tr><td>Test lights + circuit testers</td><td>3410 $23.52 · 3420 $39.40 · 3430 $47.05 · 5420 PowerCheck $99.99</td><td>No listing</td><td><span class="pill none">None</span></td><td class="muted">Power-circuit-tester pull, Oct 2026</td></tr><tr><td>Timing lights</td><td>3551 $58.81 · 3555 $70.58 · 3568 $117.64 · 5568a $141.16</td><td>No listing</td><td><span class="pill none">None</span></td><td class="muted">Timing-light pull, Oct 2026</td></tr><tr><td>Inspection cameras</td><td>3380 / 3381 $99.99</td><td>XV200 USB-C camera that runs inside XTOOL's tablet app, $69.99: $2K/mo, rank #76 of a $5.1M/mo category. Mostly sold as a bundle with D7, D8S, D9S Pro, IP919 PRO and XT80/XT90</td><td><span class="pill low">Low</span></td><td class="muted">Borescope pull, Sep 2026</td></tr><tr><td>Thermal camera</td><td>3360 $200</td><td>No listing</td><td><span class="pill none">None</span></td><td class="muted">Thermal-imager pull, Apr 2026</td></tr><tr><td>Mechanical testers</td><td>3601 tire gauge $7.05 · 3620 fuel-pressure tester $29.40</td><td>No listing</td><td><span class="pill none">None</span></td><td class="muted">Tire-gauge pull, Oct 2026 (fuel-pressure not researched)</td></tr><tr><td>OBD1 code readers + adapters</td><td>3123 · 3145 · 3165 · 3170RS · OBD1 kits</td><td>No OBD1 code reader; OBD1 only via adapters on the pro H6 PRO 3 tablet</td><td><span class="pill none">None</span></td><td class="muted">XTOOL catalogs, 4 Nov 2026</td></tr><tr><td><b>Planned: TPMS tool (HT35)</b></td><td>Not yet sold (proposed $159.99 online / $179.99 AutoZone)</td><td>#2 brand, 21% of dedicated-programmer revenue. TP150 is the price setter at $143–159; the 2026 TP300/TP380 TPMS + OBD2 combos sell at $219–268. Programs only its own TS100 sensors</td><td><span class="pill med">Medium–high</span></td><td class="muted">TPMS pull, Oct 2026</td></tr><tr><td>Other categories under research</td><td>12V battery tester / monitor, oscilloscope, cooling-system kit, smoke machine, jump starter, tire inflator, NVH, misfire kit</td><td>No product. XTOOL has no scope module, 12V battery tester or thermal camera, the add-ons Autel and Launch offer</td><td><span class="pill none">None</span></td><td class="muted">Latest pulls, Mar–Oct 2026; XTOOL catalogs</td></tr></tbody></table></div></details>
 </section>
 <section id="company"><div class="num">1 · Company snapshot</div>
 <h2>A scaled, private Shenzhen hardware maker with a US subsidiary, and few verified numbers</h2>
-<div class="cols">
-<div>
 <h3>What is established</h3>
 <ul class="tk">
 <li>Shenzhen Xtooltech Intelligent Co., Ltd., founded 2010 in Shenzhen; private, with no audited financials, revenue, valuation or named leadership disclosed. Tracxn lists one institutional investor (Lingzhong Capital).</li>
@@ -216,24 +220,14 @@ footer{font-size:12px;color:var(--ink-3);margin-top:18px}
 <li><b>North American readiness:</b> AutoAuth for FCA secure gateways in the US, Canada and Mexico, and NASTF Secure Data Release Model access live from April 2026. It also attends trade shows in Mexico (PAACE Automechanika, July 2026) and has an authorised EV-tool dealer in Canada (Ingenext, Quebec).</li>
 <li><b>Portfolio breadth:</b> phone dongles (AD20, A30), DIY/prosumer tablets (D5–D9, IP500, InPlus IP-series), professional tablets (XT70–XT90, Prodigy, Compass), key programming (X100, IK618, KC adapters), TPMS (TP series), ADAS calibration, J2534 VCIs, and EV/battery service (E2, N9EV, BEC2440).</li>
 </ul>
-</div>
-<div>
-<h3>What is claimed, not verified</h3>
-<ul class="tk">
-<li>550,000+ end users, 360+ qualified distributors, 800+ channel partners, 75–100+ countries, 200+ engineers, 360+ patents, "trusted by 50+ OEMs", 98–99% vehicle coverage.</li>
-<li>Headcount is contradictory: Tracxn says 40, ContactOut found 36 profiles, and company copy claims "more than 500".</li>
-<li>Certifications listed include ISO 9001, IATF 16949 and ETI membership (US and Europe).</li>
-<li class="muted"><b>Identity trap:</b> "xTool" (xtool.com) is an unrelated laser-engraver company. Its revenue figures, Wikipedia page, Trustpilot page and a Reddit "class action" thread are often mis-attributed to XTOOL diagnostics.</li>
-</ul>
-</div>
-</div>
 
-<h3>What XTOOL's three sites push (checked 4 Nov 2026)</h3>
+<details class="fold"><summary>What XTOOL's three sites push (checked 4 Nov 2026)</summary>
 <div class="tw"><table class="wrap"><thead><tr><th>Site</th><th>Role</th><th>What it leads with</th><th>Notable</th></tr></thead><tbody>
 <tr><td><b>en.xtooltech.com</b></td><td>Global corporate and B2B</td><td>"See Everything, Fix Anything"; one-stop EV service; Compass Master, Prodigy, A30X, XT90, E2 Pro. The technology page pitches Gmate AI and X-IDS 3.0.</td><td>Spec tables mark an "AI Assistant" on D7BT, D7X, D9S, IP616–IP919 and N9EV; the D8 (2026) has "AI-powered automatic analysis". <b>No AI on the A30, AD20, D5 or D6 spec pages.</b> 2026 show list includes AAPEX and SEMA (3–6 Nov). Monthly coverage updates; the Sep 2026 release added 2026–27 GM EVs.</td></tr>
 <tr><td><b>xtoolglobal.com</b></td><td>Official direct-to-consumer store (USD, 143 SKUs)</td><td>The A30M kit is the hero; carousels show IP919 MAX, X100 MAX 2, D9 MAX, IP900BT, D7.</td><td>No AI claims on the homepage (AI appears only in blog posts). 30-day money-back guarantee, 2-year warranty, US warehouse. New D8 V3.0 ($479) and D8BT V3.0 ($529) from 22 Sep 2026. Prices are nearly flat since early 2025 (D7 $349 → $359; A30M $129 → $133).</td></tr>
 <tr><td><b>xtooltech.us</b></td><td>XTOOLTECH USA, Ontario CA: dealer and pro channel (17 SKUs)</td><td>N9EV EV tool, XT90, TS100 PRO</td><td>No AI marketing. <b>List prices are up sharply since 2024</b>: AD20 $19 → $49, A30M $194 → $275, XT90 $1,496 → $2,317, N9EV $2,971 → $3,888. The cause is unverified (tariffs are plausible); store and Amazon prices did not follow.</td></tr>
 </tbody></table></div>
+</details>
 <ul class="tk">
 <li><b>Litigation:</b> Autel sued XTOOL and XTOOLTECH USA for patent infringement (C.D. Cal. 5:25-cv-01755, filed 11 Jul 2025, US 11,845,451; the accused product is the D8S). The status is unknown. The new D8 V3.0 might be a redesign, but that is unconfirmed.</li>
 <li><b>US data partnerships:</b> XTOOL USA announced Solera/Identifix Direct-Hit inside the Prodigy and Compass in May 2025, as a paid add-on on the Compass. XTOOL's own store blog (Mar 2026) says Identifix is "not supported for devices used within the United States". Treat US repair-data coverage as unclear.</li>
