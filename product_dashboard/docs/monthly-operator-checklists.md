@@ -117,3 +117,17 @@ pnpm -C product_dashboard db:ingest:non-code
 ## Dashboard cache revalidation
 
 After running `pnpm db:ingest:code-reader` or `pnpm db:ingest:non-code`, watch the ingest output for `Failed to revalidate` warnings. The revalidate call is a silent no-op when `DASHBOARD_REVALIDATE_URL` or `DASHBOARD_REVALIDATE_SECRET` is unset. Allow ~60 seconds after ingest for the in-process memo TTL to expire before spot-checking the dashboard.
+
+## Auto-intel export
+
+`GET /api/export/brands?category=<category_id>[&snapshot=YYYY-MM-DD]` serves the machine-readable brand export that the auto-intel pipeline (`Automotive_Tools_Market_IntelL_Sys`) reads once per run. `snapshot` is optional and falls back to the latest snapshot; the response always states which snapshot it served in `snapshotDate`, and an unknown category returns 404 JSON. The payload shape is frozen by that pipeline's fixtures — `lib/brand-export.ts` is the single definition, so change it and the fixtures in the same breath.
+
+Access wiring, once per environment:
+
+1. Reuse the `Dashboard-Automation` service token (Zero Trust → Access → Service auth) or create a dedicated one. Its client secret is shown once; store it only in the consuming CI secret store.
+2. Set `CF_ACCESS_AUTOMATION_CLIENT_ID` to that token's **Client ID** on the Next origin — the Vercel project, the same place as the other `CF_ACCESS_*` variables (`scripts/check-deployment-env.mts` already requires it whenever `CF_ACCESS_ENABLED=true`). `proxy.ts` compares it against the `common_name` claim of the service JWT, and only then consults the `AUTOMATION_GET_PATHS` allowlist in `lib/cloudflare-access-core.ts`, which now includes `/api/export/brands`.
+3. On the pipeline side, store the token as `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` and call the public Pages hostname with both as request headers. The Pages proxy strips them before forwarding and passes on the Access JWT it received.
+
+Monthly check: after `db:ingest:code-reader`, request the export once and confirm `snapshotDate` is the month you just ingested and that `previousSnapshotDate` is the month before it.
+
+Note on caching: the route sets `Cache-Control: private, max-age=300`, but the Pages proxy in `cloudflare-pages/functions/[[path]].ts` rewrites `cache-control` to `private, no-store, max-age=0` on every proxied response. Requests through `product-market-research.pages.dev` are therefore uncached by design; the route's own header only applies if the origin is ever called directly.
