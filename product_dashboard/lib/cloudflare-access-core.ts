@@ -39,6 +39,8 @@ const AUTOMATION_GET_PATHS = new Set([
   "/sales",
   "/specs",
   "/api/consult-me/history",
+  // Machine-readable brand export consumed by the auto-intel pipeline.
+  "/api/export/brands",
   "/api/report",
   "/api/spotlight",
 ])
