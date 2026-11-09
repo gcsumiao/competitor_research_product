@@ -247,11 +247,50 @@ footer{font-size:12px;color:var(--ink-3);margin-top:18px}
   html.sn-overlay .sn-backdrop{display:block}
 }
 @media print{.sidenav,.sn-toggle,.sn-backdrop{display:none!important}body{padding-left:0!important}}
+#key-numbers{scroll-margin-top:16px}
+/* Phone layout (<= 600px): no section pills; compact type scale */
+@media screen and (max-width:600px){
+  nav.toc{display:none!important}
+  body{font-size:13.5px;line-height:1.5}
+  #top{padding:58px 12px 40px}
+  section,h3[id],details[id],.callout[id],p[id],#key-numbers{scroll-margin-top:58px}
+  .brandbar{flex-direction:column;align-items:flex-start;gap:6px;border-radius:14px;padding:10px 12px;margin-bottom:14px}
+  .brandbar b{font-size:13px}
+  .brandbar .pills{gap:4px}
+  .brandbar .pills span{font-size:11px;padding:2px 9px}
+  header.top{gap:6px;margin-bottom:14px}
+  .eyebrow{font-size:10.5px;line-height:1.45}
+  h1{font-size:21px;line-height:1.22}
+  .sub{font-size:12.5px;line-height:1.5}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 14px}
+  .tile{padding:9px 10px;border-radius:10px}
+  .tile .l,.tile .d{font-size:11px;line-height:1.35}
+  .tile .v{font-size:19px}
+  section{padding:14px 13px;margin:0 0 12px;border-radius:10px}
+  section > .num{font-size:10.5px}
+  .num .back{font-size:10.5px}
+  section > h2{font-size:17px;line-height:1.3}
+  section h3{font-size:14.5px;margin:14px 0 4px}
+  section p{margin:6px 0}
+  .lede{font-size:13.5px}
+  .navhint{font-size:12px}
+  ul.tk{padding-left:17px} ol.tk{padding-left:19px}
+  ul.tk li,ol.tk li{margin:4px 0}
+  .callout{padding:10px 11px;margin:10px 0;font-size:13px}
+  .callout .k{font-size:10.5px}
+  .fig{margin:10px 0 4px}
+  .fig .cap{font-size:12px} .fig .src{font-size:11px}
+  .legend{gap:10px;font-size:11.5px}
+  table{font-size:12px} th,td{padding:6px 8px}
+  details.fold{padding:8px 10px;margin:10px 0} details.fold > summary{font-size:13px}
+  .src-list{font-size:11.5px}
+  footer{font-size:11px}
+}
 </style>
 </head>
 <body>
 <div id="tip" role="tooltip"></div>
-<aside class="sidenav" id="sidenav" aria-label="Report contents"><span class="sn-rail-label" aria-hidden="true">Contents</span><div class="sn-inner"><p class="sn-title">XTOOL Market Research</p><p class="sn-date">Updated 9 November 2026</p><div class="sn-group"><p class="sn-head">Summary</p><ul><li><a href="#bottom-line" data-spy="bottom-line"><span class="sn-num sn-dot" aria-hidden="true">•</span><span class="sn-label">Bottom line &amp; key numbers</span></a></li><li><a href="#findings-obd2" data-spy="findings-obd2"><span class="sn-num sn-dot" aria-hidden="true">•</span><span class="sn-label">Key findings: OBD2 tools</span></a></li><li><a href="#findings-nonobd2" data-spy="findings-nonobd2"><span class="sn-num sn-dot" aria-hidden="true">•</span><span class="sn-label">Key findings: non-OBD2 tools</span></a></li><li><a href="#findings-partner" data-spy="findings-partner"><span class="sn-num sn-dot" aria-hidden="true">•</span><span class="sn-label">Key findings: partnership</span></a></li></ul></div><div class="sn-group"><p class="sn-head">Competition analysis</p><ul><li><a href="#company" data-spy="company"><span class="sn-num">1</span><span class="sn-label">Company</span></a></li><li><a href="#amazon" data-spy="amazon"><span class="sn-num">2</span><span class="sn-label">Amazon performance</span></a></li><li><a href="#growth" data-spy="growth"><span class="sn-num">3</span><span class="sn-label">Growth drivers</span></a></li><li><a href="#shelf" data-spy="shelf"><span class="sn-num">4</span><span class="sn-label">Where it meets Innova</span></a></li><li><a href="#beyond" data-spy="beyond"><span class="sn-num">5</span><span class="sn-label">Beyond OBD2</span></a></li><li><a href="#ai" data-spy="ai"><span class="sn-num">6</span><span class="sn-label">AI: claims vs evidence</span></a></li><li><a href="#pricing" data-spy="pricing"><span class="sn-num">7</span><span class="sn-label">Pricing &amp; updates</span></a></li><li><a href="#channels" data-spy="channels"><span class="sn-num">8</span><span class="sn-label">Channels &amp; brand</span></a></li><li><a href="#threats" data-spy="threats"><span class="sn-num">9</span><span class="sn-label">Threats</span></a></li></ul></div><div class="sn-group"><p class="sn-head">Partnership</p><ul><li><a href="#partner" data-spy="partner"><span class="sn-num">10</span><span class="sn-label">Partnership</span></a></li></ul></div><div class="sn-group"><p class="sn-head">Wrap-up</p><ul><li><a href="#actions" data-spy="actions"><span class="sn-num">11</span><span class="sn-label">Actions &amp; suggestions</span></a></li><li><a href="#method" data-spy="method"><span class="sn-num">12</span><span class="sn-label">Method &amp; sources</span></a></li></ul></div><a class="sn-top" href="#top">↑ Back to top</a></div></aside>
+<aside class="sidenav" id="sidenav" aria-label="Report contents"><span class="sn-rail-label" aria-hidden="true">Contents</span><div class="sn-inner"><p class="sn-title">XTOOL Market Research</p><p class="sn-date">Updated 9 November 2026</p><div class="sn-group"><p class="sn-head">Summary</p><ul><li><a href="#key-numbers" data-spy="key-numbers"><span class="sn-num sn-dot" aria-hidden="true">•</span><span class="sn-label">Key numbers</span></a></li><li><a href="#findings-obd2" data-spy="findings-obd2"><span class="sn-num sn-dot" aria-hidden="true">•</span><span class="sn-label">Key findings: OBD2 tools</span></a></li><li><a href="#findings-nonobd2" data-spy="findings-nonobd2"><span class="sn-num sn-dot" aria-hidden="true">•</span><span class="sn-label">Key findings: non-OBD2 tools</span></a></li><li><a href="#findings-partner" data-spy="findings-partner"><span class="sn-num sn-dot" aria-hidden="true">•</span><span class="sn-label">Key findings: partnership</span></a></li></ul></div><div class="sn-group"><p class="sn-head">Competition analysis</p><ul><li><a href="#company" data-spy="company"><span class="sn-num">1</span><span class="sn-label">Company</span></a></li><li><a href="#amazon" data-spy="amazon"><span class="sn-num">2</span><span class="sn-label">Amazon performance</span></a></li><li><a href="#growth" data-spy="growth"><span class="sn-num">3</span><span class="sn-label">Growth drivers</span></a></li><li><a href="#shelf" data-spy="shelf"><span class="sn-num">4</span><span class="sn-label">Where it meets Innova</span></a></li><li><a href="#beyond" data-spy="beyond"><span class="sn-num">5</span><span class="sn-label">Beyond OBD2</span></a></li><li><a href="#ai" data-spy="ai"><span class="sn-num">6</span><span class="sn-label">AI: claims vs evidence</span></a></li><li><a href="#pricing" data-spy="pricing"><span class="sn-num">7</span><span class="sn-label">Pricing &amp; updates</span></a></li><li><a href="#channels" data-spy="channels"><span class="sn-num">8</span><span class="sn-label">Channels &amp; brand</span></a></li><li><a href="#threats" data-spy="threats"><span class="sn-num">9</span><span class="sn-label">Threats</span></a></li></ul></div><div class="sn-group"><p class="sn-head">Partnership</p><ul><li><a href="#partner" data-spy="partner"><span class="sn-num">10</span><span class="sn-label">Partnership</span></a></li></ul></div><div class="sn-group"><p class="sn-head">Wrap-up</p><ul><li><a href="#actions" data-spy="actions"><span class="sn-num">11</span><span class="sn-label">Actions &amp; suggestions</span></a></li><li><a href="#method" data-spy="method"><span class="sn-num">12</span><span class="sn-label">Method &amp; sources</span></a></li></ul></div><a class="sn-top" href="#top">↑ Back to top</a></div></aside>
 <button class="sn-toggle" type="button" aria-controls="sidenav" aria-expanded="true" aria-label="Hide contents" title="Hide contents"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 5h12M3 9h12M3 13h12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
 <div class="sn-backdrop" aria-hidden="true"></div>
 <div class="wrap" id="top">
@@ -265,11 +304,7 @@ footer{font-size:12px;color:var(--ink-3);margin-top:18px}
 <a href="#findings-obd2">Findings: OBD2</a><a href="#findings-nonobd2">Findings: non-OBD2</a><a href="#findings-partner">Findings: partnership</a><a href="#company">1 · Company</a><a href="#amazon">2 · Amazon performance</a><a href="#growth">3 · Growth drivers</a><a href="#shelf">4 · Where it meets Innova</a><a href="#beyond">5 · Beyond OBD2</a><a href="#ai">6 · AI: claims vs evidence</a><a href="#pricing">7 · Pricing &amp; updates</a><a href="#channels">8 · Channels &amp; brand</a><a href="#threats">9 · Threats</a><a href="#partner">10 · Partnership</a><a href="#actions">11 · Actions &amp; suggestions</a><a href="#method">12 · Method &amp; sources</a>
 </nav>
 </header>
-<div class="verdict" id="bottom-line"><div class="k">Bottom line</div>
-<p><b>OBD2:</b> XTOOL is now a direct and growing threat to Innova on Amazon. It out-sold Innova in 6 of the last 12 months, including October by 37%, and is on course to pass Innova on rolling-12 revenue around the turn of the year. The threat is <b>price-to-feature hardware moving down into Innova's $90–$300 zone</b>, not AI.<br>
-<b>Non-OBD2:</b> XTOOL is the <b>#2 brand in TPMS tools</b>, the category Innova plans to enter with the HT35. In Innova's other non-OBD categories it has no DIY product on Amazon today, but it is building a pro workshop ecosystem whose gaps (scope module, 12V battery tester, thermal camera) sit in Innova's lines.<br>
-<b>Partnership:</b> a narrow but real opening. XTOOL's TPMS tools and, with conditions, its $500+ pro tablets fill gaps Innova doesn't serve without chasing its DIY scan-tool buyers. Everything sold to Innova's own buyers stays a competitor.</p></div>
-<div class="tiles"><div class="tile"><div class="l">October Amazon revenue</div><div class="v">$1.93M</div><div class="d">+4.3% vs Sep · Innova $1.41M</div></div><div class="tile"><div class="l">Rolling 12-month revenue</div><div class="v">$19.74M</div><div class="d">#7 brand · Innova $20.34M (#6)</div></div><div class="tile"><div class="l">Growth, last 6 vs prior 6 months</div><div class="v">+14.8%</div><div class="d">Innova −7.4% · market +7.1%</div></div><div class="tile"><div class="l">XTOOL revenue from listings under $200</div><div class="v">42%</div><div class="d">Aug–Oct 2026, up from 28% a year earlier</div></div><div class="tile"><div class="l">XTOOL revenue with 'AI' in the title</div><div class="v">52%</div><div class="d">June 2026, the #1 'AI'-labelled brand on Amazon ($931K)</div></div><div class="tile"><div class="l">XTOOL share of TPMS programmers</div><div class="v">21%</div><div class="d">Non-OBD: #2 behind Autel; the HT35's category</div></div></div>
+<div class="tiles" id="key-numbers"><div class="tile"><div class="l">October Amazon revenue</div><div class="v">$1.93M</div><div class="d">+4.3% vs Sep · Innova $1.41M</div></div><div class="tile"><div class="l">Rolling 12-month revenue</div><div class="v">$19.74M</div><div class="d">#7 brand · Innova $20.34M (#6)</div></div><div class="tile"><div class="l">Growth, last 6 vs prior 6 months</div><div class="v">+14.8%</div><div class="d">Innova −7.4% · market +7.1%</div></div><div class="tile"><div class="l">XTOOL revenue from listings under $200</div><div class="v">42%</div><div class="d">Aug–Oct 2026, up from 28% a year earlier</div></div><div class="tile"><div class="l">XTOOL revenue with 'AI' in the title</div><div class="v">52%</div><div class="d">June 2026, the #1 'AI'-labelled brand on Amazon ($931K)</div></div><div class="tile"><div class="l">XTOOL share of TPMS programmers</div><div class="v">21%</div><div class="d">Non-OBD: #2 behind Autel; the HT35's category</div></div></div>
 <section id="findings-obd2"><div class="num">Key findings · OBD2 tools</div>
 <h2>OBD2 tools: Innova's core business</h2>
 <p class="navhint">Each finding links to its evidence (<span class="jump jump-demo">§ →</span>); every section has an <b>↑</b> link back to these findings.</p>
@@ -728,8 +763,13 @@ footer{font-size:12px;color:var(--ink-3);margin-top:18px}
     var a=e.target.closest('a[href^="#"]');if(!a)return;
     var id=decodeURIComponent(a.getAttribute('href').slice(1));
     if(id==='top'){e.preventDefault();window.scrollTo({top:0,behavior:smooth?'smooth':'auto'});return;}
-    if(!noFragments)return;
     var t=document.getElementById(id);if(!t)return;
+    if(!t.getClientRects().length){   // target hidden at this width (the bottom line on phones): next visible block
+      var n=t.nextElementSibling;while(n&&!n.getClientRects().length)n=n.nextElementSibling;
+      if(n){e.preventDefault();n.scrollIntoView({block:'start',behavior:smooth?'smooth':'auto'});}
+      return;
+    }
+    if(!noFragments)return;
     e.preventDefault();
     var d=t.tagName==='DETAILS'?t:t.closest('details');if(d)d.open=true;
     requestAnimationFrame(function(){requestAnimationFrame(function(){t.scrollIntoView({block:'start',behavior:smooth?'smooth':'auto'});});});
