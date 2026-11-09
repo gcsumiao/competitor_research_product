@@ -99,7 +99,8 @@ export type ResearchBrief = {
   threatLevel: BriefThreatLevel
   /** Last Amazon snapshot the brief's numbers come from (YYYY-MM-DD). */
   dataThrough: string
-  publishedAt: string
+  /** When the brief was last updated (shown as "Updated …"); bump on every brief update. */
+  updatedAt: string
   highlights: ResearchBriefHighlight[]
   /** Brief files that exist on disk; the UI only offers these. */
   assets: BriefAssetKind[]

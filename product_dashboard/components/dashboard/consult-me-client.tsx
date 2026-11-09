@@ -369,7 +369,7 @@ function ConsultMeHistorySidebar({
                     {item.hasBrief ? (
                       <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-[var(--color-accent)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-accent-foreground)]">
                         <Sparkles className="h-3 w-3" aria-hidden="true" />
-                        Threat brief
+                        Analyst brief
                       </span>
                     ) : null}
                     <p className="mt-1 text-[11px] text-muted-foreground">
@@ -418,7 +418,7 @@ function ConsultMeHistorySidebar({
                     >
                       <p className="truncate text-xs font-medium text-foreground">{record.companyLabel}</p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {`Completed ${formatDateTime(record.updatedAt)}${record.hasBrief ? " · Brief + research" : ""}`}
+                        {`Completed ${formatDateTime(record.completedAt ?? record.updatedAt)}${record.hasBrief ? " · Brief + research" : ""}`}
                       </p>
                     </button>
                     <button

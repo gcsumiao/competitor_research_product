@@ -29,7 +29,7 @@ type ResultsWorkspaceProps = {
 type ViewKey = "brief" | DeliverableType
 
 const VIEW_LABELS: Record<ViewKey, string> = {
-  brief: "Threat brief",
+  brief: "Analyst brief",
   pdf: "Research PDF",
   docx: "Summary",
   csv: "Data",

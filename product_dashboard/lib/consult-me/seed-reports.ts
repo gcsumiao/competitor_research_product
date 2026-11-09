@@ -92,20 +92,20 @@ const SEED_REPORTS: SeedReportConfig[] = [
     // Innova's own synthesis (Valyu report + NA brief + monthly Amazon reports + web review).
     // Highlights are pinned to the brief's October 2026 numbers; refresh them with the files.
     brief: {
-      title: "XTOOL: how big a threat, and what Innova should learn",
+      title: "XTOOL Market Research: Where Innova Competes, and Where It Could Partner",
       summary:
-        "Out-sold Innova in 6 of the last 12 months on OBD2, with growth from sub-$200 bidirectional tools, not AI. Outside OBD2 it is the #2 TPMS tool brand.",
+        "Competitor: out-sold Innova in 6 of the last 12 months on OBD2 and is the #2 TPMS tool brand. Possible partner: its TPMS tools and, with conditions, $500+ pro tablets fill gaps Innova doesn't serve.",
       threatLevel: "high",
       dataThrough: "2026-10-31",
-      publishedAt: "2026-11-04T22:00:00.000Z",
+      updatedAt: "2026-11-09T18:00:00.000Z", // bump whenever the brief files are replaced
       highlights: [
         { label: "October revenue", value: "$1.93M", note: "Innova $1.41M" },
         { label: "Rolling 12 gap", value: "−$596K", note: "flips around the Dec report" },
         { label: "Sub-$200 share", value: "42%", note: "from 28% a year earlier" },
       ],
       files: {
-        html: "xtool/xtool_innova_threat_brief.html",
-        pdf: "xtool/xtool_innova_threat_brief.pdf",
+        html: "xtool/xtool_market_research.html",
+        pdf: "xtool/xtool_market_research.pdf",
       },
     },
   },
@@ -119,6 +119,9 @@ export async function listSeedReports() {
     const sources = await readSeedSources(seed.companyKey)
     const brief = await resolveSeedBrief(seed)
     const stamp = seed.createdAt
+    // A newer brief counts as an update to the company record (Report Memory shows it);
+    // createdAt / completedAt stay on the original research run.
+    const updatedAt = brief && brief.updatedAt > stamp ? brief.updatedAt : stamp
     outputs.push({
       taskId: seed.seedId,
       seedId: seed.seedId,
@@ -130,7 +133,7 @@ export async function listSeedReports() {
       deliverables,
       brief,
       createdAt: stamp,
-      updatedAt: stamp,
+      updatedAt,
       completedAt: stamp,
     })
   }
