@@ -1,0 +1,11 @@
+market,source_set,asin,n_rows,chosen_file,chosen_row,dropped,values_identical,revenue_chosen,revenue_dropped_max,units_diff,price_diff,title_diff,winning_rule,discrepancy_flag
+CA,code_reader,B000CMJM1Y,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (4).csv,199,CA_AMAZON_blackBoxProducts_1_2026-10-02 (5).csv:0,Y,75.22,75.22,0.0,0.0,N,identical,
+CA,code_reader,B09D3HVDJX,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (7).csv,199,CA_AMAZON_blackBoxProducts_1_2026-10-02 (8).csv:0,Y,0.0,0.0,0.0,0.0,N,identical,
+CA,code_reader,B0BR9NDLFC,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (1).csv,199,CA_AMAZON_blackBoxProducts_1_2026-10-02 (2).csv:0,Y,0.0,0.0,0.0,0.0,N,identical,
+CA,code_reader,B0DLMZ4QXW,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (2).csv,199,CA_AMAZON_blackBoxProducts_1_2026-10-02 (3).csv:0,Y,8.85,8.85,0.0,0.0,N,identical,
+CA,code_reader,B0FHPP6K5D,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (8).csv,199,CA_AMAZON_blackBoxProducts_1_2026-10-02 (9).csv:0,Y,0.0,0.0,0.0,0.0,N,identical,
+CA,code_reader,B0FLY4Y64K,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (3).csv,198,CA_AMAZON_blackBoxProducts_1_2026-10-02 (4).csv:0,Y,7.15,7.15,0.0,0.0,N,identical,
+CA,code_reader,B0FLY5X81S,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (3).csv,199,CA_AMAZON_blackBoxProducts_1_2026-10-02 (4).csv:1,Y,0.0,0.0,0.0,0.0,N,identical,
+CA,code_reader,B0FV8LT3V8,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (6).csv,199,CA_AMAZON_blackBoxProducts_1_2026-10-02 (7).csv:0,Y,0.0,0.0,0.0,0.0,N,identical,
+CA,code_reader,B0G4RDFFCB,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (1).csv,0,CA_AMAZON_blackBoxProducts_1_2026-10-02.csv:199,Y,11117.86,11117.86,0.0,0.0,N,identical,
+CA,code_reader,B0GWNLYPD3,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (5).csv,199,CA_AMAZON_blackBoxProducts_1_2026-10-02 (6).csv:0,Y,23.54,23.54,0.0,0.0,N,identical,

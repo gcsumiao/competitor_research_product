@@ -1,0 +1,7 @@
+market,source_set,asin,n_rows,chosen_file,chosen_row,dropped,values_identical,revenue_chosen,revenue_dropped_max,units_diff,price_diff,title_diff,winning_rule,discrepancy_flag
+CA,gauge,B01MZ3ZURG,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (2).csv,0,CA_AMAZON_blackBoxProducts_1_2026-10-02.csv:6,Y,0.0,0.0,0.0,0.0,N,identical,
+CA,gauge,B09X9WC2CG,3,CA_AMAZON_blackBoxProducts_1_2026-10-02 (1).csv,26,CA_AMAZON_blackBoxProducts_1_2026-10-02 (2).csv:1;CA_AMAZON_blackBoxProducts_1_2026-10-02.csv:8,Y,0.0,0.0,0.0,0.0,N,identical,
+CA,gauge,B0CJ6D18H7,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (1).csv,24,CA_AMAZON_blackBoxProducts_1_2026-10-02.csv:7,Y,0.0,0.0,0.0,0.0,N,identical,
+CA,gauge,B0D7QBQ44R,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (1).csv,23,CA_AMAZON_blackBoxProducts_1_2026-10-02.csv:5,Y,0.0,0.0,0.0,0.0,N,identical,
+CA,gauge,B0GZC9VPRS,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (1).csv,1,CA_AMAZON_blackBoxProducts_1_2026-10-02 (3).csv:0,Y,1336.45,1336.45,0.0,0.0,N,identical,
+CA,gauge,B0H715WB5W,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (1).csv,2,CA_AMAZON_blackBoxProducts_1_2026-10-02 (3).csv:1,Y,909.87,909.87,0.0,0.0,N,identical,
