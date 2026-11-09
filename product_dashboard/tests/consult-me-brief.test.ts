@@ -41,6 +41,14 @@ test("XTOOL seed carries a brief with both assets; Topdon and Ancel carry none",
   assert.equal(byKey.get("ancel")?.brief, undefined)
 })
 
+test("a newer brief moves the seed record's updatedAt, not its completedAt", async () => {
+  const xtool = (await seedReports.listSeedReports()).find((report) => report.companyKey === "xtool")
+  assert.ok(xtool?.brief)
+  assert.equal(xtool.updatedAt, xtool.brief.updatedAt)
+  assert.equal(xtool.completedAt, xtool.createdAt)
+  assert.ok(xtool.updatedAt > xtool.completedAt)
+})
+
 test("history flags the brief on the XTOOL record and company summary", async () => {
   const history = await historyStore.listConsultMeHistory()
   const company = history.companies.find((item) => item.companyKey === "xtool")

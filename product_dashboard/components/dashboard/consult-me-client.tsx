@@ -418,7 +418,7 @@ function ConsultMeHistorySidebar({
                     >
                       <p className="truncate text-xs font-medium text-foreground">{record.companyLabel}</p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {`Completed ${formatDateTime(record.updatedAt)}${record.hasBrief ? " · Brief + research" : ""}`}
+                        {`Completed ${formatDateTime(record.completedAt ?? record.updatedAt)}${record.hasBrief ? " · Brief + research" : ""}`}
                       </p>
                     </button>
                     <button

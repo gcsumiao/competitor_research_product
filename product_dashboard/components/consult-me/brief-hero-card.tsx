@@ -42,7 +42,7 @@ export function BriefHeroCard({ brief, snapshotDate, onOpen }: BriefHeroCardProp
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Sparkles className="size-3.5 text-primary" aria-hidden="true" />
-          {`Innova analyst brief · Amazon data through ${formatMonth(brief.dataThrough)}`}
+          {`Innova analyst brief · Updated ${formatDay(brief.updatedAt)} · Amazon data through ${formatMonth(brief.dataThrough)}`}
         </p>
         <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${threat.className}`}>
           {threat.label}
@@ -109,6 +109,12 @@ export function briefAssetUrl(
 ) {
   const params = new URLSearchParams({ seedId: brief.seedId, brief: kind, disposition, ...extra })
   return `/api/consult-me/download?${params.toString()}`
+}
+
+function formatDay(isoDate: string) {
+  const day = new Date(isoDate)
+  if (Number.isNaN(day.getTime())) return isoDate
+  return day.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
 }
 
 function formatMonth(isoDate: string) {
