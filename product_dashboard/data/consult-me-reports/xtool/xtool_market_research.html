@@ -186,11 +186,35 @@ footer{font-size:12px;color:var(--ink-3);margin-top:18px}
   section > .num::after{content:"";display:block;height:200px;margin-bottom:-200px}
   a{color:inherit;text-decoration:none}
 }
+.sidenav{display:none}
+@media (min-width:1180px){
+  .wrap{max-width:1312px;display:grid;grid-template-columns:232px minmax(0,1fr);column-gap:36px;align-items:start}
+  .content{min-width:0}
+  nav.toc{display:none}
+  .sidenav{display:block;position:sticky;top:20px;max-height:calc(100vh - 40px);overflow:auto;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 12px 14px}
+  .sn-title{font-family:var(--font-display);font-weight:650;font-size:14px;margin:0 8px;letter-spacing:-0.01em}
+  .sn-date{font-size:11.5px;color:var(--ink-3);margin:2px 8px 10px}
+  .sn-group{margin-top:10px}
+  .sn-head{font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--primary);margin:0 8px 4px}
+  .sidenav ul{list-style:none;margin:0;padding:0}
+  .sidenav li a{display:flex;gap:8px;align-items:baseline;padding:5px 8px;border-radius:8px;font-size:13px;line-height:1.35;color:var(--ink-2);text-decoration:none}
+  .sidenav li a:hover{background:var(--surface);color:var(--ink)}
+  .sidenav li a.active{background:var(--accent);color:#281d0f;font-weight:600}
+  .sn-num{flex:none;min-width:16px;font-variant-numeric:tabular-nums;color:var(--ink-3);font-size:12px;text-align:right}
+  .sn-dot{color:var(--axis)}
+  .sidenav li a.active .sn-num{color:#281d0f}
+  .sn-top{display:block;margin:12px 8px 0;padding-top:10px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3);text-decoration:none}
+  .sn-top:hover{color:var(--primary)}
+}
+@media print{.sidenav{display:none!important}.wrap{display:block}}
 </style>
 </head>
 <body>
 <div id="tip" role="tooltip"></div>
-<div class="wrap">
+<div class="wrap" id="top">
+<aside class="sidenav" aria-label="Report contents"><div class="sn-inner"><p class="sn-title">XTOOL Market Research</p><p class="sn-date">Updated 9 November 2026</p><div class="sn-group"><p class="sn-head">Summary</p><ul><li><a href="#bottom-line" data-spy="bottom-line"><span class="sn-num sn-dot" aria-hidden="true">•</span><span class="sn-label">Bottom line &amp; key numbers</span></a></li><li><a href="#findings-obd2" data-spy="findings-obd2"><span class="sn-num sn-dot" aria-hidden="true">•</span><span class="sn-label">Key findings: OBD2 tools</span></a></li><li><a href="#findings-nonobd2" data-spy="findings-nonobd2"><span class="sn-num sn-dot" aria-hidden="true">•</span><span class="sn-label">Key findings: non-OBD2 tools</span></a></li><li><a href="#findings-partner" data-spy="findings-partner"><span class="sn-num sn-dot" aria-hidden="true">•</span><span class="sn-label">Key findings: partnership</span></a></li></ul></div><div class="sn-group"><p class="sn-head">Competition analysis</p><ul><li><a href="#company" data-spy="company"><span class="sn-num">1</span><span class="sn-label">Company</span></a></li><li><a href="#amazon" data-spy="amazon"><span class="sn-num">2</span><span class="sn-label">Amazon performance</span></a></li><li><a href="#growth" data-spy="growth"><span class="sn-num">3</span><span class="sn-label">Growth drivers</span></a></li><li><a href="#shelf" data-spy="shelf"><span class="sn-num">4</span><span class="sn-label">Where it meets Innova</span></a></li><li><a href="#beyond" data-spy="beyond"><span class="sn-num">5</span><span class="sn-label">Beyond OBD2</span></a></li><li><a href="#ai" data-spy="ai"><span class="sn-num">6</span><span class="sn-label">AI: claims vs evidence</span></a></li><li><a href="#pricing" data-spy="pricing"><span class="sn-num">7</span><span class="sn-label">Pricing &amp; updates</span></a></li><li><a href="#channels" data-spy="channels"><span class="sn-num">8</span><span class="sn-label">Channels &amp; brand</span></a></li><li><a href="#threats" data-spy="threats"><span class="sn-num">9</span><span class="sn-label">Threats</span></a></li></ul></div><div class="sn-group"><p class="sn-head">Partnership</p><ul><li><a href="#partner" data-spy="partner"><span class="sn-num">10</span><span class="sn-label">Partnership</span></a></li></ul></div><div class="sn-group"><p class="sn-head">Wrap-up</p><ul><li><a href="#actions" data-spy="actions"><span class="sn-num">11</span><span class="sn-label">Lessons &amp; actions</span></a></li><li><a href="#method" data-spy="method"><span class="sn-num">12</span><span class="sn-label">Method &amp; sources</span></a></li></ul></div><a class="sn-top" href="#top">↑ Back to top</a></div></aside>
+<main class="content">
 <div class="brandbar"><b>Product Market Research Dashboard</b><div class="pills"><span class="on">Consult Me</span><span>Code Reader &amp; Scanner</span><span>Snapshot 2026-10-31</span><span>Brand: XTOOL</span></div></div>
 <header class="top">
 <div class="eyebrow">Competitor and partner research · North America · Innova / BLCKTEC · Updated 9 November 2026</div>
@@ -200,7 +224,7 @@ footer{font-size:12px;color:var(--ink-3);margin-top:18px}
 <a href="#findings-obd2">Findings: OBD2</a><a href="#findings-nonobd2">Findings: non-OBD2</a><a href="#findings-partner">Findings: partnership</a><a href="#company">1 · Company</a><a href="#amazon">2 · Amazon performance</a><a href="#growth">3 · Growth drivers</a><a href="#shelf">4 · Where it meets Innova</a><a href="#beyond">5 · Beyond OBD2</a><a href="#ai">6 · AI: claims vs evidence</a><a href="#pricing">7 · Pricing &amp; updates</a><a href="#channels">8 · Channels &amp; brand</a><a href="#threats">9 · Threats</a><a href="#partner">10 · Partnership</a><a href="#actions">11 · Lessons &amp; actions</a><a href="#method">12 · Method &amp; sources</a>
 </nav>
 </header>
-<div class="verdict"><div class="k">Bottom line</div>
+<div class="verdict" id="bottom-line"><div class="k">Bottom line</div>
 <p><b>OBD2:</b> XTOOL is now a direct and growing threat to Innova on Amazon. It out-sold Innova in 6 of the last 12 months, including October by 37%, and is on course to pass Innova on rolling-12 revenue around the turn of the year. The threat is <b>price-to-feature hardware moving down into Innova's $90–$300 zone</b>, not AI.<br>
 <b>Non-OBD2:</b> XTOOL is the <b>#2 brand in TPMS tools</b>, the category Innova plans to enter with the HT35. In Innova's other non-OBD categories it has no DIY product on Amazon today, but it is building a pro workshop ecosystem whose gaps (scope module, 12V battery tester, thermal camera) sit in Innova's lines.<br>
 <b>Partnership:</b> a narrow but real opening. XTOOL's TPMS tools and, with conditions, its $500+ pro tablets fill gaps Innova doesn't serve without chasing its DIY scan-tool buyers. Everything sold to Innova's own buyers stays a competitor.</p></div>
@@ -544,6 +568,7 @@ footer{font-size:12px;color:var(--ink-3);margin-top:18px}
 
 </section>
 <footer>Last updated 9 November 2026. For Innova / BLCKTEC internal competitive-intelligence use. Amazon figures are channel estimates from Innova's monthly Amazon code-reader reports (Helium10 data; Innova and BLCKTEC at actuals) — not XTOOL company revenue.</footer>
+</main>
 </div>
 <script>
 (function(){
@@ -595,6 +620,31 @@ footer{font-size:12px;color:var(--ink-3);margin-top:18px}
   }
   window.addEventListener('hashchange',revealHash);
   revealHash();
+})();
+</script>
+<script>
+(function(){
+  // Scroll-spy: highlight the sidebar entry for the section whose top has passed ~30% of the viewport.
+  var links=[].slice.call(document.querySelectorAll('.sidenav a[data-spy]'));
+  if(!links.length)return;
+  var targets=links.map(function(a){return document.getElementById(a.getAttribute('data-spy'))}).filter(Boolean);
+  var current=null;
+  function update(){
+    var line=window.innerHeight*0.3, pick=targets[0];
+    for(var i=0;i<targets.length;i++){ if(targets[i].getBoundingClientRect().top<=line) pick=targets[i]; }
+    if(pick===current)return; current=pick;
+    links.forEach(function(a){
+      var on=a.getAttribute('data-spy')===pick.id;
+      a.classList.toggle('active',on);
+      if(on)a.setAttribute('aria-current','location');else a.removeAttribute('aria-current');
+      if(on){var box=a.closest('.sidenav');var r=a.getBoundingClientRect(),b=box.getBoundingClientRect();
+        if(r.top<b.top||r.bottom>b.bottom)a.scrollIntoView({block:'nearest'});}
+    });
+  }
+  var ticking=false;
+  window.addEventListener('scroll',function(){if(!ticking){ticking=true;requestAnimationFrame(function(){ticking=false;update();});}},{passive:true});
+  window.addEventListener('resize',update);
+  update();
 })();
 </script>
 </body>
