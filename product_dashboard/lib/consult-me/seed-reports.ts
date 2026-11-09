@@ -92,9 +92,9 @@ const SEED_REPORTS: SeedReportConfig[] = [
     // Innova's own synthesis (Valyu report + NA brief + monthly Amazon reports + web review).
     // Highlights are pinned to the brief's October 2026 numbers; refresh them with the files.
     brief: {
-      title: "XTOOL: how big a threat, and what Innova should learn",
+      title: "XTOOL Market Research: Where Innova Competes, and Where It Could Partner",
       summary:
-        "Out-sold Innova in 6 of the last 12 months on OBD2, with growth from sub-$200 bidirectional tools, not AI. Outside OBD2 it is the #2 TPMS tool brand.",
+        "Competitor: out-sold Innova in 6 of the last 12 months on OBD2 and is the #2 TPMS tool brand. Possible partner: its TPMS tools and, with conditions, $500+ pro tablets fill gaps Innova doesn't serve.",
       threatLevel: "high",
       dataThrough: "2026-10-31",
       publishedAt: "2026-11-04T22:00:00.000Z",
@@ -104,8 +104,8 @@ const SEED_REPORTS: SeedReportConfig[] = [
         { label: "Sub-$200 share", value: "42%", note: "from 28% a year earlier" },
       ],
       files: {
-        html: "xtool/xtool_innova_threat_brief.html",
-        pdf: "xtool/xtool_innova_threat_brief.pdf",
+        html: "xtool/xtool_market_research.html",
+        pdf: "xtool/xtool_market_research.pdf",
       },
     },
   },

@@ -56,8 +56,8 @@ test("brief HTML is served inline under a CSP sandbox", async () => {
   assert.equal(response.headers.get("content-type"), "text/html; charset=utf-8")
   assert.match(response.headers.get("content-security-policy") ?? "", /^sandbox allow-scripts\b/)
   assert.equal(response.headers.get("x-content-type-options"), "nosniff")
-  assert.match(response.headers.get("content-disposition") ?? "", /^inline; filename="xtool_innova_threat_brief\.html"$/)
-  assert.match(await response.text(), /<title>XTOOL Threat Assessment<\/title>/)
+  assert.match(response.headers.get("content-disposition") ?? "", /^inline; filename="xtool_market_research\.html"$/)
+  assert.match(await response.text(), /<title>XTOOL Market Research<\/title>/)
 })
 
 test("brief PDF downloads as an attachment", async () => {
