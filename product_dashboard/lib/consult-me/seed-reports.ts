@@ -97,7 +97,7 @@ const SEED_REPORTS: SeedReportConfig[] = [
         "Competitor: out-sold Innova in 6 of the last 12 months on OBD2 and is the #2 TPMS tool brand. Possible partner: its TPMS tools and, with conditions, $500+ pro tablets fill gaps Innova doesn't serve.",
       threatLevel: "high",
       dataThrough: "2026-10-31",
-      updatedAt: "2026-11-09T18:00:00.000Z", // bump whenever the brief files are replaced
+      updatedAt: "2026-11-09T22:45:00.000Z", // bump whenever the brief files are replaced
       highlights: [
         { label: "October revenue", value: "$1.93M", note: "Innova $1.41M" },
         { label: "Rolling 12 gap", value: "−$596K", note: "flips around the Dec report" },
